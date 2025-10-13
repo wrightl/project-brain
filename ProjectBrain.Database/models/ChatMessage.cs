@@ -1,0 +1,11 @@
+public class ChatMessage
+{
+    public int Id { get; set; }
+    public Guid ConversationId { get; set; }
+    public Conversation Conversation { get; set; } = null!; // Navigation property
+    public string Role { get; set; } = string.Empty; // "user" or "assistant"
+    public string Content { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+}

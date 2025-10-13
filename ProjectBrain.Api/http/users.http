@@ -1,0 +1,28 @@
+@base_url = {{AUTH0_AUDIENCE}}/users
+
+// Get access token
+# @name getAccessToken
+POST https://{{AUTH0_DOMAIN}}/oauth/token HTTP/1.1
+Content-Type: application/json
+
+{
+    "client_id": "{{AUTH0_CLIENT_ID}}",
+    "client_secret": "{{AUTH0_CLIENT_SECRET}}",
+    "audience": "{{AUTH0_AUDIENCE}}",
+    "grant_type": "client_credentials"
+}
+
+###
+
+@access_token = {{getAccessToken.response.body.access_token}}
+
+# GetUserByEmail
+@email = "leewright76@hotmail.com"
+GET {{base_url}}/{{email}}
+Authorization: Bearer {{access_token}}
+###
+
+# GetCurrentUser
+GET {{base_url}}/me
+Authorization: Bearer {{access_token}}
+###

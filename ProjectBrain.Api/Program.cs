@@ -1,0 +1,110 @@
+using Microsoft.OpenApi.Models;
+using ProjectBrain.AI;
+using ProjectBrain.Api.Authentication;
+using Scalar.AspNetCore;
+using TickerQ.Dashboard.DependencyInjection;
+using TickerQ.DependencyInjection;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add service defaults & Aspire client integrations.
+builder.AddServiceDefaults();
+
+builder.AddProjectBrainDbContext();
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(
+        policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+});
+builder.AddCustomAuthentication();
+builder.AddCustomAuthorisation();
+
+// builder.AddWeatherForecastApis();
+
+builder.AddAzureOpenAI();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IIdentityService, IdentityService>();
+
+// Add services to the container.
+builder.Services.AddProblemDetails();
+
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Info.Contact = new OpenApiContact
+        {
+            Name = "ProjectBrain Support",
+            Email = "support@dotanddashconsulting.com"
+        };
+        return Task.CompletedTask;
+    });
+
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+});
+
+builder.Services.AddTickerQ(options =>
+{
+    options.SetMaxConcurrency(10);
+    // options.AddOperationalStore<MyDbContext>(efOpt => 
+    // {
+    //     efOpt.SetExceptionHandler<MyExceptionHandlerClass>();
+    //     efOpt.UseModelCustomizerForMigrations();
+    // });
+    if (builder.Environment.IsDevelopment())
+    {
+        options.AddDashboard(uiopt =>
+        {
+            uiopt.BasePath = "/tickerq-dashboard";
+            uiopt.EnableBasicAuth = true;
+        });
+    }
+});
+
+// builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+app.UseExceptionHandler();
+
+// TODO - restore this?
+// if (app.Environment.IsDevelopment())
+// {
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
+{
+    options.Servers = [];
+});
+// }
+
+// app.UseSecureHeaders();
+app.UseRobotMiddleware();
+
+// app.UseCors();
+app.UseCustomAuthentication();
+app.UseCustomAuthorisation();
+
+// Add api's
+// app.UseWeatherForecastApis();
+// app.MapMovieEndpoints();
+// app.MapEggEndpoints();
+app.MapUserEndpoints();
+app.MapChatEndpoints();
+app.MapConversationEndpoints();
+
+app.MapDefaultEndpoints();
+
+app.UseTickerQ(); // Activates job processor
+
+// app.MapHealthChecks("/health");
+
+app.Run();

@@ -1,0 +1,88 @@
+# Ignore build output
+bin/
+obj/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+logs/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Rider
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Dependency directories
+node_modules/
+packages/
+
+# Environment variables
+.env
+.env.*
+
+# Generated files
+*.generated.cs
+
+# Entity Framework migrations
+Migrations/
+
+# Coverage reports
+coverage/
+*.coverage
+*.coveragexml
+*.testresults
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.orig
+
+# Lock files
+project.lock.json
+*.lock.json
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Resharper
+_ReSharper*/
+*.DotSettings.user
+
+# Azure Functions
+local.settings.json
+
+# macOS files
+.DS_Store
+
+**/unused
+**/*.unused
+**/*_new
+.azure
+
+.secrets
+
+next-steps.md
+*.notused
+.azure
+*/projectbrain.frontend/*

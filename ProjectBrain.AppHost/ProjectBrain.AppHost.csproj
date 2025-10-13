@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.5.1" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>40f4e611-2b6e-4b2c-9ba8-a7b1be62fd45</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ProjectBrain.Api\ProjectBrain.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.5.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.AppContainers" Version="9.5.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.CognitiveServices" Version="9.5.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.Search" Version="9.5.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.Sql" Version="9.5.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" Version="9.5.1" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="9.5.1" />
+  </ItemGroup>
+
+</Project>

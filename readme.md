@@ -9,7 +9,7 @@
    "targetFieldName": "ownerId"
    }
 
-## To run apphost locally (run from solution foldeR):
+## To run apphost locally (run from solution folder):
 
 `dotnet watch run --project ./projectbrain.apphost/projectbrain.apphost.csproj --launch-profile https`
 
@@ -33,3 +33,7 @@ There's no undeploy, but the resource group can be deleted:
 `cd ./projectbrain.api && dotnet ef migrations add InitialCreate --project ../projectbrain.database/projectbrain.database.csproj && cd ..`
 
 ### Any time the database schema changes, re-run the command above but replace 'InitialCreate' with a meaningful alternative name
+
+### Good article on using custom domains and setting up github deployments
+
+https://www.withaspire.dev/custom-domains-with-aspire/

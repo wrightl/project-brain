@@ -98,14 +98,24 @@ else
               .WaitFor(db);
 }
 
-var frontend = builder.AddNpmApp("frontend", "../projectbrain.frontend", "dev")
-    // .WithNpmPackageInstallation()
-    .WaitFor(apiService)
-    .WithReference(apiService)
-    .WaitFor(cache)
-    // .WithHttpsEndpoint(env: "PORT")
-    .WithExternalHttpEndpoints()
-    .PublishAsDockerFile();
+// if (builder.ExecutionContext.IsPublishMode)
+// {
+//     // Use Docker container for production
+//     var frontend = builder.AddDockerfile("frontend", "../projectbrain.frontend")
+//         .WaitFor(apiService)
+//         .WithReference(apiService)
+//         .WaitFor(cache)
+//         .WithExternalHttpEndpoints();
+// }
+// else
+// {
+//     // Use npm for development
+//     var frontend = builder.AddNpmApp("frontend", "../projectbrain.frontend", "dev")
+//         .WaitFor(apiService)
+//         .WithReference(apiService)
+//         .WaitFor(cache)
+//         .WithExternalHttpEndpoints();
+// }
 
 // var launchProfile = builder.Configuration["DOTNET_LAUNCH_PROFILE"];
 

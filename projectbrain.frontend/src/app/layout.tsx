@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-    title: 'Project Brain',
-    description: 'Welcome to Project Brain',
+    title: 'ProjectBrain - AI-Powered Coaching Platform',
+    description:
+        'Connect with coaches and access AI-powered support for neurodivergent individuals',
 };
 
 export default function RootLayout({
@@ -13,18 +14,10 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en">
-            {/* <!-- get this working --> */}
-            {/* <script>
-                document.documentElement.classList.toggle( 'dark',
-                localStorage.theme === 'dark' || (!('theme' in localStorage) &&
-                window.matchMedia('(prefers-color-scheme: dark)').matches) )
-            </script> */}
             <head>
                 <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
             </head>
-            <body>
-                <div className="page-layout__content">{children}</div>
-            </body>
+            <body>{children}</body>
         </html>
     );
 }

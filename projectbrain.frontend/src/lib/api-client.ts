@@ -1,4 +1,4 @@
-import { getSession } from '@auth0/nextjs-auth0';
+import { getAccessToken } from '@/lib/auth';
 import {
   User,
   OnboardingData,
@@ -14,11 +14,28 @@ import {
 const API_URL = process.env.API_SERVER_URL || 'http://localhost:5448';
 
 /**
+ * Custom API Error class for better error handling
+ */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public response?: Response
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+
+  static isApiError(error: unknown): error is ApiError {
+    return error instanceof ApiError;
+  }
+}
+
+/**
  * Get authorization headers with Bearer token
  */
 async function getAuthHeaders(): Promise<HeadersInit> {
-  const session = await getSession();
-  const accessToken = session?.accessToken;
+  const accessToken = await getAccessToken();
 
   if (!accessToken) {
     throw new Error('No access token available');
@@ -37,28 +54,58 @@ async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers = await getAuthHeaders();
-  const url = `${API_URL}${endpoint}`;
+  try {
+    const headers = await getAuthHeaders();
+    const url = `${API_URL}${endpoint}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  });
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...headers,
+        ...options.headers,
+      },
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`API Error (${response.status}): ${error}`);
+    if (!response.ok) {
+      let errorMessage = `API Error (${response.status})`;
+
+      // Try to get error details from response
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } else {
+          const errorText = await response.text();
+          if (errorText) errorMessage = `${errorMessage}: ${errorText}`;
+        }
+      } catch {
+        // If parsing fails, use the default message
+      }
+
+      throw new ApiError(response.status, errorMessage, response);
+    }
+
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return response.json();
+  } catch (error) {
+    // Re-throw ApiError as-is
+    if (ApiError.isApiError(error)) {
+      throw error;
+    }
+
+    // Handle network errors and other exceptions
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError(0, 'Network error: Unable to reach the server');
+    }
+
+    // Re-throw other errors
+    throw error;
   }
-
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return response.json();
 }
 
 // ============================================================================
@@ -162,24 +209,38 @@ export async function streamChat(
   onChunk?: (text: string) => void,
   onConversationId?: (id: string) => void
 ): Promise<void> {
-  const session = await getSession();
-  const accessToken = session?.accessToken;
+  const accessToken = await getAccessToken();
 
   if (!accessToken) {
-    throw new Error('No access token available');
+    throw new ApiError(401, 'No access token available');
   }
 
-  const response = await fetch(`${API_URL}/chat/stream`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ content, conversationId }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/chat/stream`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content, conversationId }),
+    });
+  } catch (error) {
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError(0, 'Network error: Unable to reach the server');
+    }
+    throw error;
+  }
 
   if (!response.ok) {
-    throw new Error(`Chat stream failed: ${response.statusText}`);
+    let errorMessage = `Chat stream failed (${response.status})`;
+    try {
+      const errorText = await response.text();
+      if (errorText) errorMessage = `${errorMessage}: ${errorText}`;
+    } catch {
+      // Use default message if parsing fails
+    }
+    throw new ApiError(response.status, errorMessage, response);
   }
 
   // Get conversation ID from response header
@@ -193,7 +254,7 @@ export async function streamChat(
   const decoder = new TextDecoder();
 
   if (!reader) {
-    throw new Error('Response body is not readable');
+    throw new ApiError(500, 'Response body is not readable');
   }
 
   try {
@@ -229,11 +290,14 @@ export async function streamChat(
 export async function uploadKnowledgeFiles(
   files: File[]
 ): Promise<UploadResult[]> {
-  const session = await getSession();
-  const accessToken = session?.accessToken;
+  const accessToken = await getAccessToken();
 
   if (!accessToken) {
-    throw new Error('No access token available');
+    throw new ApiError(401, 'No access token available');
+  }
+
+  if (files.length === 0) {
+    throw new ApiError(400, 'No files provided for upload');
   }
 
   const formData = new FormData();
@@ -241,16 +305,31 @@ export async function uploadKnowledgeFiles(
     formData.append('files', file);
   });
 
-  const response = await fetch(`${API_URL}/chat/knowledge/upload`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/chat/knowledge/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+  } catch (error) {
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new ApiError(0, 'Network error: Unable to reach the server');
+    }
+    throw error;
+  }
 
   if (!response.ok) {
-    throw new Error(`Upload failed: ${response.statusText}`);
+    let errorMessage = `Upload failed (${response.status})`;
+    try {
+      const errorText = await response.text();
+      if (errorText) errorMessage = `${errorMessage}: ${errorText}`;
+    } catch {
+      // Use default message if parsing fails
+    }
+    throw new ApiError(response.status, errorMessage, response);
   }
 
   return response.json();

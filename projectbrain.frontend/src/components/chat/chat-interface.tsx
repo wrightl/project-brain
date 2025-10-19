@@ -106,7 +106,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
         <div className="flex items-center justify-between max-w-4xl mx-auto">
           <div className="flex items-center space-x-3">
             <Link
-              href="/dashboard"
+              href="/user"
               className="text-gray-400 hover:text-gray-600 transition-colors"
             >
               <ArrowLeftIcon className="h-5 w-5" />

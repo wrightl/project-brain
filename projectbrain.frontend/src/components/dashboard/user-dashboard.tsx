@@ -21,7 +21,7 @@ export default function UserDashboard() {
     {
       title: 'Start New Chat',
       description: 'Begin a new conversation with your AI assistant',
-      href: '/chat',
+      href: '/user/chat',
       icon: ChatBubbleLeftRightIcon,
       color: 'bg-indigo-500',
     },
@@ -117,7 +117,7 @@ export default function UserDashboard() {
               Recent Conversations
             </h2>
             <Link
-              href="/chat"
+              href="/user/chat"
               className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
             >
               View all
@@ -128,7 +128,7 @@ export default function UserDashboard() {
               {recentConversations.map((conversation) => (
                 <li key={conversation.id}>
                   <Link
-                    href={`/chat/${conversation.id}`}
+                    href={`/user/chat/${conversation.id}`}
                     className="block hover:bg-gray-50 transition-colors"
                   >
                     <div className="px-6 py-4">

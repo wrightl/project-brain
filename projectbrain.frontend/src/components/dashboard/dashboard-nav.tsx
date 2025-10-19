@@ -21,20 +21,20 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
   const pathname = usePathname();
 
   const adminLinks = [
-    { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
+    { href: '/admin', label: 'Dashboard', icon: HomeIcon },
     { href: '/admin/users', label: 'Manage Users', icon: UsersIcon },
     { href: '/admin/upload', label: 'Upload Knowledge', icon: CloudArrowUpIcon },
   ];
 
   const coachLinks = [
-    { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
+    { href: '/coach', label: 'Dashboard', icon: HomeIcon },
     { href: '/coach/search', label: 'Find Users', icon: UsersIcon },
     { href: '/coach/settings', label: 'Settings', icon: Cog6ToothIcon },
   ];
 
   const userLinks = [
-    { href: '/dashboard', label: 'Dashboard', icon: HomeIcon },
-    { href: '/chat', label: 'Chat', icon: ChatBubbleLeftRightIcon },
+    { href: '/user', label: 'Dashboard', icon: HomeIcon },
+    { href: '/user/chat', label: 'Chat', icon: ChatBubbleLeftRightIcon },
     { href: '/user/upload', label: 'Upload Files', icon: CloudArrowUpIcon },
   ];
 

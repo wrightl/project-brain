@@ -125,6 +125,30 @@ public static class ChatEndpoints
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(request.Content))
+        {
+            services.Logger.LogWarning("Bad request with empty content at {Time}", DateTime.Now);
+            http.Response.StatusCode = 400; // Bad Request
+            return;
+        }
+        else if (request.Content.Length > 2000)
+        {
+            services.Logger.LogWarning("Bad request with content length {Length} exceeding limit at {Time}", request.Content.Length, DateTime.Now);
+            http.Response.StatusCode = 413; // Payload Too Large
+            return;
+        }
+#if DEBUG
+        else if (request.Content.Equals("Hello", StringComparison.OrdinalIgnoreCase))
+        {
+            services.Logger.LogInformation("Received test message 'Hello' at {Time}", DateTime.Now);
+            Thread.Sleep(2000); // Simulate processing delay
+            http.Response.ContentType = contentType;
+            http.Response.StatusCode = 200;
+            await http.Response.WriteAsync(new ChatMessageResponseChunk($"Hello! How can I assist you today {user.FirstName}?").ToResponse(contentType));
+            return;
+        }
+#endif
+
         var userId = user.Id;
 
         // Get/Create Conversation

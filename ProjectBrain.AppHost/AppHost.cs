@@ -2,6 +2,10 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var replicas = builder.AddParameter("minReplicas", "0", false);
 
+// custom domain and certificate for container app
+var customDomain = builder.AddParameter("customDomain", "staging.dotanddashconsulting.com");
+var certificateName = builder.AddParameter("certificateName", value: "staging.dotanddashconsulting-projectb-251015181848", publishValueAsDefault: true);
+
 // Azure AI Search
 var existingSearchName = builder.AddParameter("searchName", "projectbrain-poc");
 var existingAIResourceGroup = builder.AddParameter("searchResourceGroup", "ai-resource-group");
@@ -51,6 +55,7 @@ var cache = builder.AddRedis("cache")
         });
 
 
+// api
 var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
                         .WithExternalHttpEndpoints()
                         .WithReference(search)
@@ -63,6 +68,9 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
                             // app.Configuration.Ingress.External = true;
                             // Scale to 0
                             app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+#pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+                            app.ConfigureCustomDomain(customDomain, certificateName);
+#pragma warning restore ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         });
 
 var sqlServerName = "projectbrain";
@@ -89,5 +97,21 @@ else
     apiService.WithReference(db)
               .WaitFor(db);
 }
+
+var frontend = builder.AddNpmApp("frontend", "../projectbrain.frontend", "dev")
+    // .WithNpmPackageInstallation()
+    .WaitFor(apiService)
+    .WithReference(apiService)
+    .WaitFor(cache)
+    // .WithHttpsEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints()
+    .PublishAsDockerFile();
+
+// var launchProfile = builder.Configuration["DOTNET_LAUNCH_PROFILE"];
+
+// if (!builder.ExecutionContext.IsPublishMode && launchProfile == "https")
+// {
+//     frontend.RunWithHttpsDevCertificate("HTTPS_CERT_FILE", "HTTPS_CERT_KEY_FILE");
+// }
 
 builder.Build().Run();

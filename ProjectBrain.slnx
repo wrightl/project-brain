@@ -5,7 +5,11 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="ProjectBrain.Api/ProjectBrain.Api.csproj" />
+  <Project Path="ProjectBrain.Api.Tests/ProjectBrain.Api.Tests.csproj" />
+  <Project Path="ProjectBrain.Api.IntegrationTests/ProjectBrain.Api.IntegrationTests.csproj" />
   <Project Path="ProjectBrain.AppHost/ProjectBrain.AppHost.csproj" />
   <Project Path="ProjectBrain.Database/ProjectBrain.Database.csproj" />
+  <Project Path="ProjectBrain.Database.Tests/ProjectBrain.Database.Tests.csproj" />
+  <Project Path="ProjectBrain.Database.IntegrationTests/ProjectBrain.Database.IntegrationTests.csproj" />
   <Project Path="ProjectBrain.ServiceDefaults/ProjectBrain.ServiceDefaults.csproj" />
 </Solution>

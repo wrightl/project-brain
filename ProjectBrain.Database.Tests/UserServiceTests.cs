@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
+using ProjectBrain.Domain;
 
 namespace ProjectBrain.Database.Tests;
 
@@ -25,26 +26,26 @@ public class UserServiceTests : IDisposable
     public async Task Create_ShouldAddUserToDatabase()
     {
         // Arrange
-        var user = new User
+        var userDto = new UserDto
         {
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColor = "Blue",
+            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1),
             IsOnboarded = true
         };
 
         // Act
-        var result = await _userService.Create(user);
+        var result = await _userService.Create(userDto);
 
         // Assert
         result.Should().NotBeNull();
-        result.Id.Should().Be(user.Id);
-        result.Email.Should().Be(user.Email);
-        result.FullName.Should().Be(user.FullName);
+        result.Id.Should().Be(userDto.Id);
+        result.Email.Should().Be(userDto.Email);
+        result.FullName.Should().Be(userDto.FullName);
 
-        var savedUser = await _context.Users.FindAsync(user.Id);
+        var savedUser = await _context.Users.FindAsync(userDto.Id);
         savedUser.Should().NotBeNull();
     }
 
@@ -57,7 +58,7 @@ public class UserServiceTests : IDisposable
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColor = "Blue",
+            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1)
         };
         _context.Users.Add(user);
@@ -83,17 +84,15 @@ public class UserServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetByEmail_ShouldReturnNull_WhenEmailNotPrimaryKey()
+    public async Task GetByEmail_ShouldReturnUser_WhenUserExists()
     {
         // Arrange
-        // Note: GetByEmail uses FindAsync which only works with primary key (Id)
-        // This is actually a limitation/bug in the current implementation
         var user = new User
         {
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColor = "Blue",
+            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1)
         };
         _context.Users.Add(user);
@@ -103,8 +102,8 @@ public class UserServiceTests : IDisposable
         var result = await _userService.GetByEmail(user.Email);
 
         // Assert
-        // FindAsync searches by primary key, so this will return null
-        result.Should().BeNull();
+        result.Should().NotBeNull();
+        result!.Email.Should().Be(user.Email);
     }
 
     [Fact]
@@ -126,7 +125,7 @@ public class UserServiceTests : IDisposable
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "John Doe Smith",
-            FavoriteColor = "Blue",
+            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1)
         };
 

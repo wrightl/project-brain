@@ -17,7 +17,7 @@ Content-Type: application/json
 @access_token = {{getAccessToken.response.body.access_token}}
 
 # GetUserByEmail
-@email = "leewright76@hotmail.com"
+@email = leewright76@hotmail.com
 GET {{base_url}}/{{email}}
 Authorization: Bearer {{access_token}}
 ###

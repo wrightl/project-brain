@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
 
-builder.AddProjectBrainDbContext();
+builder.AddProjectBrainDomain();
 
 builder.Services.AddCors(options =>
 {
@@ -31,6 +31,8 @@ builder.AddAzureOpenAI();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
+
+builder.AddAuth0ManagementApi();
 
 // Add services to the container.
 builder.Services.AddProblemDetails();
@@ -94,9 +96,6 @@ app.UseCustomAuthentication();
 app.UseCustomAuthorisation();
 
 // Add api's
-// app.UseWeatherForecastApis();
-// app.MapMovieEndpoints();
-// app.MapEggEndpoints();
 app.MapUserEndpoints();
 app.MapChatEndpoints();
 app.MapConversationEndpoints();
@@ -104,8 +103,6 @@ app.MapConversationEndpoints();
 app.MapDefaultEndpoints();
 
 app.UseTickerQ(); // Activates job processor
-
-// app.MapHealthChecks("/health");
 
 app.Run();
 

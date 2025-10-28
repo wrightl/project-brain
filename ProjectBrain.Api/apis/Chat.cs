@@ -3,19 +3,21 @@ using ProjectBrain.AI;
 using _shared = ProjectBrain.Models;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
+using DomainChatService = ProjectBrain.Domain.IChatService;
+using DomainConversationService = ProjectBrain.Domain.IConversationService;
 using System.Threading.Tasks;
 
 public class ChatServices(ILogger<ChatServices> logger,
     IConfiguration config,
-    IConversationService conversationService,
-    IChatService chatService,
+    DomainConversationService conversationService,
+    DomainChatService chatService,
     AzureOpenAI azureOpenAI,
     IIdentityService identityService)
 {
     public ILogger<ChatServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
-    public IConversationService ConversationService { get; } = conversationService;
-    public IChatService ChatService { get; } = chatService;
+    public DomainConversationService ConversationService { get; } = conversationService;
+    public DomainChatService ChatService { get; } = chatService;
     public AzureOpenAI AzureOpenAI { get; } = azureOpenAI;
     public IIdentityService IdentityService { get; } = identityService;
 }

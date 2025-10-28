@@ -1,4 +1,5 @@
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Domain;
 
 public class ConversationServices(
     IConversationService conversationService,

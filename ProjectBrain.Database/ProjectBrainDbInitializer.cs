@@ -48,21 +48,44 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
 
     private async Task SeedAsync(AppDbContext context, CancellationToken cancellationToken)
     {
-        // No seeding required yet
+        // Seed roles
+        if (!context.Roles.Any())
+        {
+            logger.LogInformation("Seeding roles...");
 
-        // // Check if data already exists
-        // if (!context.Eggs.Any())
-        // {
-        //     // Add sample data
-        //     var eggEntities = new List<Egg>
-        //     {
-        //         new() { Id = Guid.NewGuid(), Title = "Make Lee a cuppa", IsComplete= false },
-        //     };
+            var roles = new List<Role>
+            {
+                new()
+                {
+                    Name = "user",
+                    Description = "Standard user with access to basic features",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "coach",
+                    Description = "Coach user with access to coaching features and tools",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Name = "admin",
+                    Description = "Administrator with full system access and management capabilities",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            };
 
-        //     await context.Eggs.AddRangeAsync(eggEntities);
-        // }
+            await context.Roles.AddRangeAsync(roles, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
 
-        // // Save changes
-        // await context.SaveChangesAsync();
+            logger.LogInformation("Roles seeded successfully");
+        }
+        else
+        {
+            logger.LogInformation("Roles already exist, skipping seed");
+        }
     }
 }

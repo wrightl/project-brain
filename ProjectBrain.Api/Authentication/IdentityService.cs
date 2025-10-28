@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using ProjectBrain.Domain;
 using System.Security.Claims;
 
 namespace ProjectBrain.Api.Authentication
@@ -7,7 +8,7 @@ namespace ProjectBrain.Api.Authentication
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IUserService _userService;
-        private User? _cachedUser;
+        private UserDto? _cachedUser;
 
         public IdentityService(IHttpContextAccessor httpContextAccessor, IUserService userService)
         {
@@ -21,7 +22,7 @@ namespace ProjectBrain.Api.Authentication
         // public string? FirstName => UserName?.Split(' ').FirstOrDefault();
         public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.IsAuthenticated() ?? false;
 
-        public async Task<User?> GetUserAsync()
+        public async Task<UserDto?> GetUserAsync()
         {
             // Return cached user if already loaded this request
             if (_cachedUser != null)

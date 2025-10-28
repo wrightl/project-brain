@@ -37,3 +37,7 @@ There's no undeploy, but the resource group can be deleted:
 ### Good article on using custom domains and setting up github deployments
 
 https://www.withaspire.dev/custom-domains-with-aspire/
+
+## For the webapp I've had to create an action in auth0 to add the roles to the token. This only works because
+
+## each application has a piece of metadata added to it to define the namespace

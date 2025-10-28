@@ -58,7 +58,7 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
             Email = "newuser@example.com",
             FullName = "New User",
             DoB = "1990-01-01",
-            FavoriteColor = "Blue"
+            FavoriteColour = "Blue"
         };
 
         // Act
@@ -88,7 +88,7 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
             Id = "test-user-123",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColor = "Green",
+            FavoriteColour = "Green",
             DoB = new DateOnly(1985, 5, 15),
             IsOnboarded = true
         };
@@ -117,7 +117,7 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
             Id = "user-456",
             Email = "findme@example.com",
             FullName = "Find Me User",
-            FavoriteColor = "Red",
+            FavoriteColour = "Red",
             DoB = new DateOnly(1992, 3, 20),
             IsOnboarded = true
         };

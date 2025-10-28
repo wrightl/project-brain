@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Domain;
 
 namespace ProjectBrain.Api.Tests;
 

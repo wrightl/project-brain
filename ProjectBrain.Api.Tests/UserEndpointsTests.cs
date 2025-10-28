@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Domain;
 
 namespace ProjectBrain.Api.Tests;
 
@@ -40,8 +41,8 @@ public class UserEndpointsTests
         };
 
         _mockIdentityService.Setup(s => s.UserId).Returns(userId);
-        _mockUserService.Setup(s => s.Create(It.IsAny<User>()))
-            .ReturnsAsync((User u) => u);
+        _mockUserService.Setup(s => s.Create(It.IsAny<UserDto>()))
+            .ReturnsAsync((UserDto u) => u);
 
         // Act
         var method = typeof(UserEndpoints)
@@ -51,7 +52,7 @@ public class UserEndpointsTests
 
         // Assert
         result.Should().NotBeNull();
-        _mockUserService.Verify(s => s.Create(It.Is<User>(u =>
+        _mockUserService.Verify(s => s.Create(It.Is<UserDto>(u =>
             u.Id == userId &&
             u.Email == request.Email &&
             u.FullName == request.FullName &&
@@ -64,12 +65,12 @@ public class UserEndpointsTests
     {
         // Arrange
         var userId = "auth0|123456";
-        var user = new User
+        var user = new UserDto
         {
             Id = userId,
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColor = "Blue",
+            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1)
         };
 
@@ -94,7 +95,7 @@ public class UserEndpointsTests
         var userId = "auth0|123456";
 
         _mockIdentityService.Setup(s => s.UserId).Returns(userId);
-        _mockUserService.Setup(s => s.GetById(userId)).ReturnsAsync((User?)null);
+        _mockUserService.Setup(s => s.GetById(userId)).ReturnsAsync((UserDto?)null);
 
         // Act
         var method = typeof(UserEndpoints)
@@ -112,12 +113,12 @@ public class UserEndpointsTests
     {
         // Arrange
         var email = "test@example.com";
-        var user = new User
+        var user = new UserDto
         {
             Id = "auth0|123456",
             Email = email,
             FullName = "Test User",
-            FavoriteColor = "Blue",
+            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1)
         };
 
@@ -140,7 +141,7 @@ public class UserEndpointsTests
         // Arrange
         var email = "nonexistent@example.com";
 
-        _mockUserService.Setup(s => s.GetByEmail(email)).ReturnsAsync((User?)null);
+        _mockUserService.Setup(s => s.GetByEmail(email)).ReturnsAsync((UserDto?)null);
 
         // Act
         var method = typeof(UserEndpoints)

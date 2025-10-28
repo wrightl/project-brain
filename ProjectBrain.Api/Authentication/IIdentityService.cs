@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ProjectBrain.Domain;
 
 namespace ProjectBrain.Api.Authentication
 {
@@ -11,9 +12,9 @@ namespace ProjectBrain.Api.Authentication
         bool IsAuthenticated { get; }
 
         /// <summary>
-        /// Gets the full User object from the database based on the authenticated user's identity.
+        /// Gets the full User DTO from the database based on the authenticated user's identity.
         /// Returns cached user if already loaded during this request.
         /// </summary>
-        Task<User?> GetUserAsync();
+        Task<UserDto?> GetUserAsync();
     }
 }

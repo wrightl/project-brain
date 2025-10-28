@@ -35,9 +35,6 @@ packages/
 # Generated files
 *.generated.cs
 
-# Entity Framework migrations
-Migrations/
-
 # Coverage reports
 coverage/
 *.coverage

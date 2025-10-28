@@ -1,8 +1,18 @@
-import type { NextRequest } from 'next/server';
-import { auth0 } from '@/lib/auth';
+import { type NextRequest } from 'next/server';
+import { auth0 } from '@/_lib/auth';
 
 export async function middleware(request: NextRequest) {
-    return await auth0.middleware(request);
+    const authRes = await auth0.middleware(request);
+
+    if (request.nextUrl.pathname.startsWith('/auth')) {
+        // authentication routes
+        return authRes;
+    } else if (request.nextUrl.pathname === '/') {
+        // home route - publicly accessible
+        return authRes;
+    }
+
+    return authRes;
 }
 
 export const config = {

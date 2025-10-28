@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
+using ProjectBrain.Domain;
 using Testcontainers.MsSql;
 
 namespace ProjectBrain.Database.IntegrationTests;
@@ -58,30 +59,30 @@ public class DatabaseIntegrationTests : IAsyncLifetime
     public async Task UserService_WithRealDatabase_ShouldPersistAndRetrieveUser()
     {
         // Arrange
-        var user = new User
+        var userDto = new UserDto
         {
             Id = "real-db-user-1",
             Email = "realdb@example.com",
             FullName = "Real DB User",
-            FavoriteColor = "Purple",
+            FavoriteColour = "Purple",
             DoB = new DateOnly(1995, 7, 10),
             IsOnboarded = true
         };
 
         // Act
-        var created = await _userService!.Create(user);
+        var created = await _userService!.Create(userDto);
 
         // Clear the context to ensure we're reading from database
         _context!.ChangeTracker.Clear();
 
-        var retrieved = await _userService.GetById(user.Id);
+        var retrieved = await _userService.GetById(userDto.Id);
 
         // Assert
         retrieved.Should().NotBeNull();
-        retrieved!.Id.Should().Be(user.Id);
-        retrieved.Email.Should().Be(user.Email);
-        retrieved.FullName.Should().Be(user.FullName);
-        retrieved.FavoriteColor.Should().Be(user.FavoriteColor);
+        retrieved!.Id.Should().Be(userDto.Id);
+        retrieved.Email.Should().Be(userDto.Email);
+        retrieved.FullName.Should().Be(userDto.FullName);
+        retrieved.FavoriteColour.Should().Be(userDto.FavoriteColour);
         retrieved.IsOnboarded.Should().BeTrue();
     }
 
@@ -231,12 +232,12 @@ public class DatabaseIntegrationTests : IAsyncLifetime
     public async Task Transaction_ShouldRollbackOnError()
     {
         // Arrange
-        var user = new User
+        var userDto = new UserDto
         {
             Id = "transaction-test",
             Email = "transaction@example.com",
             FullName = "Transaction Test",
-            FavoriteColor = "Yellow",
+            FavoriteColour = "Yellow",
             DoB = new DateOnly(1988, 12, 25),
             IsOnboarded = true
         };
@@ -246,15 +247,15 @@ public class DatabaseIntegrationTests : IAsyncLifetime
 
         try
         {
-            await _userService!.Create(user);
+            await _userService!.Create(userDto);
 
             // Simulate an error - try to create duplicate
-            var duplicate = new User
+            var duplicate = new UserDto
             {
-                Id = user.Id, // Same ID will cause error
+                Id = userDto.Id, // Same ID will cause error
                 Email = "different@example.com",
                 FullName = "Different Name",
-                FavoriteColor = "Orange",
+                FavoriteColour = "Orange",
                 DoB = new DateOnly(1990, 1, 1),
                 IsOnboarded = true
             };
@@ -272,7 +273,7 @@ public class DatabaseIntegrationTests : IAsyncLifetime
         _context.ChangeTracker.Clear();
 
         // Verify rollback - user should not exist
-        var retrieved = await _userService!.GetById(user.Id);
+        var retrieved = await _userService!.GetById(userDto.Id);
         retrieved.Should().BeNull();
     }
 

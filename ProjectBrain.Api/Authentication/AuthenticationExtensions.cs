@@ -13,7 +13,7 @@ public static class AuthenticationExtensions
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             }).AddJwtBearer(options =>
             {
-                options.Authority = $"{builder.Configuration["Auth0:Domain"]}";
+                options.Authority = $"https://{builder.Configuration["Auth0:Domain"]}/";
                 options.Audience = "dynamic-audience-placeholder"; //$"{builder.Configuration["Auth0:Audience"]}";
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -21,13 +21,15 @@ public static class AuthenticationExtensions
                     ValidateAudience = true,
                     ValidateIssuerSigningKey = true,
                     ValidateIssuer = true,
-                    ValidIssuer = builder.Configuration["Auth0:Domain"],
+                    ValidIssuer = $"https://{builder.Configuration["Auth0:Domain"]}/",
                     AudienceValidator = (audiences, securityToken, validationParameters) =>
                     {
                         var httpContext = builder.Services.BuildServiceProvider().GetRequiredService<IHttpContextAccessor>().HttpContext;
                         var requestedAudience = $"{httpContext.Request.Scheme}://{httpContext.Request.Host.Value}";
+                        var clientId = builder.Configuration["Auth0:ClientId"];
 
-                        return audiences.Contains(requestedAudience);
+                        // Accept either the API audience (access token) or the client ID (ID token)
+                        return audiences.Contains(requestedAudience) || audiences.Contains(clientId);
                     }
                 };
             });

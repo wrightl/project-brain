@@ -13,12 +13,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasForeignKey(m => m.ConversationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Configure User-UserRole relationship
+        modelBuilder.Entity<UserRole>()
+            .HasKey(ur => new { ur.UserId, ur.RoleId });
+
+        modelBuilder.Entity<UserRole>()
+            .HasOne(ur => ur.User)
+            .WithMany(u => u.UserRoles)
+            .HasForeignKey(ur => ur.UserId);
+
+        modelBuilder.Entity<UserRole>()
+            .HasOne(ur => ur.Role)
+            .WithMany(r => r.UserRoles)
+            .HasForeignKey(ur => ur.RoleId);
+
         logger.LogInformation("OnModelCreating completed");
     }
 
-    // public DbSet<Movie> Movies => Set<Movie>();
-    // public DbSet<Egg> Eggs => Set<Egg>();
     public DbSet<User> Users => Set<User>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<UserRole> UserRoles => Set<UserRole>();
 }

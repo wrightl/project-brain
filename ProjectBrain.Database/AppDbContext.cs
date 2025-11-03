@@ -35,4 +35,5 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<Resource> Resources => Set<Resource>();
 }

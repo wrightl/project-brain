@@ -11,5 +11,6 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<IChatService, ChatService>();
         builder.Services.AddScoped<IConversationService, ConversationService>();
+        builder.Services.AddScoped<IResourceService, ResourceService>();
     }
 }

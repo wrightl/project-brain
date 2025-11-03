@@ -1,17 +1,16 @@
 using System.Text.Json;
 using ProjectBrain.AI;
 using _shared = ProjectBrain.Models;
-using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using DomainChatService = ProjectBrain.Domain.IChatService;
 using DomainConversationService = ProjectBrain.Domain.IConversationService;
-using System.Threading.Tasks;
 
 public class ChatServices(ILogger<ChatServices> logger,
     IConfiguration config,
     DomainConversationService conversationService,
     DomainChatService chatService,
     AzureOpenAI azureOpenAI,
+    Storage storage,
     IIdentityService identityService)
 {
     public ILogger<ChatServices> Logger { get; } = logger;
@@ -19,6 +18,7 @@ public class ChatServices(ILogger<ChatServices> logger,
     public DomainConversationService ConversationService { get; } = conversationService;
     public DomainChatService ChatService { get; } = chatService;
     public AzureOpenAI AzureOpenAI { get; } = azureOpenAI;
+    public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
 }
 
@@ -79,7 +79,7 @@ public static class ChatEndpoints
                 results.Add(new { status = "error", filename, message = "File is empty" });
                 continue;
             }
-            var chunks = await services.AzureOpenAI.UploadFile(file, userId, filename!);
+            var chunks = await services.Storage.UploadFile(file, userId, filename!);
             results.Add(new { status = "uploaded", filename, chunks });
         }
 

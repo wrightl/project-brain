@@ -61,6 +61,16 @@ export interface ChatStreamChunk {
 export interface UploadResult {
     status: 'uploaded' | 'error';
     filename: string;
-    chunks?: number;
+    fileSize?: number;
     message?: string;
+    location?: string;
+}
+
+export interface Resource {
+    id: string;
+    fileName: string;
+    location: string;
+    sizeInBytes: number;
+    createdAt: string;
+    updatedAt: string;
 }

@@ -1,5 +1,5 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
-import { getUserEmail } from '@/_lib/auth';
+import { getAccessToken, getUserEmail } from '@/_lib/auth';
 import UserOnboardingForm from '../_components/user-onboarding-form';
 
 // Force dynamic rendering to allow access to request-time APIs

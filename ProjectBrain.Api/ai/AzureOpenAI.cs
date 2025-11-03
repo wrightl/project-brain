@@ -21,7 +21,7 @@ public class AzureOpenAI //: IChatService
 {
     private readonly OpenAIClient _openAIClient;
     private readonly IConfiguration _configuration;
-    private readonly BlobServiceClient _blobServiceClient;
+    private readonly Storage _storage;
     private readonly SearchIndexClient _searchIndexClient;
 
     private readonly ILogger<AzureOpenAI> _logger;
@@ -29,13 +29,13 @@ public class AzureOpenAI //: IChatService
     public AzureOpenAI(
         OpenAIClient openAIClient,
         IConfiguration configuration,
-        BlobServiceClient blobServiceClient,
+        Storage storage,
         SearchIndexClient searchIndexClient,
         ILogger<AzureOpenAI> logger)
     {
         _openAIClient = openAIClient;
         _configuration = configuration;
-        _blobServiceClient = blobServiceClient;
+        _storage = storage;
         _searchIndexClient = searchIndexClient;
         _logger = logger;
     }
@@ -130,44 +130,6 @@ public class AzureOpenAI //: IChatService
         return response;
     }
 
-    public async Task<int> UploadFile(IFormFile file, string userId, string filename)
-    {
-        _logger.LogInformation("Starting file upload for user {UserId}, filename {Filename}", userId, filename);
-
-        try
-        {
-            var containerName = _configuration["storage:container"] ?? "resources";
-            var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
-            // await containerClient.CreateIfNotExistsAsync();
-
-            var blobPath = $"{userId}/{filename}";
-            var blobClient = containerClient.GetBlobClient(blobPath);
-
-            _logger.LogInformation("Uploading file to blob storage at path {BlobPath}", blobPath);
-            await using (var stream = file.OpenReadStream())
-            {
-                await blobClient.UploadAsync(stream, overwrite: true);
-            }
-
-            var metadata = new Dictionary<string, string>
-            {
-                { "userId", userId }
-            };
-            await blobClient.SetMetadataAsync(metadata);
-
-            // This is being executed as a background task every 1 minute. Updat elast file chang etim einstead
-            var timestampBlob = containerClient.GetBlobClient("last_filechange_timestamp.txt");
-            await timestampBlob.UploadAsync(new BinaryData(DateTimeOffset.UtcNow.ToString("O")), true);
-
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading file for user {UserId}, filename {Filename}", userId, filename);
-            throw;
-        }
-    }
-
     private List<ChatMessage> ToChatMessages(List<_shared.ChatMessage> history)
     {
         var messages = new List<ChatMessage>();
@@ -196,8 +158,9 @@ public static class AzureOpenAIExtensions
                .AddChatClient(deploymentName: "openai-chat-deployment");
 
         builder.AddAzureBlobServiceClient(connectionName: "blobs");
+        builder.Services.AddScoped<Storage>();
 
-        builder.Services.AddSingleton<AzureOpenAI>();
+        builder.Services.AddScoped<AzureOpenAI>();
 
         // builder.Services.AddTransient<BlobServiceClient>(sp =>
         // {

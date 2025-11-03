@@ -1,8 +1,8 @@
 import { type NextRequest } from 'next/server';
-import { auth0 } from '@/_lib/auth';
+import { authMiddleware } from './_lib/auth';
 
 export async function middleware(request: NextRequest) {
-    const authRes = await auth0.middleware(request);
+    const authRes = await authMiddleware(request);
 
     if (request.nextUrl.pathname.startsWith('/auth')) {
         // authentication routes

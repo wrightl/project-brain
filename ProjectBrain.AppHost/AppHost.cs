@@ -1,20 +1,34 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var replicas = builder.AddParameter("minReplicas", "0", false);
+// Parameters
+var replicas = builder.AddParameter("minReplicas");
+// Parameters - Azure AI Search
+var existingSearchName = builder.AddParameter("searchName");
+var existingAIResourceGroup = builder.AddParameter("searchResourceGroup");
+// Parameters - Azure OpenAPI
+var existingOpenAIName = builder.AddParameter("existingOpenAIName");
 
-// custom domain and certificate for container app
-var customDomain = builder.AddParameter("customDomain", "staging.dotanddashconsulting.com");
-var certificateName = builder.AddParameter("certificateName", value: "staging.dotanddashconsulting-projectb-251015181848", publishValueAsDefault: true);
 
-// Azure AI Search
-var existingSearchName = builder.AddParameter("searchName", "projectbrain-poc");
-var existingAIResourceGroup = builder.AddParameter("searchResourceGroup", "ai-resource-group");
+// Secrets - these are used by the app when running locally and also in azure
+var auth0ManagementApiClientSecret = builder.AddParameter("auth0-managementapiclientsecret", secret: true);
+var auth0ManagementApiClientId = builder.AddParameter("auth0-managementapiclientid", secret: true);
+var auth0ClientId = builder.AddParameter("auth0-clientid", secret: true);
+var auth0Domain = builder.AddParameter("auth0-domain", secret: true);
+
+// custom domain and certificate for container app - these are only needed for the deployment to azure
+var certificateNameApiFromConfig = builder.Configuration["CERTIFICATE_NAME_API"] ?? "";
+var certificateNameAppFromConfig = builder.Configuration["CERTIFICATE_NAME_APP"] ?? "";
+var customDomainApiFromConfig = builder.Configuration["CUSTOMDOMAIN_API"] ?? "";
+var customDomainAppFromConfig = builder.Configuration["CUSTOMDOMAIN_APP"] ?? "";
+var customDomainApi = builder.AddParameter("customDomainApi", customDomainApiFromConfig, publishValueAsDefault: true);
+var certificateNameApi = builder.AddParameter("certificateNameApi", value: certificateNameApiFromConfig, publishValueAsDefault: true);
+var customDomainApp = builder.AddParameter("customDomainApp", customDomainAppFromConfig, publishValueAsDefault: true);
+var certificateNameApp = builder.AddParameter("certificateNameApp", value: certificateNameAppFromConfig, publishValueAsDefault: true);
 
 var search = builder.AddAzureSearch("search")
                     .AsExisting(existingSearchName, existingAIResourceGroup);
 
 // Azure OpenAI
-var existingOpenAIName = builder.AddParameter("existingOpenAIName", "projectbrain-poc");
 var openai = builder.AddAzureOpenAI("openai")
                     .AsExisting(existingOpenAIName, existingAIResourceGroup);
 
@@ -39,10 +53,6 @@ openai.AddDeployment(
     });
 
 // azure storage
-// var existingStorageName = builder.AddParameter("existingStorageName", "projectbraintempstorage");
-// var storageaccount = builder.AddAzureStorage("storage")
-//                     .AsExisting(existingStorageName, existingAIResourceGroup)
-//                     .AddBlobs("resources");
 var blobs = builder.AddConnectionString("blobs");
 
 var containerAppEnvironment = builder.AddAzureContainerAppEnvironment("projectbrain-environment");
@@ -54,7 +64,6 @@ var cache = builder.AddRedis("cache")
             app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
         });
 
-
 // api
 var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
                         .WithExternalHttpEndpoints()
@@ -62,14 +71,17 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
                         .WithReference(openai)
                         .WithReference(cache)
                         .WithReference(blobs)
+                        .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
+                        .WithEnvironment("Auth0__ManagementApiClientId", auth0ManagementApiClientId)
+                        .WithEnvironment("Auth0__ClientId", auth0ClientId)
+                        .WithEnvironment("Auth0__Domain", auth0Domain)
                         .WithHttpHealthCheck("/health")
                         .PublishAsAzureContainerApp((module, app) =>
                         {
-                            // app.Configuration.Ingress.External = true;
                             // Scale to 0
                             app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
 #pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                            app.ConfigureCustomDomain(customDomain, certificateName);
+                            app.ConfigureCustomDomain(customDomainApi, certificateNameApi);
 #pragma warning restore ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         });
 
@@ -105,7 +117,15 @@ if (builder.ExecutionContext.IsPublishMode)
         .WaitFor(apiService)
         .WithReference(apiService)
         .WaitFor(cache)
-        .WithExternalHttpEndpoints();
+        .WithHttpEndpoint(targetPort: 3000)
+        .WithExternalHttpEndpoints()
+        .PublishAsAzureContainerApp((module, app) =>
+        {
+            app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+#pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+            app.ConfigureCustomDomain(customDomainApp, certificateNameApp);
+#pragma warning restore ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        });
 }
 else
 {

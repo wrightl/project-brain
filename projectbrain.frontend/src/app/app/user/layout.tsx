@@ -2,7 +2,7 @@ import { RoleGuard } from '@/_components/auth/role-guard';
 import { getUserRoles } from '@/_lib/auth';
 import DashboardNav from '@/_components/dashboard/dashboard-nav';
 import { Metadata } from 'next';
-import { getCurrentUser } from '@/_lib/api-client';
+import { UserService } from '@/_services/user-service';
 
 export const metadata: Metadata = {
     title: 'User',
@@ -17,7 +17,7 @@ export default async function UserLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const user = await getCurrentUser();
+    const user = await UserService.getCurrentUser();
     const roles = await getUserRoles();
 
     return (

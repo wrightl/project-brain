@@ -1,7 +1,7 @@
-import { auth0 } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
-import { UserOnboardingData } from '@/types/user';
 import https from 'https';
+import { UserOnboardingData } from '@/_lib/types';
+import { getAccessToken } from '@/_lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,15 +20,15 @@ const httpsAgent =
 export async function POST(request: NextRequest) {
     try {
         // Get the session and access token
-        const tokenResponse = await auth0.getAccessToken();
+        const token = await getAccessToken();
 
-        if (!tokenResponse) {
-            console.error('No session or access token found');
-            return NextResponse.json(
-                { error: 'Unauthorized - No access token available' },
-                { status: 401 }
-            );
-        }
+        // if (!tokenResponse) {
+        //     console.error('No session or access token found');
+        //     return NextResponse.json(
+        //         { error: 'Unauthorized - No access token available' },
+        //         { status: 401 }
+        //     );
+        // }
 
         // Get the API server URL from environment variables (server-side only)
         const apiServerUrl =
@@ -49,32 +49,32 @@ export async function POST(request: NextRequest) {
         const response = await fetch(`${apiServerUrl}/users/me/onboarding`, {
             method: 'POST',
             headers: {
-                Authorization: `Bearer ${tokenResponse.token}`,
+                Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(body),
-            // @ts-ignore - agent is valid but TypeScript doesn't recognize it in fetch
+            // @ts-expect-error - agent is valid but TypeScript doesn't recognize it in fetch
             agent: httpsAgent,
         });
 
         // Handle the response
         if (!response.ok) {
-            let errorMessage = `API Error (${response.status})`;
+            const errorMessage = `API Error (${response.status}, token: ${token}, url: ${apiServerUrl})`;
 
-            try {
-                const contentType = response.headers.get('content-type');
-                if (contentType?.includes('application/json')) {
-                    const errorData = await response.json();
-                    errorMessage =
-                        errorData.message || errorData.error || errorMessage;
-                } else {
-                    const errorText = await response.text();
-                    if (errorText)
-                        errorMessage = `${errorMessage}: ${errorText}`;
-                }
-            } catch {
-                // Use default message if parsing fails
-            }
+            // try {
+            //     const contentType = response.headers.get('content-type');
+            //     if (contentType?.includes('application/json')) {
+            //         const errorData = await response.json();
+            //         errorMessage =
+            //             errorData.message || errorData.error || errorMessage;
+            //     } else {
+            //         const errorText = await response.text();
+            //         if (errorText)
+            //             errorMessage = `${errorMessage}: ${errorText}`;
+            //     }
+            // } catch {
+            //     // Use default message if parsing fails
+            // }
 
             console.error('Backend API error:', errorMessage);
             return NextResponse.json(

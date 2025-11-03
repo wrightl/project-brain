@@ -67,7 +67,7 @@ export default function UserOnboardingForm({
             }
 
             // Success - redirect to dashboard
-            router.push('/dashboard');
+            router.push('/app');
             router.refresh();
         } catch (err) {
             setError(

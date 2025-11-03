@@ -1,5 +1,7 @@
 import { UserRole } from '@/_lib/types';
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
+import { GetAccessTokenOptions } from '@auth0/nextjs-auth0/types';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,8 +90,10 @@ export async function getUserEmail(): Promise<string | null> {
     return session?.user?.email || null;
 }
 
-export async function getAccessToken(): Promise<string> {
-    const tokenResponse = await auth0.getAccessToken();
+export async function getAccessToken(
+    options?: GetAccessTokenOptions
+): Promise<string> {
+    const tokenResponse = await auth0.getAccessToken(options);
 
     // Handle the case where tokenResponse might be undefined
     if (!tokenResponse || !tokenResponse.token) {
@@ -97,4 +101,8 @@ export async function getAccessToken(): Promise<string> {
     }
 
     return tokenResponse.token;
+}
+
+export async function authMiddleware(req: NextRequest): Promise<NextResponse> {
+    return await auth0.middleware(req);
 }

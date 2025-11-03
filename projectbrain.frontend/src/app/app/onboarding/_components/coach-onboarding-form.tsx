@@ -51,7 +51,7 @@ export default function CoachOnboardingForm({
                 experience: formData.experience,
             };
 
-            await onboardUser(data, accessToken);
+            await onboardUser(data);
             router.push('/dashboard');
             router.refresh();
         } catch (err) {

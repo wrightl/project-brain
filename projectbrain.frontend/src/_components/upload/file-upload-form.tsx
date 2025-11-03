@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { uploadKnowledgeFiles } from '@/_lib/api-client';
 import {
     CloudArrowUpIcon,
     XMarkIcon,
@@ -65,18 +64,32 @@ export default function FileUploadForm() {
             );
 
             const filesToUpload = files.map((f) => f.file);
-            const results = await uploadKnowledgeFiles(filesToUpload);
+            const formData = new FormData();
+            filesToUpload.forEach((file) => {
+                formData.append('file', file, file.name);
+            });
+            // const results = await uploadKnowledgeFiles(filesToUpload);
+            const response = await fetch('/api/users/uploadfiles', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error('Upload failed');
+            }
+
+            const results = await response.json();
 
             // Update files with results
             setFiles((prev) =>
                 prev.map((f, i) => {
-                    const result = results[i];
+                    // const result = results[i];
                     return {
                         ...f,
-                        status:
-                            result.status === 'uploaded' ? 'success' : 'error',
-                        message: result.message,
-                        chunks: result.chunks,
+                        status: 'success',
+                        // result.status === 'uploaded' ? 'success' : 'error',
+                        // message: result.message,
+                        // chunks: result.chunks,
                     };
                 })
             );

@@ -99,6 +99,7 @@ app.UseCustomAuthorisation();
 app.MapUserEndpoints();
 app.MapChatEndpoints();
 app.MapConversationEndpoints();
+app.MapResourceEndpoints();
 
 app.MapDefaultEndpoints();
 

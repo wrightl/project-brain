@@ -45,7 +45,7 @@ export default function AdminOnboardingForm({
                 favoriteColor: formData.favoriteColor,
             };
 
-            await onboardUser(data, accessToken);
+            await onboardUser(data);
             router.push('/dashboard');
             router.refresh();
         } catch (err) {

@@ -1,5 +1,5 @@
-import { getCurrentUser } from '@/_lib/api-client';
 import { getUserRoles } from '@/_lib/auth';
+import { UserService } from '@/_services/user-service';
 import { redirect } from 'next/navigation';
 
 // Force dynamic rendering to allow access to request-time APIs
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function DashboardPage() {
     // Check if user is onboarded
-    const user = await getCurrentUser();
+    const user = await UserService.getCurrentUser();
     const roles = await getUserRoles();
 
     const role = roles?.[0] || 'user';

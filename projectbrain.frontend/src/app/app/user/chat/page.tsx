@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { streamChat } from '@/_lib/api-client';
 import { ChatMessage } from '@/_lib/types';
+// import { ChatService } from '@/_services/chat-service';
 
 export default function ChatPage() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -40,7 +40,6 @@ export default function ChatPage() {
     const handleSendMessage = useCallback(
         async (e: React.FormEvent) => {
             e.preventDefault();
-
             if (!input.trim() || isStreaming) return;
 
             const userMessage: ChatMessage = {
@@ -48,8 +47,6 @@ export default function ChatPage() {
                 content: input.trim(),
                 createdAt: new Date().toISOString(),
             };
-
-            // Add user message
             setMessages((prev) => [...prev, userMessage]);
             setInput('');
             setIsStreaming(true);
@@ -63,33 +60,83 @@ export default function ChatPage() {
             };
             setMessages((prev) => [...prev, assistantMessage]);
 
-            // Create new abort controller for this request
             abortControllerRef.current = new AbortController();
 
             try {
-                await streamChat(
-                    userMessage.content,
-                    conversationId,
-                    // onChunk callback
-                    (chunk: string) => {
-                        setMessages((prev) => {
-                            const newMessages = [...prev];
-                            const lastMessage =
-                                newMessages[newMessages.length - 1];
-                            if (
-                                lastMessage &&
-                                lastMessage.role === 'assistant'
-                            ) {
-                                lastMessage.content += chunk;
-                            }
-                            return newMessages;
-                        });
+                // Use fetch to call the API route for streaming chat
+                const response = await fetch('/api/chat/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
                     },
-                    // onConversationId callback
-                    (id: string) => {
-                        setConversationId(id);
+                    body: JSON.stringify({
+                        content: userMessage.content,
+                        conversationId,
+                    }),
+                    signal: abortControllerRef.current.signal,
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Failed to stream chat');
+                }
+
+                // Get conversation ID from response header
+                const newConversationId =
+                    response.headers.get('X-Conversation-Id');
+                if (newConversationId) {
+                    setConversationId(newConversationId);
+                }
+
+                // Stream response using ReadableStream
+                const reader = response.body?.getReader();
+                const decoder = new TextDecoder();
+                if (!reader) throw new Error('No response body');
+
+                let done = false;
+                while (!done) {
+                    const { value, done: streamDone } = await reader.read();
+                    done = streamDone;
+                    if (value) {
+                        const text = decoder.decode(value, { stream: true });
+                        // Assume SSE format: lines starting with 'data: '
+                        const lines = text.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = line.slice(6);
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (parsed.value) {
+                                        setMessages((prev) => {
+                                            const newMessages = [...prev];
+                                            const lastMessage =
+                                                newMessages[
+                                                    newMessages.length - 1
+                                                ];
+                                            if (
+                                                lastMessage &&
+                                                lastMessage.role === 'assistant'
+                                            ) {
+                                                // Only append if not already present at the end
+                                                if (
+                                                    !lastMessage.content.endsWith(
+                                                        parsed.value
+                                                    )
+                                                ) {
+                                                    lastMessage.content +=
+                                                        parsed.value;
+                                                }
+                                            }
+                                            return newMessages;
+                                        });
+                                    }
+                                } catch {
+                                    // Ignore parse errors
+                                }
+                            }
+                        }
                     }
-                );
+                }
             } catch (err) {
                 console.error('Chat error:', err);
                 const errorMessage =
@@ -97,7 +144,6 @@ export default function ChatPage() {
                         ? err.message
                         : 'Failed to send message';
                 setError(errorMessage);
-                // Remove the failed assistant message
                 setMessages((prev) => prev.slice(0, -1));
             } finally {
                 setIsStreaming(false);

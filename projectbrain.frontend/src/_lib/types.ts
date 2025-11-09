@@ -21,6 +21,7 @@ export interface OnboardingData {
     fullName: string;
     doB: string;
     favoriteColor: string;
+    role: UserRole;
 }
 
 export interface CoachOnboardingData extends OnboardingData {

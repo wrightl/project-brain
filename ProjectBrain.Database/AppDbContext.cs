@@ -15,7 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
 
         // Configure User-UserRole relationship
         modelBuilder.Entity<UserRole>()
-            .HasKey(ur => new { ur.UserId, ur.RoleId });
+            .HasKey(ur => new { ur.UserId, ur.RoleName });
 
         modelBuilder.Entity<UserRole>()
             .HasOne(ur => ur.User)
@@ -25,7 +25,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         modelBuilder.Entity<UserRole>()
             .HasOne(ur => ur.Role)
             .WithMany(r => r.UserRoles)
-            .HasForeignKey(ur => ur.RoleId);
+            .HasForeignKey(ur => ur.RoleName)
+            .HasPrincipalKey(r => r.Name);
 
         logger.LogInformation("OnModelCreating completed");
     }

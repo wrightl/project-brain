@@ -48,6 +48,7 @@ export default function UserOnboardingForm({
                 favoriteColor: formData.favoriteColor,
                 preferredPronoun: formData.preferredPronoun,
                 neurodivergentDetails: formData.neurodivergentDetails,
+                role: 'user', // Explicitly set role for user onboarding
             };
 
             // Call the Next.js API route instead of backend directly

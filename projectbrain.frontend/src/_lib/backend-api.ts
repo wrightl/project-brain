@@ -101,6 +101,16 @@ export async function callBackendApi(
 
         // return await response.json();
     } catch (error: unknown) {
+        // If the error is a NEXT_REDIRECT, re-throw it immediately
+        if (
+            typeof error === 'object' &&
+            error !== null &&
+            'message' in error &&
+            (error as { message: string }).message === 'NEXT_REDIRECT'
+        ) {
+            throw error;
+        }
+
         // Handle insufficient scope errors
         if (
             typeof error === 'object' &&

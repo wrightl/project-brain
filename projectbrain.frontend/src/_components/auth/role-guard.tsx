@@ -14,7 +14,7 @@ interface RoleGuardProps {
 export async function RoleGuard({
     children,
     allowedRoles,
-    redirectTo = '/dashboard',
+    redirectTo = '/app',
 }: RoleGuardProps) {
     const userRole = await getUserRoles();
 

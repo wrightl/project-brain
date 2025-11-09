@@ -2,17 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { onboardUser } from '@/_lib/api-client';
 import { CoachOnboardingData } from '@/_lib/types';
 
 interface CoachOnboardingFormProps {
     userEmail: string;
-    accessToken: string;
 }
 
 export default function CoachOnboardingForm({
     userEmail,
-    accessToken,
 }: CoachOnboardingFormProps) {
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,7 +25,9 @@ export default function CoachOnboardingForm({
     });
 
     const handleChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+        e: React.ChangeEvent<
+            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+        >
     ) => {
         setFormData((prev) => ({
             ...prev,
@@ -49,10 +48,27 @@ export default function CoachOnboardingForm({
                 favoriteColor: formData.favoriteColor,
                 address: formData.address,
                 experience: formData.experience,
+                role: 'coach', // Explicitly set role for coach onboarding
             };
 
-            await onboardUser(data);
-            router.push('/dashboard');
+            console.log(`Onboarding data ${JSON.stringify(data)}`);
+
+            const response = await fetch('/api/users/onboard', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(
+                    errorData.error || 'Failed to complete onboarding'
+                );
+            }
+
+            router.push('/app');
             router.refresh();
         } catch (err) {
             setError(
@@ -152,22 +168,17 @@ export default function CoachOnboardingForm({
                     htmlFor="address"
                     className="block text-sm font-medium text-gray-700"
                 >
-                    Address (City, State/Region) *
+                    Address *
                 </label>
                 <input
                     type="text"
                     id="address"
                     name="address"
                     required
-                    placeholder="e.g., San Francisco, CA"
                     value={formData.address}
                     onChange={handleChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                    This helps us connect you with users in your geographical
-                    region
-                </p>
             </div>
 
             <div>
@@ -175,22 +186,17 @@ export default function CoachOnboardingForm({
                     htmlFor="experience"
                     className="block text-sm font-medium text-gray-700"
                 >
-                    Experience & Qualifications *
+                    Experience (Years) *
                 </label>
-                <textarea
+                <input
+                    type="number"
                     id="experience"
                     name="experience"
                     required
-                    rows={4}
-                    placeholder="Tell us about your coaching experience, certifications, and areas of expertise..."
                     value={formData.experience}
                     onChange={handleChange}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                    Share your background, relevant certifications, and
-                    experience working with neurodivergent individuals
-                </p>
             </div>
 
             <div className="flex justify-end">
@@ -199,7 +205,7 @@ export default function CoachOnboardingForm({
                     disabled={isSubmitting}
                     className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
-                    {isSubmitting ? 'Saving...' : 'Complete Profile'}
+                    {isSubmitting ? 'Saving...' : 'Complete Coach Profile'}
                 </button>
             </div>
         </form>

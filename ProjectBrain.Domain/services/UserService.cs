@@ -19,6 +19,7 @@ public class UserService : IUserService
         user.UserRoles = userDto.Roles.Select(roleName => new UserRole
         {
             UserId = userDto.Id,
+            RoleName = roleName,
             Role = _context.Roles.FirstOrDefault(r => r.Name == roleName)
                    ?? new Role { Name = roleName }
         }).ToList();
@@ -55,6 +56,7 @@ public class UserService : IUserService
         user.UserRoles = userDto.Roles.Select(roleName => new UserRole
         {
             UserId = userDto.Id,
+            RoleName = roleName,
             Role = _context.Roles.FirstOrDefault(r => r.Name == roleName)
                    ?? new Role { Name = roleName }
         }).ToList();

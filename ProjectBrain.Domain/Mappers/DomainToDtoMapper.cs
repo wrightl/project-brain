@@ -21,7 +21,7 @@ public static class DomainToDtoMapper
             Experience = user.Experience,
             NeurodivergentDetails = user.NeurodivergentDetails,
             Address = user.Address,
-            // Roles = user.UserRoles?.Select(ur => ur.Role.Name)?.ToList()
+            Roles = user.UserRoles?.Select(ur => ur.RoleName)?.ToList()
         };
     }
 }

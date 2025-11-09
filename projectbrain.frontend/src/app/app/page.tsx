@@ -1,4 +1,3 @@
-import { getUserRoles } from '@/_lib/auth';
 import { UserService } from '@/_services/user-service';
 import { redirect } from 'next/navigation';
 
@@ -12,31 +11,17 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
     // Check if user is onboarded
     const user = await UserService.getCurrentUser();
-    const roles = await getUserRoles();
+    // const roles = await getUserRoles();
 
-    const role = roles?.[0] || 'user';
+    const role = user?.roles?.[0];
 
-    // If user doesn't exist or isn't onboarded, redirect to onboarding
-    if (!user || !user.isOnboarded) {
-        switch (role) {
-            case 'admin':
-                redirect('/app/onboarding/admin');
-            case 'coach':
-                redirect('/app/onboarding/coach');
-            default:
-                redirect('/app/onboarding/user');
-        }
-    }
-
-    // User is onboarded, redirect to role-specific dashboard
-    switch (role) {
-        case 'admin':
-            redirect('/app/admin');
-        case 'coach':
-            redirect('/app/coach');
-        case 'user':
-            redirect('/app/user');
-        default:
-            redirect('/auth/login');
+    if (!user) {
+        redirect('auth/login');
+    } else if (!role) {
+        redirect('/app/onboarding/select-role');
+    } else if (!user.isOnboarded) {
+        redirect(`/app/onboarding/${user.roles[0].toLowerCase()}`);
+    } else {
+        redirect(`/app/${user.roles[0].toLowerCase()}`);
     }
 }

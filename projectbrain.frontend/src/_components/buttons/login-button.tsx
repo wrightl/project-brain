@@ -4,7 +4,7 @@ export const LoginButton = () => {
         // eslint-disable-next-line @next/next/no-html-link-for-pages
         <a
             className="text-sm/6 font-semibold text-gray-900 dark:text-white"
-            href="/auth/login?returnTo=/dashboard"
+            href="/auth/login?returnTo=/app"
         >
             Log In <span aria-hidden="true">&rarr;</span>
         </a>

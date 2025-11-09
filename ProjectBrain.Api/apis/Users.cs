@@ -1,9 +1,7 @@
 
 using System.Text.Json;
-using System.Threading.Tasks;
 using Auth0.AuthenticationApi;
 using Auth0.AuthenticationApi.Models;
-using Auth0.ManagementApi;
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
@@ -34,13 +32,33 @@ public static class UserEndpoints
         group.MapDelete("/{id}", DeleteUser).WithName("DeleteUser");
 
         if (app.Environment.IsDevelopment())
+        {
+            group.MapGet("/config", GetConfig).WithName("GetConfig").AllowAnonymous();
             group.MapGet("/{email}", GetUserByEmail).WithName("GetUserByEmail");
+        }
+    }
+
+    private static async Task<IResult> GetConfig([AsParameters] UserServices services)
+    {
+        var config = services.Configuration.GetSection("Auth0");
+
+        var values = new
+        {
+            Auth0Domain = config["Domain"],
+            Auth0ClientId = config["ClientId"],
+            Auth0ManagementApiClientSecret = config["ManagementApiClientSecret"],
+            Auth0ManagementApiClientId = config["ManagementApiClientId"],
+            Token = await getAuth0Token(services, config)
+        };
+
+        return Results.Ok(values);
     }
 
     private static async Task<IResult> OnboardUser([AsParameters] UserServices services, CreateUserRequest request)
     {
         var userId = services.IdentityService.UserId;
         var existingUser = await services.UserService.GetById(userId);
+        _ = request.Role ?? throw new ArgumentNullException(nameof(request.Role));
 
         if (existingUser is not null && existingUser.IsOnboarded)
         {
@@ -67,8 +85,8 @@ public static class UserEndpoints
         }
         else
         {
-            // Default to user having the 'User' role
-            user.Roles.Add("User");
+            // Assign the role provided in the request
+            user.Roles.Add(request.Role);
         }
 
         // Update auth0
@@ -157,7 +175,6 @@ public static class UserEndpoints
         assignRoleRequest.Content = content;
         var assignRoleResponse = await client.SendAsync(assignRoleRequest);
         assignRoleResponse.EnsureSuccessStatusCode();
-        // await response.Content.ReadAsStringAsync()
     }
 
     private static async Task<string> getAuth0Token(UserServices services, IConfigurationSection config)
@@ -210,6 +227,8 @@ public class CreateUserRequest
 
     public required DateOnly DoB { get; init; }
     public required string FavoriteColor { get; init; }
+
+    public required string Role { get; init; }
 
     // User-specific fields
     public string? PreferredPronoun { get; init; }

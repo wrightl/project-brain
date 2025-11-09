@@ -2,6 +2,7 @@ import { UserRole } from '@/_lib/types';
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import { GetAccessTokenOptions } from '@auth0/nextjs-auth0/types';
 import { NextRequest, NextResponse } from 'next/server';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,17 +29,11 @@ export const auth0 = new Auth0Client({
  *R oles should be added to the user's app_metadata in Auth0
  */
 export async function getUserRoles(): Promise<UserRole[] | null> {
-    const session = await auth0.getSession();
-    if (!session?.user) return null;
+    const accessToken = await getAccessToken();
+    if (!accessToken) return null;
 
-    // Auth0 custom claims must be namespaced
-    // Role should be set in Auth0 rules/actions as app_metadata
-    const role = session.user['https://projectbrain.app/role'] as
-        | UserRole[]
-        | undefined;
-
-    // Default to 'user' role if not specified
-    return role || ['user'];
+    const decoded = jwt.decode(accessToken) as JwtPayload;
+    return decoded['https://projectbrain.app/roles'] || null;
 }
 
 /**
@@ -56,31 +51,6 @@ export async function hasRole(requiredRole: UserRole): Promise<boolean> {
 
     return roleHierarchy[userRole[0]] >= roleHierarchy[requiredRole];
 }
-
-// /**
-//  * Get access token for API calls
-//  * Falls back to ID token if access token is not available
-//  */
-// export async function getAccessToken(): Promise<string | null> {
-//     const session = await auth0.getSession();
-
-//     console.log('Session exists:', !!session);
-//     console.log('Session user:', session?.user?.email);
-//     console.log('Access token exists:', !!session?.accessToken);
-//     console.log('ID token exists:', !!session?.idToken);
-
-//     // Try to get access token first (for API authorization)
-//     let token = session?.accessToken;
-
-//     // Fallback to ID token if access token is not available
-//     // This can happen if Auth0 audience is not properly configured
-//     if (!token) {
-//         console.warn('Access token not found, falling back to ID token');
-//         token = session?.idToken;
-//     }
-
-//     return typeof token === 'string' ? token : null;
-// }
 
 /**
  * Get user email from Auth0 session

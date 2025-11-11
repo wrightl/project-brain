@@ -1,3 +1,5 @@
+using Azure.Provisioning.Search;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Parameters
@@ -8,12 +10,12 @@ var existingAIResourceGroup = builder.AddParameter("searchResourceGroup");
 // Parameters - Azure OpenAPI
 var existingOpenAIName = builder.AddParameter("existingOpenAIName");
 
-
 // Secrets - these are used by the app when running locally and also in azure
 var auth0ManagementApiClientSecret = builder.AddParameter("auth0-managementapiclientsecret", secret: true);
 var auth0ManagementApiClientId = builder.AddParameter("auth0-managementapiclientid", secret: true);
 var auth0ClientId = builder.AddParameter("auth0-clientid", secret: true);
 var auth0Domain = builder.AddParameter("auth0-domain", secret: true);
+var launchDarklySdkKey = builder.AddParameter("launchdarkly-sdk-key", secret: true);
 
 // custom domain and certificate for container app - these are only needed for the deployment to azure
 var certificateNameApiFromConfig = builder.Configuration["CERTIFICATE_NAME_API"] ?? "";
@@ -30,7 +32,7 @@ var search = builder.AddAzureSearch("search")
 
 // Azure OpenAI
 var openai = builder.AddAzureOpenAI("openai")
-                    .AsExisting(existingOpenAIName, existingAIResourceGroup);
+                    .RunAsExisting(existingOpenAIName, existingAIResourceGroup);
 
 // Chat deployment
 openai.AddDeployment(
@@ -54,6 +56,9 @@ openai.AddDeployment(
 
 // azure storage
 var blobs = builder.AddConnectionString("blobs");
+var documentStorage = builder.AddAzureStorage("documentstorage")
+                            .RunAsEmulator()
+                            .AddBlobs("resources");
 
 var containerAppEnvironment = builder.AddAzureContainerAppEnvironment("projectbrain-environment");
 
@@ -71,10 +76,12 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
                         .WithReference(openai)
                         .WithReference(cache)
                         .WithReference(blobs)
+                        .WithReference(documentStorage)
                         .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
                         .WithEnvironment("Auth0__ManagementApiClientId", auth0ManagementApiClientId)
                         .WithEnvironment("Auth0__ClientId", auth0ClientId)
                         .WithEnvironment("Auth0__Domain", auth0Domain)
+                        .WithEnvironment("LaunchDarkly__SdkKey", launchDarklySdkKey)
                         .WithHttpHealthCheck("/health")
                         .PublishAsAzureContainerApp((module, app) =>
                         {

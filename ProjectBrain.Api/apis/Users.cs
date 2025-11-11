@@ -11,6 +11,7 @@ public class UserServices(
     IIdentityService identityService,
     IUserService userService,
     IMemoryCache memoryCache,
+    FeatureFlagService featureFlagService,
     IConfiguration configuration)
 {
     public ILogger<UserServices> Logger { get; } = logger;
@@ -18,6 +19,7 @@ public class UserServices(
     public IUserService UserService { get; } = userService;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
+    public FeatureFlagService FeatureFlagService { get; } = featureFlagService;
 }
 
 public static class UserEndpoints
@@ -48,7 +50,9 @@ public static class UserEndpoints
             Auth0ClientId = config["ClientId"],
             Auth0ManagementApiClientSecret = config["ManagementApiClientSecret"],
             Auth0ManagementApiClientId = config["ManagementApiClientId"],
-            Token = await getAuth0Token(services, config)
+            Token = await getAuth0Token(services, config),
+            CoachEnabled = await services.FeatureFlagService.IsCoachSectionEnabled(),
+            SdkKKey = services.Configuration["LaunchDarkly:SdkKey"]
         };
 
         return Results.Ok(values);

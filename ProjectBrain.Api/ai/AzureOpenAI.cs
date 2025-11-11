@@ -6,7 +6,6 @@ using System.Text.Json;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
-using Azure.Storage.Blobs;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
@@ -19,23 +18,19 @@ public interface IChatService
 
 public class AzureOpenAI //: IChatService
 {
+    public const string SEARCH_INDEX_NAME = "projectbrain-documents";
+
     private readonly OpenAIClient _openAIClient;
-    private readonly IConfiguration _configuration;
-    private readonly Storage _storage;
     private readonly SearchIndexClient _searchIndexClient;
 
     private readonly ILogger<AzureOpenAI> _logger;
 
     public AzureOpenAI(
         OpenAIClient openAIClient,
-        IConfiguration configuration,
-        Storage storage,
         SearchIndexClient searchIndexClient,
         ILogger<AzureOpenAI> logger)
     {
         _openAIClient = openAIClient;
-        _configuration = configuration;
-        _storage = storage;
         _searchIndexClient = searchIndexClient;
         _logger = logger;
     }
@@ -83,8 +78,7 @@ public class AzureOpenAI //: IChatService
         _logger.LogInformation("Executing search with options: {SearchOptions}", JsonSerializer.Serialize(searchOptions));
 
         // Execute the search
-        var indexName = "user-resources";
-        var searchClient = _searchIndexClient.GetSearchClient(indexName);
+        var searchClient = _searchIndexClient.GetSearchClient(SEARCH_INDEX_NAME);
         var searchResults = await searchClient.SearchAsync<SearchDocument>(userQuery, searchOptions);
 
         _logger.LogInformation("Search results received, processing...");
@@ -157,18 +151,11 @@ public static class AzureOpenAIExtensions
         builder.AddAzureOpenAIClient(connectionName: "openai")
                .AddChatClient(deploymentName: "openai-chat-deployment");
 
+        // TODO: This will need updating for latest storage instance
         builder.AddAzureBlobServiceClient(connectionName: "blobs");
+
         builder.Services.AddScoped<Storage>();
 
         builder.Services.AddScoped<AzureOpenAI>();
-
-        // builder.Services.AddTransient<BlobServiceClient>(sp =>
-        // {
-        //     var logger = sp.GetRequiredService<ILogger<BlobServiceClient>>();
-        //     var config = sp.GetRequiredService<IConfiguration>();
-        //     var connectionString = config["storage:connectionString"];
-        //     logger.LogInformation("Registering BlobServiceClient with connection string: {ConnectionString}", connectionString);
-        //     return new BlobServiceClient(connectionString!);
-        // });
     }
 }

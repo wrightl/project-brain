@@ -7,7 +7,7 @@ namespace ProjectBrain.Api.Authentication
     {
         string? UserId { get; }
         string? UserEmail { get; }
-        // string? UserName { get; }
+        string? UserName { get; }
         // string? FirstName { get; }
         bool IsAuthenticated { get; }
 

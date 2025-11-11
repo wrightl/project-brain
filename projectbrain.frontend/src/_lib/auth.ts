@@ -76,3 +76,7 @@ export async function getAccessToken(
 export async function authMiddleware(req: NextRequest): Promise<NextResponse> {
     return await auth0.middleware(req);
 }
+
+export async function getSession() {
+    return await auth0.getSession();
+}

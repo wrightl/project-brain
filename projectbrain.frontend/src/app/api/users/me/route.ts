@@ -8,5 +8,6 @@ export const GET = createApiRoute<User>(async () => {
         method: 'GET',
     });
 
-    return await response.json();
+    const userData: User = await response.json();
+    return userData;
 });

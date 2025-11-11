@@ -7,6 +7,10 @@ using TickerQ.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// // Register AISeeding for background index seeding
+// builder.Services.AddSingleton<AISeeding>();
+// builder.Services.AddHostedService<AISeedingBackgroundTask>();
+
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
 
@@ -71,7 +75,7 @@ builder.Services.AddTickerQ(options =>
     }
 });
 
-// builder.Services.AddHealthChecks();
+builder.Services.AddFeatureFlags();
 
 var app = builder.Build();
 

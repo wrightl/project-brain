@@ -2,7 +2,7 @@ import { type NextRequest } from 'next/server';
 import { authMiddleware } from './_lib/auth';
 // Removed UserService and auth0 import as logic is moved to /app/app/onboarding/check/page.tsx
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const authRes = await authMiddleware(request);
 
     // If authMiddleware returned a redirect, it means the user is not authenticated

@@ -12,7 +12,16 @@ export function createApiRoute<T>(handler: RouteHandler<T>) {
         req: NextRequest,
         context?: unknown
     ) {
+        //return async function (req: NextRequest, context?: unknown) {
         try {
+            // const session = await auth0.getSession(); // Get session without req/res for App Router
+            // if (!session || !session.user) {
+            //     return NextResponse.json(
+            //         { error: 'Unauthorized' },
+            //         { status: 401 }
+            //     );
+            // }
+
             const result = await handler(req, context);
             // If result is already a Response, return it directly
             if (result instanceof NextResponse || result instanceof Response) {

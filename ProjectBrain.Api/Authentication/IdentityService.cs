@@ -18,7 +18,7 @@ namespace ProjectBrain.Api.Authentication
 
         public string? UserId => _httpContextAccessor.HttpContext?.User?.GetUserId();
         public string? UserEmail => _httpContextAccessor.HttpContext?.User?.GetUserEmail();
-        // public string? UserName => _httpContextAccessor.HttpContext?.User?.GetUserName();
+        public string? UserName => _httpContextAccessor.HttpContext?.User?.GetUserName();
         // public string? FirstName => UserName?.Split(' ').FirstOrDefault();
         public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.IsAuthenticated() ?? false;
 

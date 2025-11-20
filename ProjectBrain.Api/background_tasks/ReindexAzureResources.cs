@@ -21,7 +21,7 @@ public class ReindexAzureResources(
     private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
 
 
-    [TickerFunction(functionName: nameof(ReindexResources), cronExpression: "* * * * *")]
+    // [TickerFunction(functionName: nameof(ReindexResources), cronExpression: "* * * * *")]
     public async Task ReindexResources()
     {
         var lockBlob = GetBlobClient("reindex.lock");

@@ -1,4 +1,4 @@
-@base_url = {{AUTH0_AUDIENCE}}/chat
+@base_url = {{AUTH0_AUDIENCE}}/resource
 
 // Get access token
 # @name getAccessToken
@@ -16,26 +16,40 @@ Content-Type: application/json
 
 @access_token = {{getAccessToken.response.body.access_token}}
 
-# stream
-POST {{base_url}}/stream
+# GetAll
+GET {{base_url}}
+Authorization: Bearer {{access_token}}
+###
+
+// get resources
+# @name getResources
+GET {{base_url}}
+Authorization: Bearer {{access_token}}
+content-type: application/json
+###
+
+GET {{base_url}}/{{id}}
+Authorization: Bearer {{access_token}}
+###
+
+# GetAll
+GET {{base_url}}
+Authorization: Bearer {{access_token}}
+###
+
+PUT {{base_url}}/{{id}}
 Authorization: Bearer {{access_token}}
 content-type: application/json
 
 {
-    "content": "How do i learn best?"
+    "Title": "This is a new title"
 }
 ###
 
-#get events
-POST {{AUTH0_AUDIENCE}}/chat/events
-content-type: application/json
-
-{
-    "content": "Hello, how are you?"
-}
+GET {{base_url}}/{{id}}
+Authorization: Bearer {{access_token}}
 ###
 
-# test
-GET {{AUTH0_AUDIENCE}}/chat/test
+DELETE {{base_url}}/{{id}}
 Authorization: Bearer {{access_token}}
 ###

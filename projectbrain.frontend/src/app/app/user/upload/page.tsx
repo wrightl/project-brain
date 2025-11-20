@@ -1,5 +1,6 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
 import FileUploadForm from '@/_components/upload/file-upload-form';
+import ResourceList from '@/_components/upload/resource-list';
 
 export default async function UserUploadPage() {
     return (
@@ -40,6 +41,9 @@ export default async function UserUploadPage() {
                         </li>
                     </ul>
                 </div>
+
+                {/* Resource List */}
+                <ResourceList />
             </div>
         </RoleGuard>
     );

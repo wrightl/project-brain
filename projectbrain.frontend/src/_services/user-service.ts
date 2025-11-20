@@ -5,8 +5,12 @@ export class UserService {
     /**
      * Get current user
      */
-    static async getCurrentUser(): Promise<User> {
-        const response = callBackendApi('/users/me');
-        return (await response).json();
+    static async getCurrentUser(): Promise<User | null> {
+        const response = await callBackendApi('/users/me');
+
+        if (response.status === 404) {
+            return null;
+        }
+        return response.json();
     }
 }

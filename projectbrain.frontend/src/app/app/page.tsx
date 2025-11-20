@@ -1,3 +1,4 @@
+import { auth0 } from '@/_lib/auth';
 import { UserService } from '@/_services/user-service';
 import { redirect } from 'next/navigation';
 
@@ -11,15 +12,16 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
     // Check if user is onboarded
     const user = await UserService.getCurrentUser();
+    const session = await auth0.getSession();
     // const roles = await getUserRoles();
 
     const role = user?.roles?.[0];
 
-    if (!user) {
+    if (!session) {
         redirect('auth/login');
     } else if (!role) {
         redirect('/app/onboarding/select-role');
-    } else if (!user.isOnboarded) {
+    } else if (!user?.isOnboarded) {
         redirect(`/app/onboarding/${user.roles[0].toLowerCase()}`);
     } else {
         redirect(`/app/${user.roles[0].toLowerCase()}`);

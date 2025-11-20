@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Api.Authentication;
@@ -20,10 +22,17 @@ public class UserEndpointsTests
         _mockIdentityService = new Mock<IIdentityService>();
         _mockUserService = new Mock<IUserService>();
 
+        var mockMemoryCache = new Mock<IMemoryCache>();
+        var mockFeatureFlagService = new Mock<FeatureFlagService>();
+        var mockConfiguration = new Mock<IConfiguration>();
+
         _userServices = new UserServices(
             _mockLogger.Object,
             _mockIdentityService.Object,
-            _mockUserService.Object
+            _mockUserService.Object,
+            mockMemoryCache.Object,
+            mockFeatureFlagService.Object,
+            mockConfiguration.Object
         );
     }
 
@@ -37,7 +46,8 @@ public class UserEndpointsTests
             Email = "test@example.com",
             FullName = "Test User",
             DoB = new DateOnly(1990, 1, 1),
-            FavoriteColor = "Blue"
+            FavoriteColor = "Blue",
+            Role = "User"
         };
 
         _mockIdentityService.Setup(s => s.UserId).Returns(userId);
@@ -172,7 +182,8 @@ public class UserEndpointsTests
             Email = "test@example.com",
             FullName = "Test User",
             DoB = new DateOnly(1990, 1, 1),
-            FavoriteColor = "Blue"
+            FavoriteColor = "Blue",
+            Role = "User"
         };
 
         // Assert

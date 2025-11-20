@@ -1,14 +1,23 @@
+using Aspire.Hosting.Pipelines;
 using Azure.Provisioning.Search;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
 // Parameters
 var replicas = builder.AddParameter("minReplicas");
+var useNewSearchService = (builder.Configuration["USE_NEW_SEARCH_SERVICE"] ?? "true").ToLower() == "true";
+
 // Parameters - Azure AI Search
 var existingSearchName = builder.AddParameter("searchName");
 var existingAIResourceGroup = builder.AddParameter("searchResourceGroup");
 // Parameters - Azure OpenAPI
+var searchSku = builder.Configuration["AI_SEARCH_SKU"] ?? "Free";
 var existingOpenAIName = builder.AddParameter("existingOpenAIName");
+var chatModelName = builder.Configuration["CHAT_MODEL_NAME"] ?? "gpt-5-mini";
+var chatModelVersion = builder.Configuration["CHAT_MODEL_VERSION"] ?? "2025-08-07";
+var embedModelName = builder.Configuration["EMBED_MODEL_NAME"] ?? "text-embedding-3-small";
+var embedModelVersion = builder.Configuration["EMBED_MODEL_VERSION"] ?? "1";
+var modelSkuName = builder.Configuration["MODEL_SKU_NAME"] ?? "GlobalStandard";
 
 // Secrets - these are used by the app when running locally and also in azure
 var auth0ManagementApiClientSecret = builder.AddParameter("auth0-managementapiclientsecret", secret: true);
@@ -27,40 +36,55 @@ var certificateNameApi = builder.AddParameter("certificateNameApi", value: certi
 var customDomainApp = builder.AddParameter("customDomainApp", customDomainAppFromConfig, publishValueAsDefault: true);
 var certificateNameApp = builder.AddParameter("certificateNameApp", value: certificateNameAppFromConfig, publishValueAsDefault: true);
 
-var search = builder.AddAzureSearch("search")
-                    .AsExisting(existingSearchName, existingAIResourceGroup);
+var search = builder.AddAzureSearch("search");
+if (!useNewSearchService)
+    search.RunAsExisting(existingSearchName, existingAIResourceGroup);
+else
+    search.ConfigureInfrastructure(infra =>
+    {
+        var searchService = infra.GetProvisionableResources()
+                                 .OfType<SearchService>()
+                                 .Single();
+
+        searchService.SearchSkuName = Enum.Parse<SearchServiceSkuName>(searchSku);
+    });
 
 // Azure OpenAI
-var openai = builder.AddAzureOpenAI("openai")
-                    .RunAsExisting(existingOpenAIName, existingAIResourceGroup);
+var openai = builder.AddAzureOpenAI("openai");
+if (!useNewSearchService)
+    openai.RunAsExisting(existingOpenAIName, existingAIResourceGroup);
 
 // Chat deployment
 openai.AddDeployment(
     name: "openai-chat-deployment",
-    modelName: "gpt-5-mini",
-    modelVersion: "2025-08-07")
+    modelVersion: chatModelVersion,
+    modelName: chatModelName)
     .WithProperties(deployment =>
     {
-        deployment.SkuName = "GlobalStandard";
+        deployment.SkuName = modelSkuName;
     });
 
 // Embed deployment
 openai.AddDeployment(
     name: "openai-embed-deployment",
-    modelName: "text-embedding-3-small",
-    modelVersion: "1")
+    modelVersion: embedModelVersion,
+    modelName: embedModelName)
     .WithProperties(deployment =>
     {
-        deployment.SkuName = "GlobalStandard";
+        deployment.SkuName = modelSkuName;
     });
 
-// azure storage
-var blobs = builder.AddConnectionString("blobs");
-var documentStorage = builder.AddAzureStorage("documentstorage")
-                            .RunAsEmulator()
-                            .AddBlobs("resources");
+// speech deployment
+openai.AddDeployment(
+    name: "openai-speech-deployment",
+    modelVersion: "001",
+    modelName: "whisper");
 
-var containerAppEnvironment = builder.AddAzureContainerAppEnvironment("projectbrain-environment");
+builder.AddBicepTemplate("speech", "Bicep/azureaispeech.bicep")
+    .WithParameter("name", "myhealthdataservice");
+
+var speechResource = builder.AddAzureContainerAppEnvironment("projectbrain-environment");
+var speechConnectionString = speechResource.GetOutput("connectionString");
 
 var cache = builder.AddRedis("cache")
         .PublishAsAzureContainerApp((module, app) =>
@@ -75,13 +99,13 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
                         .WithReference(search)
                         .WithReference(openai)
                         .WithReference(cache)
-                        .WithReference(blobs)
-                        .WithReference(documentStorage)
+                        .WithEnvironment("ConnectionStrings__speech", speechConnectionString)
                         .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
                         .WithEnvironment("Auth0__ManagementApiClientId", auth0ManagementApiClientId)
                         .WithEnvironment("Auth0__ClientId", auth0ClientId)
                         .WithEnvironment("Auth0__Domain", auth0Domain)
                         .WithEnvironment("LaunchDarkly__SdkKey", launchDarklySdkKey)
+                        .WithEnvironment("AI__UseNewSearchService", useNewSearchService.ToString())
                         .WithHttpHealthCheck("/health")
                         .PublishAsAzureContainerApp((module, app) =>
                         {
@@ -91,6 +115,24 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
                             app.ConfigureCustomDomain(customDomainApi, certificateNameApi);
 #pragma warning restore ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         });
+
+// azure storage
+if (useNewSearchService)
+{
+    var documentStorage = builder.AddAzureStorage("documentstorage")
+                                .RunAsEmulator(azurite =>
+                                {
+                                    azurite.WithDataVolume();
+                                })
+                                .AddBlobs("blobs");
+    apiService.WithReference(documentStorage);
+}
+else
+{
+    var blobs = builder.AddConnectionString("blobs");
+    apiService.WithReference(blobs);
+}
+
 
 var sqlServerName = "projectbrain";
 var sqlDbName = "projectbraindb";

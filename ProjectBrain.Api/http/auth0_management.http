@@ -1,4 +1,4 @@
-@base_url = {{AUTH0_AUDIENCE}}/chat
+@base_url = {{AUTH0_AUDIENCE}}
 
 // Get access token
 # @name getAccessToken
@@ -16,26 +16,21 @@ Content-Type: application/json
 
 @access_token = {{getAccessToken.response.body.access_token}}
 
-# stream
-POST {{base_url}}/stream
+# GetUserByEmail
+@email = leewright76@hotmail.com
+GET {{base_url}}/{{email}}
 Authorization: Bearer {{access_token}}
-content-type: application/json
-
-{
-    "content": "How do i learn best?"
-}
 ###
 
-#get events
-POST {{AUTH0_AUDIENCE}}/chat/events
-content-type: application/json
-
-{
-    "content": "Hello, how are you?"
-}
+# GetTestToken
+GET {{base_url}}/testtoken
+Authorization: Bearer {{access_token}}
+###
+# config
+GET {{base_url}}/config
 ###
 
-# test
-GET {{AUTH0_AUDIENCE}}/chat/test
+# GetCurrentUser
+GET {{base_url}}/me
 Authorization: Bearer {{access_token}}
 ###

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Conversation, ChatMessage } from '@/_lib/types';
-import { streamChat } from '@/_lib/api-client';
+import { ChatService } from '@/_services/chat-service';
 import { PaperAirplaneIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
@@ -52,7 +52,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
         setStreamingMessage('');
 
         try {
-            await streamChat(
+            await ChatService.streamChat(
                 userMessage.content,
                 conversation.id,
                 (chunk) => {

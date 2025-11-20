@@ -43,6 +43,7 @@ public static class ChatEndpoints
 
     private static async Task<object> GetChatStatus([AsParameters] ChatServices services)
     {
+        var summary = await services.AzureOpenAI.GetConversationSummary("Hello, how are you?", services.IdentityService.UserId);
         var endpoint = services.Config["ai:azureOpenAIEndpoint"];
         var key = services.Config["ai:azureOpenAIKey"];
         var deployment = services.Config["ai:azureOpenAIChatDeployment"];
@@ -53,7 +54,7 @@ public static class ChatEndpoints
         var user = await services.IdentityService.GetUserAsync();
         var userName = user?.FullName;
         var email = services.IdentityService.UserEmail;
-        return new { status = "ProjectBrain Chat API is running.", endpoint, key, deployment, searchEndpoint, searchKey, searchIndexName, userId, userName, email };
+        return new { status = "ProjectBrain Chat API is running.", summary, endpoint, key, deployment, searchEndpoint, searchKey, searchIndexName, userId, userName, email };
     }
 
     private static async Task<IResult> UploadKnowledge([AsParameters] ChatServices services, HttpRequest request)

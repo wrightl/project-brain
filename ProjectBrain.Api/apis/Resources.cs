@@ -31,9 +31,9 @@ public static class ResourceEndpoints
 
     private static async Task<IResult> GetResources([AsParameters] ResourceServices services)
     {
-        var user = await services.IdentityService.GetUserAsync();
+        var userId = services.IdentityService.UserId;
 
-        var resources = await services.ResourceService.GetAllForUser(user!.Id);
+        var resources = await services.ResourceService.GetAllForUser(userId!);
         return Results.Ok(resources);
     }
 
@@ -41,10 +41,10 @@ public static class ResourceEndpoints
         [AsParameters] ResourceServices services,
         string filename)
     {
-        var user = await services.IdentityService.GetUserAsync();
+        var userId = services.IdentityService.UserId;
 
         var resource = await services.ResourceService.GetById(
-            Guid.Parse(filename), user!.Id);
+            Guid.Parse(filename), userId!);
         return resource is not null ? Results.Ok(resource) : Results.NotFound();
     }
 
@@ -89,7 +89,12 @@ public static class ResourceEndpoints
                 results.Add(new { status = "error", filename, message = "File is empty" });
                 continue;
             }
-            var location = await services.Storage.UploadFile(file, userId, filename!);
+            if (string.IsNullOrEmpty(filename))
+            {
+                results.Add(new { status = "error", filename = "unknown", message = "Filename is required" });
+                continue;
+            }
+            var location = await services.Storage.UploadFile(file, userId, filename);
             results.Add(new { status = "uploaded", filename, fileSize = file.Length, location });
 
             await services.ResourceService.Add(new Resource()

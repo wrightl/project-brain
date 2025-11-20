@@ -72,6 +72,8 @@ export async function callBackendApi(
                 : undefined;
         }
 
+        console.log('Calling: ', `${API_URL}${endpoint}`, fetchOptions);
+
         // Make request to backend
         const response = await fetch(`${API_URL}${endpoint}`, fetchOptions);
 
@@ -83,13 +85,13 @@ export async function callBackendApi(
                 response.status,
                 response.statusText
             );
-            const errorData = await response.json().catch(() => ({}));
-            throw new BackendApiError(
-                response.status,
-                errorData.message ||
-                    `Backend request failed: ${response.statusText}`,
-                errorData
-            );
+            // const errorData = await response.json().catch(() => ({}));
+            // throw new BackendApiError(
+            //     response.status,
+            //     errorData.message ||
+            //         `Backend request failed: ${response.statusText}`,
+            //     errorData
+            // );
         }
 
         return response;

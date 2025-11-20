@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using ProjectBrain.AI;
 using ProjectBrain.Api.Authentication;
 using Scalar.AspNetCore;
@@ -7,9 +7,12 @@ using TickerQ.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// // Register AISeeding for background index seeding
-// builder.Services.AddSingleton<AISeeding>();
-// builder.Services.AddHostedService<AISeedingBackgroundTask>();
+if (builder.Configuration["AI:UseNewSearchService"]?.ToLower() == "true")
+{
+    // Register AISeeding for background index seeding
+    builder.Services.AddSingleton<AISeeding>();
+    builder.Services.AddHostedService<AISeedingBackgroundTask>();
+}
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
@@ -29,8 +32,6 @@ builder.Services.AddCors(options =>
 builder.AddCustomAuthentication();
 builder.AddCustomAuthorisation();
 
-// builder.AddWeatherForecastApis();
-
 builder.AddAzureOpenAI();
 
 builder.Services.AddHttpContextAccessor();
@@ -41,39 +42,39 @@ builder.AddAuth0ManagementApi();
 // Add services to the container.
 builder.Services.AddProblemDetails();
 
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi(options =>
-{
-    options.AddDocumentTransformer((document, context, cancellationToken) =>
-    {
-        document.Info.Contact = new OpenApiContact
-        {
-            Name = "ProjectBrain Support",
-            Email = "support@dotanddashconsulting.com"
-        };
-        return Task.CompletedTask;
-    });
+// // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// builder.Services.AddOpenApi(options =>
+// {
+//     options.AddDocumentTransformer((document, context, cancellationToken) =>
+//     {
+//         document.Info.Contact = new OpenApiContact
+//         {
+//             Name = "ProjectBrain Support",
+//             Email = "support@dotanddashconsulting.com"
+//         };
+//         return Task.CompletedTask;
+//     });
 
-    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
-});
+//     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+// });
 
-builder.Services.AddTickerQ(options =>
-{
-    options.SetMaxConcurrency(10);
-    // options.AddOperationalStore<MyDbContext>(efOpt => 
-    // {
-    //     efOpt.SetExceptionHandler<MyExceptionHandlerClass>();
-    //     efOpt.UseModelCustomizerForMigrations();
-    // });
-    if (builder.Environment.IsDevelopment())
-    {
-        options.AddDashboard(uiopt =>
-        {
-            uiopt.BasePath = "/tickerq-dashboard";
-            uiopt.EnableBasicAuth = true;
-        });
-    }
-});
+// builder.Services.AddTickerQ(options =>
+// {
+//     options.SetMaxConcurrency(10);
+//     // options.AddOperationalStore<MyDbContext>(efOpt => 
+//     // {
+//     //     efOpt.SetExceptionHandler<MyExceptionHandlerClass>();
+//     //     efOpt.UseModelCustomizerForMigrations();
+//     // });
+//     if (builder.Environment.IsDevelopment())
+//     {
+//         options.AddDashboard(uiopt =>
+//         {
+//             uiopt.BasePath = "/tickerq-dashboard";
+//             uiopt.EnableBasicAuth = true;
+//         });
+//     }
+// });
 
 builder.Services.AddFeatureFlags();
 
@@ -85,7 +86,7 @@ app.UseExceptionHandler();
 // TODO - restore this?
 // if (app.Environment.IsDevelopment())
 // {
-app.MapOpenApi();
+// app.MapOpenApi();
 app.MapScalarApiReference(options =>
 {
     options.Servers = [];
@@ -93,7 +94,9 @@ app.MapScalarApiReference(options =>
 // }
 
 // app.UseSecureHeaders();
-app.UseRobotMiddleware();
+
+// TODO: Decide if this should befixed for .net10 and restored
+// app.UseRobotMiddleware();
 
 // app.UseCors();
 app.UseCustomAuthentication();
@@ -107,7 +110,7 @@ app.MapResourceEndpoints();
 
 app.MapDefaultEndpoints();
 
-app.UseTickerQ(); // Activates job processor
+// app.UseTickerQ(); // Activates job processor
 
 app.Run();
 

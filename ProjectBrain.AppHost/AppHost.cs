@@ -3,21 +3,40 @@ using Azure.Provisioning.Search;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
+var appName = "projectbrain";
+var apiName = "api";
+var frontendName = "frontend";
+var documentstorageName = "documentstorage";
+var cacheName = "cache";
+var searchName = "search";
+var openaiName = "openai";
+var speechName = "speech";
+var sqlServerName = $"{appName}";
+var sqlDbName = $"{appName}db";
+var defaultSearchSku = "Free";
+var defaultChatModelName = "gpt-5-mini";
+var defaultChatModelVersion = "2025-08-07";
+var defaultEmbedModelName = "text-embedding-3-small";
+var defaultEmbedModelVersion = "1";
+var defaultModelSkuName = "GlobalStandard";
+var blobName = "blobs";
+
 // Parameters
 var replicas = builder.AddParameter("minReplicas");
 var useNewSearchService = (builder.Configuration["USE_NEW_SEARCH_SERVICE"] ?? "true").ToLower() == "true";
+var sqlPassword = builder.AddParameter($"{sqlServerName}-password", secret: true);
 
 // Parameters - Azure AI Search
 var existingSearchName = builder.AddParameter("searchName");
 var existingAIResourceGroup = builder.AddParameter("searchResourceGroup");
 // Parameters - Azure OpenAPI
-var searchSku = builder.Configuration["AI_SEARCH_SKU"] ?? "Free";
+var searchSku = builder.Configuration["AI_SEARCH_SKU"] ?? defaultSearchSku;
 var existingOpenAIName = builder.AddParameter("existingOpenAIName");
-var chatModelName = builder.Configuration["CHAT_MODEL_NAME"] ?? "gpt-5-mini";
-var chatModelVersion = builder.Configuration["CHAT_MODEL_VERSION"] ?? "2025-08-07";
-var embedModelName = builder.Configuration["EMBED_MODEL_NAME"] ?? "text-embedding-3-small";
-var embedModelVersion = builder.Configuration["EMBED_MODEL_VERSION"] ?? "1";
-var modelSkuName = builder.Configuration["MODEL_SKU_NAME"] ?? "GlobalStandard";
+var chatModelName = builder.Configuration["CHAT_MODEL_NAME"] ?? defaultChatModelName;
+var chatModelVersion = builder.Configuration["CHAT_MODEL_VERSION"] ?? defaultChatModelVersion;
+var embedModelName = builder.Configuration["EMBED_MODEL_NAME"] ?? defaultEmbedModelName;
+var embedModelVersion = builder.Configuration["EMBED_MODEL_VERSION"] ?? defaultEmbedModelVersion;
+var modelSkuName = builder.Configuration["MODEL_SKU_NAME"] ?? defaultModelSkuName;
 
 // Secrets - these are used by the app when running locally and also in azure
 var auth0ManagementApiClientSecret = builder.AddParameter("auth0-managementapiclientsecret", secret: true);
@@ -36,7 +55,7 @@ var certificateNameApi = builder.AddParameter("certificateNameApi", value: certi
 var customDomainApp = builder.AddParameter("customDomainApp", customDomainAppFromConfig, publishValueAsDefault: true);
 var certificateNameApp = builder.AddParameter("certificateNameApp", value: certificateNameAppFromConfig, publishValueAsDefault: true);
 
-var search = builder.AddAzureSearch("search");
+var search = builder.AddAzureSearch(searchName);
 if (!useNewSearchService)
     search.RunAsExisting(existingSearchName, existingAIResourceGroup);
 else
@@ -50,13 +69,13 @@ else
     });
 
 // Azure OpenAI
-var openai = builder.AddAzureOpenAI("openai");
+var openai = builder.AddAzureOpenAI(openaiName);
 if (!useNewSearchService)
     openai.RunAsExisting(existingOpenAIName, existingAIResourceGroup);
 
 // Chat deployment
 openai.AddDeployment(
-    name: "openai-chat-deployment",
+    name: $"{openaiName}-chat-deployment",
     modelVersion: chatModelVersion,
     modelName: chatModelName)
     .WithProperties(deployment =>
@@ -66,7 +85,7 @@ openai.AddDeployment(
 
 // Embed deployment
 openai.AddDeployment(
-    name: "openai-embed-deployment",
+    name: $"{openaiName}-embed-deployment",
     modelVersion: embedModelVersion,
     modelName: embedModelName)
     .WithProperties(deployment =>
@@ -74,19 +93,19 @@ openai.AddDeployment(
         deployment.SkuName = modelSkuName;
     });
 
-// speech deployment
-openai.AddDeployment(
-    name: "openai-speech-deployment",
-    modelVersion: "001",
-    modelName: "whisper");
+// // speech deployment
+// openai.AddDeployment(
+//     name: $"{openaiName}-{speechName}-deployment",
+//     modelVersion: "001",
+//     modelName: "whisper");
 
-builder.AddBicepTemplate("speech", "Bicep/azureaispeech.bicep")
-    .WithParameter("name", "myhealthdataservice");
+// var speechResource = builder.AddBicepTemplate(speechName, "Bicep/azureaispeech.bicep")
+//     .WithParameter("name", speechName);
+// var speechConnectionString = speechResource.GetOutput("connectionString");
 
-var speechResource = builder.AddAzureContainerAppEnvironment("projectbrain-environment");
-var speechConnectionString = speechResource.GetOutput("connectionString");
+builder.AddAzureContainerAppEnvironment($"{appName}-environment");
 
-var cache = builder.AddRedis("cache")
+var cache = builder.AddRedis(cacheName)
         .PublishAsAzureContainerApp((module, app) =>
         {
             // Scale to 0
@@ -94,12 +113,12 @@ var cache = builder.AddRedis("cache")
         });
 
 // api
-var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
+var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithExternalHttpEndpoints()
                         .WithReference(search)
                         .WithReference(openai)
                         .WithReference(cache)
-                        .WithEnvironment("ConnectionStrings__speech", speechConnectionString)
+                        // .WithEnvironment("ConnectionStrings__speech", speechConnectionString)
                         .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
                         .WithEnvironment("Auth0__ManagementApiClientId", auth0ManagementApiClientId)
                         .WithEnvironment("Auth0__ClientId", auth0ClientId)
@@ -119,23 +138,21 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>("api")
 // azure storage
 if (useNewSearchService)
 {
-    var documentStorage = builder.AddAzureStorage("documentstorage")
+    var documentStorage = builder.AddAzureStorage(documentstorageName)
                                 .RunAsEmulator(azurite =>
                                 {
                                     azurite.WithDataVolume();
                                 })
-                                .AddBlobs("blobs");
+                                .AddBlobs(blobName);
     apiService.WithReference(documentStorage);
 }
 else
 {
-    var blobs = builder.AddConnectionString("blobs");
+    var blobs = builder.AddConnectionString(blobName);
     apiService.WithReference(blobs);
 }
 
 
-var sqlServerName = "projectbrain";
-var sqlDbName = "projectbraindb";
 
 if (builder.ExecutionContext.IsPublishMode)
 {
@@ -150,8 +167,9 @@ if (builder.ExecutionContext.IsPublishMode)
 else
 {
     // sql server
-    var sql = builder.AddSqlServer(sqlServerName)
-        .WithLifetime(ContainerLifetime.Persistent);
+    var sql = builder.AddSqlServer(sqlServerName, password: sqlPassword, port: 49976)
+        .WithLifetime(ContainerLifetime.Persistent)
+        .WithDataVolume();
 
     var db = sql.AddDatabase(sqlDbName);
 
@@ -162,7 +180,7 @@ else
 if (builder.ExecutionContext.IsPublishMode)
 {
     // Use Docker container for production
-    var frontend = builder.AddDockerfile("frontend", "../projectbrain.frontend")
+    var frontend = builder.AddDockerfile(frontendName, $"../{appName}.{frontendName}")
         .WaitFor(apiService)
         .WithReference(apiService)
         .WaitFor(cache)
@@ -179,7 +197,7 @@ if (builder.ExecutionContext.IsPublishMode)
 else
 {
     // Use npm for development
-    var frontend = builder.AddNpmApp("frontend", "../projectbrain.frontend", "dev")
+    var frontend = builder.AddNpmApp(frontendName, $"../{appName}.{frontendName}", "dev")
         .WaitFor(apiService)
         .WithReference(apiService)
         .WaitFor(cache)

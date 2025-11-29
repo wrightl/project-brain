@@ -23,6 +23,13 @@ export class BackendApiError extends Error {
     }
 }
 
+export class SessionExpiredError extends Error {
+    constructor() {
+        super('Session has expired. Please log in again.');
+        this.name = 'SessionExpiredError';
+    }
+}
+
 export async function callBackendApi(
     endpoint: string,
     options: ApiOptions = {}
@@ -43,6 +50,8 @@ export async function callBackendApi(
             scope: scopes.length > 0 ? scopes.join(' ') : undefined,
         });
 
+        // console.log('Access token:', accessToken);
+
         // Prepare headers
         const headers: HeadersInit = {
             Authorization: `Bearer ${accessToken}`,
@@ -62,17 +71,18 @@ export async function callBackendApi(
 
         if (
             body &&
-            !isFormData &&
             (method === 'POST' || method === 'PUT' || method === 'PATCH')
         ) {
-            fetchOptions.body = body
-                ? contentType === 'application/json'
-                    ? JSON.stringify(body)
-                    : (body as BodyInit)
-                : undefined;
+            if (isFormData) {
+                fetchOptions.body = body as BodyInit;
+            } else {
+                fetchOptions.body = body
+                    ? contentType === 'application/json'
+                        ? JSON.stringify(body)
+                        : (body as BodyInit)
+                    : undefined;
+            }
         }
-
-        console.log('Calling: ', `${API_URL}${endpoint}`, fetchOptions);
 
         // Make request to backend
         const response = await fetch(`${API_URL}${endpoint}`, fetchOptions);
@@ -83,25 +93,27 @@ export async function callBackendApi(
                 'Backend API response not ok:',
                 `${API_URL}${endpoint}`,
                 response.status,
-                response.statusText
+                response.statusText,
+                accessToken
             );
-            // const errorData = await response.json().catch(() => ({}));
-            // throw new BackendApiError(
-            //     response.status,
-            //     errorData.message ||
-            //         `Backend request failed: ${response.statusText}`,
-            //     errorData
-            // );
+
+            // Handle 401 Unauthorized - session expired
+            if (response.status === 401) {
+                // If we're in the browser, redirect to login
+                if (typeof window !== 'undefined') {
+                    const currentPath = window.location.pathname;
+                    window.location.href = `/auth/login?returnTo=${encodeURIComponent(
+                        currentPath
+                    )}`;
+                    // Return a rejected promise that never resolves to prevent further execution
+                    return new Promise(() => {});
+                }
+                // If we're on the server, throw SessionExpiredError
+                throw new SessionExpiredError();
+            }
         }
 
         return response;
-
-        // // Handle no-content responses
-        // if (response.status === 204) {
-        //     return {} as T;
-        // }
-
-        // return await response.json();
     } catch (error: unknown) {
         // If the error is a NEXT_REDIRECT, re-throw it immediately
         if (
@@ -110,6 +122,11 @@ export async function callBackendApi(
             'message' in error &&
             (error as { message: string }).message === 'NEXT_REDIRECT'
         ) {
+            throw error;
+        }
+
+        // Re-throw SessionExpiredError
+        if (error instanceof SessionExpiredError) {
             throw error;
         }
 

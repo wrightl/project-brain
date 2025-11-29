@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CoachOnboardingData } from '@/_lib/types';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 interface CoachOnboardingFormProps {
     userEmail: string;
@@ -18,10 +19,6 @@ export default function CoachOnboardingForm({
     const [formData, setFormData] = useState({
         email: userEmail,
         fullName: '',
-        doB: '',
-        favoriteColor: '',
-        address: '',
-        experience: '',
     });
 
     const handleChange = (
@@ -44,16 +41,12 @@ export default function CoachOnboardingForm({
             const data: CoachOnboardingData = {
                 email: formData.email,
                 fullName: formData.fullName,
-                doB: formData.doB,
-                favoriteColor: formData.favoriteColor,
-                address: formData.address,
-                experience: formData.experience,
                 role: 'coach', // Explicitly set role for coach onboarding
             };
 
             console.log(`Onboarding data ${JSON.stringify(data)}`);
 
-            const response = await fetch('/api/users/onboard', {
+            const response = await fetchWithAuth('/api/coach/onboard', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -125,78 +118,6 @@ export default function CoachOnboardingForm({
                         className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm cursor-not-allowed"
                     />
                 </div>
-
-                <div>
-                    <label
-                        htmlFor="doB"
-                        className="block text-sm font-medium text-gray-700"
-                    >
-                        Date of Birth *
-                    </label>
-                    <input
-                        type="date"
-                        id="doB"
-                        name="doB"
-                        required
-                        value={formData.doB}
-                        onChange={handleChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-
-                <div>
-                    <label
-                        htmlFor="favoriteColor"
-                        className="block text-sm font-medium text-gray-700"
-                    >
-                        Favorite Color *
-                    </label>
-                    <input
-                        type="text"
-                        id="favoriteColor"
-                        name="favoriteColor"
-                        required
-                        value={formData.favoriteColor}
-                        onChange={handleChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
-            </div>
-
-            <div>
-                <label
-                    htmlFor="address"
-                    className="block text-sm font-medium text-gray-700"
-                >
-                    Address *
-                </label>
-                <input
-                    type="text"
-                    id="address"
-                    name="address"
-                    required
-                    value={formData.address}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                />
-            </div>
-
-            <div>
-                <label
-                    htmlFor="experience"
-                    className="block text-sm font-medium text-gray-700"
-                >
-                    Experience (Years) *
-                </label>
-                <input
-                    type="number"
-                    id="experience"
-                    name="experience"
-                    required
-                    value={formData.experience}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                />
             </div>
 
             <div className="flex justify-end">

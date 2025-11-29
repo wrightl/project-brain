@@ -64,7 +64,6 @@ public class DatabaseIntegrationTests : IAsyncLifetime
             Id = "real-db-user-1",
             Email = "realdb@example.com",
             FullName = "Real DB User",
-            FavoriteColour = "Purple",
             DoB = new DateOnly(1995, 7, 10),
             IsOnboarded = true
         };
@@ -82,7 +81,6 @@ public class DatabaseIntegrationTests : IAsyncLifetime
         retrieved!.Id.Should().Be(userDto.Id);
         retrieved.Email.Should().Be(userDto.Email);
         retrieved.FullName.Should().Be(userDto.FullName);
-        retrieved.FavoriteColour.Should().Be(userDto.FavoriteColour);
         retrieved.IsOnboarded.Should().BeTrue();
     }
 
@@ -237,7 +235,6 @@ public class DatabaseIntegrationTests : IAsyncLifetime
             Id = "transaction-test",
             Email = "transaction@example.com",
             FullName = "Transaction Test",
-            FavoriteColour = "Yellow",
             DoB = new DateOnly(1988, 12, 25),
             IsOnboarded = true
         };
@@ -255,7 +252,6 @@ public class DatabaseIntegrationTests : IAsyncLifetime
                 Id = userDto.Id, // Same ID will cause error
                 Email = "different@example.com",
                 FullName = "Different Name",
-                FavoriteColour = "Orange",
                 DoB = new DateOnly(1990, 1, 1),
                 IsOnboarded = true
             };

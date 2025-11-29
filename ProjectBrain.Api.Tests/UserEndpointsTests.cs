@@ -14,14 +14,20 @@ public class UserEndpointsTests
     private readonly Mock<ILogger<UserServices>> _mockLogger;
     private readonly Mock<IIdentityService> _mockIdentityService;
     private readonly Mock<IUserService> _mockUserService;
+    private readonly Mock<IRoleManagement> _mockRoleManagement;
+    private readonly Mock<ICoachProfileService> _mockCoachProfileService;
+    private readonly Mock<IUserProfileService> _mockUserProfileService;
     private readonly UserServices _userServices;
-
+    private readonly Mock<IUserActivityService> _mockUserActivityService;
     public UserEndpointsTests()
     {
         _mockLogger = new Mock<ILogger<UserServices>>();
         _mockIdentityService = new Mock<IIdentityService>();
         _mockUserService = new Mock<IUserService>();
-
+        _mockRoleManagement = new Mock<IRoleManagement>();
+        _mockCoachProfileService = new Mock<ICoachProfileService>();
+        _mockUserProfileService = new Mock<IUserProfileService>();
+        _mockUserActivityService = new Mock<IUserActivityService>();
         var mockMemoryCache = new Mock<IMemoryCache>();
         var mockFeatureFlagService = new Mock<FeatureFlagService>();
         var mockConfiguration = new Mock<IConfiguration>();
@@ -30,9 +36,13 @@ public class UserEndpointsTests
             _mockLogger.Object,
             _mockIdentityService.Object,
             _mockUserService.Object,
+            _mockRoleManagement.Object,
             mockMemoryCache.Object,
             mockFeatureFlagService.Object,
-            mockConfiguration.Object
+            mockConfiguration.Object,
+            _mockCoachProfileService.Object,
+            _mockUserProfileService.Object,
+            _mockUserActivityService.Object
         );
     }
 
@@ -46,8 +56,6 @@ public class UserEndpointsTests
             Email = "test@example.com",
             FullName = "Test User",
             DoB = new DateOnly(1990, 1, 1),
-            FavoriteColor = "Blue",
-            Role = "User"
         };
 
         _mockIdentityService.Setup(s => s.UserId).Returns(userId);
@@ -80,7 +88,6 @@ public class UserEndpointsTests
             Id = userId,
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1)
         };
 
@@ -128,7 +135,6 @@ public class UserEndpointsTests
             Id = "auth0|123456",
             Email = email,
             FullName = "Test User",
-            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1)
         };
 
@@ -182,14 +188,11 @@ public class UserEndpointsTests
             Email = "test@example.com",
             FullName = "Test User",
             DoB = new DateOnly(1990, 1, 1),
-            FavoriteColor = "Blue",
-            Role = "User"
         };
 
         // Assert
         request.Email.Should().Be("test@example.com");
         request.FullName.Should().Be("Test User");
         request.DoB.Should().Be(new DateOnly(1990, 1, 1));
-        request.FavoriteColor.Should().Be("Blue");
     }
 }

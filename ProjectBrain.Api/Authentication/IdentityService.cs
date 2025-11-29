@@ -21,7 +21,8 @@ namespace ProjectBrain.Api.Authentication
         public string? UserName => _httpContextAccessor.HttpContext?.User?.GetUserName();
         // public string? FirstName => UserName?.Split(' ').FirstOrDefault();
         public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.IsAuthenticated() ?? false;
-
+        public bool IsAdmin => _httpContextAccessor.HttpContext?.User?.IsAdmin() ?? false;
+        public bool IsCoach => _httpContextAccessor.HttpContext?.User?.IsCoach() ?? false;
         public async Task<UserDto?> GetUserAsync()
         {
             // Return cached user if already loaded this request

@@ -2,27 +2,31 @@ import Link from 'next/link';
 import {
     ChatBubbleLeftRightIcon,
     DocumentArrowUpIcon,
-    ClockIcon,
+    UserGroupIcon,
 } from '@heroicons/react/24/outline';
-import { getAccessToken } from '@/_lib/auth';
 import { ChatService } from '@/_services/chat-service';
 import { ResourceService } from '@/_services/resource-service';
+import { StatisticsService } from '@/_services/statistics-service';
+import { ConversationListItem } from './conversation-list-item';
 
 export default async function UserDashboard() {
     const conversations = await ChatService.getConversations();
     const resources = await ResourceService.getResources();
+    const [userConversationsCount, userResourcesCount] = await Promise.all([
+        StatisticsService.getUserConversations(),
+        StatisticsService.getUserResources(),
+    ]);
     const recentConversations = conversations.slice(0, 5);
-    const token = await getAccessToken();
 
     const stats = [
         {
             name: 'Total Conversations',
-            value: conversations.length.toString(),
+            value: userConversationsCount.toString(),
             icon: ChatBubbleLeftRightIcon,
         },
         {
             name: 'Files Uploaded',
-            value: resources.length,
+            value: userResourcesCount.toString(),
             icon: DocumentArrowUpIcon,
         },
     ];
@@ -36,9 +40,17 @@ export default async function UserDashboard() {
             color: 'bg-indigo-500',
         },
         {
-            title: 'Upload Files',
-            description: 'Upload documents to enhance your AI experience',
-            href: '/app/user/upload',
+            title: 'Find Coaches',
+            description:
+                'Search for coaches by location, age groups, and specialisms',
+            href: '/app/user/find-coaches',
+            icon: UserGroupIcon,
+            color: 'bg-purple-500',
+        },
+        {
+            title: 'Manage Files',
+            description: 'Manage documents to enhance your AI experience',
+            href: '/app/user/manage-files',
             icon: DocumentArrowUpIcon,
             color: 'bg-green-500',
         },
@@ -90,22 +102,18 @@ export default async function UserDashboard() {
                 })}
             </div>
 
-            <div>
-                <p>{token}</p>
-            </div>
-
             {/* Quick Actions */}
             <div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
                     Quick Actions
                 </h2>
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {quickActions.map((action) => {
                         const Icon = action.icon;
                         return (
                             <Link
                                 key={action.href}
-                                href={action.href}
+                                href={action.href || ''}
                                 className="relative group bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
                             >
                                 <div>
@@ -149,31 +157,10 @@ export default async function UserDashboard() {
                     <div className="bg-white shadow rounded-lg overflow-hidden">
                         <ul className="divide-y divide-gray-200">
                             {recentConversations.map((conversation) => (
-                                <li key={conversation.id}>
-                                    <Link
-                                        href={`/user/chat/${conversation.id}`}
-                                        className="block hover:bg-gray-50 transition-colors"
-                                    >
-                                        <div className="px-6 py-4">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex-1">
-                                                    <p className="text-sm font-medium text-gray-900">
-                                                        {conversation.title}
-                                                    </p>
-                                                    <div className="mt-1 flex items-center text-xs text-gray-500">
-                                                        <ClockIcon className="h-4 w-4 mr-1" />
-                                                        {new Date(
-                                                            conversation.updatedAt
-                                                        ).toLocaleDateString()}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <ChatBubbleLeftRightIcon className="h-5 w-5 text-gray-400" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                </li>
+                                <ConversationListItem
+                                    key={conversation.id}
+                                    conversation={conversation}
+                                />
                             ))}
                         </ul>
                     </div>

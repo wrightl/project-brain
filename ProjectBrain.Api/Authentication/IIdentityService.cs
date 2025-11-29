@@ -10,6 +10,8 @@ namespace ProjectBrain.Api.Authentication
         string? UserName { get; }
         // string? FirstName { get; }
         bool IsAuthenticated { get; }
+        bool IsAdmin { get; }
+        bool IsCoach { get; }
 
         /// <summary>
         /// Gets the full User DTO from the database based on the authenticated user's identity.

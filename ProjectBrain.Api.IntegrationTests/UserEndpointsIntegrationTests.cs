@@ -88,8 +88,6 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
             Id = "test-user-123",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColour = "Green",
-            DoB = new DateOnly(1985, 5, 15),
             IsOnboarded = true
         };
         context.Users.Add(user);
@@ -117,8 +115,6 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
             Id = "user-456",
             Email = "findme@example.com",
             FullName = "Find Me User",
-            FavoriteColour = "Red",
-            DoB = new DateOnly(1992, 3, 20),
             IsOnboarded = true
         };
         context.Users.Add(user);

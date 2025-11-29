@@ -12,13 +12,13 @@ public static class DtoToDomainMapper
             Id = userDto.Id,
             Email = userDto.Email,
             FullName = userDto.FullName,
-            DoB = userDto.DoB,
-            FavoriteColour = userDto.FavoriteColour,
             IsOnboarded = userDto.IsOnboarded,
-            PreferredPronoun = userDto.PreferredPronoun,
-            NeurodivergentDetails = userDto.NeurodivergentDetails,
-            Address = userDto.Address,
-            Experience = userDto.Experience
+            StreetAddress = userDto.StreetAddress,
+            AddressLine2 = userDto.AddressLine2,
+            City = userDto.City,
+            StateProvince = userDto.StateProvince,
+            PostalCode = userDto.PostalCode,
+            Country = userDto.Country
         };
 
         return user;

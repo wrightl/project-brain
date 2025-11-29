@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using ProjectBrain.AI;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Middlewares;
 using Scalar.AspNetCore;
 using TickerQ.Dashboard.DependencyInjection;
 using TickerQ.DependencyInjection;
@@ -16,6 +17,9 @@ if (builder.Configuration["AI:UseNewSearchService"]?.ToLower() == "true")
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
+
+// Add Redis distributed cache
+builder.AddRedisDistributedCache("cache");
 
 builder.AddProjectBrainDomain();
 
@@ -100,13 +104,19 @@ app.MapScalarApiReference(options =>
 
 // app.UseCors();
 app.UseCustomAuthentication();
+app.UseUserActivityTracking(); // Track user activity after authentication
 app.UseCustomAuthorisation();
 
 // Add api's
 app.MapUserEndpoints();
+app.MapUserManagementEndpoints();
 app.MapChatEndpoints();
 app.MapConversationEndpoints();
 app.MapResourceEndpoints();
+app.MapCoachEndpoints();
+app.MapVoiceNoteEndpoints();
+app.MapQuizEndpoints();
+app.MapStatisticsEndpoints();
 
 app.MapDefaultEndpoints();
 

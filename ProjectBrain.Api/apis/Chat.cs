@@ -34,7 +34,8 @@ public static class ChatEndpoints
             group.MapGet("/test", GetChatStatus);
         }
 
-        group.MapPost("/knowledge/upload", UploadKnowledge).WithName("KnowledgeUpload");
+        // group.MapPost("/knowledge/upload", UploadKnowledge).WithName("KnowledgeUpload");
+        group.MapPost("/voice", StreamVoiceChatEventStream);
         group.MapPost("/stream/json", StreamChatJson);
         group.MapPost("/stream/text", StreamChatPlain);
         group.MapPost("/stream/event-stream", StreamChatEventStream);
@@ -43,7 +44,7 @@ public static class ChatEndpoints
 
     private static async Task<object> GetChatStatus([AsParameters] ChatServices services)
     {
-        var summary = await services.AzureOpenAI.GetConversationSummary("Hello, how are you?", services.IdentityService.UserId);
+        var summary = await services.AzureOpenAI.GetConversationSummary("Hello, how are you?", services.IdentityService.UserId!);
         var endpoint = services.Config["ai:azureOpenAIEndpoint"];
         var key = services.Config["ai:azureOpenAIKey"];
         var deployment = services.Config["ai:azureOpenAIChatDeployment"];
@@ -57,35 +58,35 @@ public static class ChatEndpoints
         return new { status = "ProjectBrain Chat API is running.", summary, endpoint, key, deployment, searchEndpoint, searchKey, searchIndexName, userId, userName, email };
     }
 
-    private static async Task<IResult> UploadKnowledge([AsParameters] ChatServices services, HttpRequest request)
-    {
-        var form = await request.ReadFormAsync();
+    // private static async Task<IResult> UploadKnowledge([AsParameters] ChatServices services, HttpRequest request)
+    // {
+    //     var form = await request.ReadFormAsync();
 
-        // Get authenticated user from database
-        var user = await services.IdentityService.GetUserAsync();
-        if (user == null)
-            return Results.Unauthorized();
+    //     // Get authenticated user from database
+    //     var user = await services.IdentityService.GetUserAsync();
+    //     if (user == null)
+    //         return Results.Unauthorized();
 
-        var userId = user.Id;
+    //     var userId = user.Id;
 
-        if (form.Files.Count == 0)
-            return Results.BadRequest("No files uploaded");
+    //     if (form.Files.Count == 0)
+    //         return Results.BadRequest("No files uploaded");
 
-        var results = new List<object>();
-        foreach (var file in form.Files)
-        {
-            var filename = form.TryGetValue("filename", out var fn) ? fn.ToString() : file?.FileName;
-            if (file == null || file.Length == 0)
-            {
-                results.Add(new { status = "error", filename, message = "File is empty" });
-                continue;
-            }
-            var chunks = await services.Storage.UploadFile(file, userId, filename!);
-            results.Add(new { status = "uploaded", filename, chunks });
-        }
+    //     var results = new List<object>();
+    //     foreach (var file in form.Files)
+    //     {
+    //         var filename = form.TryGetValue("filename", out var fn) ? fn.ToString() : file?.FileName;
+    //         if (file == null || file.Length == 0)
+    //         {
+    //             results.Add(new { status = "error", filename, message = "File is empty" });
+    //             continue;
+    //         }
+    //         var chunks = await services.Storage.UploadFile(file, filename!, userId);
+    //         results.Add(new { status = "uploaded", filename, chunks });
+    //     }
 
-        return Results.Ok(results);
-    }
+    //     return Results.Ok(results);
+    // }
 
     private static async Task StreamChatJson(
         [AsParameters] ChatServices services,
@@ -101,6 +102,82 @@ public static class ChatEndpoints
         HttpContext http)
     {
         await StreamChat(services, request, http, "text/plain");
+    }
+
+    private static async Task StreamVoiceChatEventStream(
+        [AsParameters] ChatServices services,
+        HttpContext http)
+    {
+        services.Logger.LogInformation("Entering voice chat stream at {0}", DateTime.Now);
+
+        // Get authenticated user from database
+        var user = await services.IdentityService.GetUserAsync();
+        if (user == null)
+        {
+            services.Logger.LogWarning("Unauthorized access attempt to voice chat stream at {Time}", DateTime.Now);
+            http.Response.StatusCode = 401; // Unauthorized
+            return;
+        }
+
+        var form = await http.Request.ReadFormAsync();
+
+        // Get conversation ID from form data
+        var conversationId = form.TryGetValue("conversationId", out var convId) ? convId.ToString() : null;
+
+        // Get the audio file
+        if (form.Files.Count == 0)
+        {
+            services.Logger.LogWarning("No audio file provided in voice chat request at {Time}", DateTime.Now);
+            http.Response.StatusCode = 400; // Bad Request
+            await http.Response.WriteAsync("No audio file provided");
+            return;
+        }
+
+        var audioFile = form.Files[0];
+        if (audioFile.Length == 0)
+        {
+            services.Logger.LogWarning("Empty audio file provided in voice chat request at {Time}", DateTime.Now);
+            http.Response.StatusCode = 400; // Bad Request
+            await http.Response.WriteAsync("Empty audio file provided");
+            return;
+        }
+
+        try
+        {
+            // Transcribe the audio
+            string transcribedText;
+            using (var audioStream = audioFile.OpenReadStream())
+            {
+                transcribedText = await services.AzureOpenAI.TranscribeAudio(audioStream, audioFile.FileName ?? "audio.wav");
+            }
+
+            if (string.IsNullOrWhiteSpace(transcribedText))
+            {
+                services.Logger.LogWarning("Audio transcription resulted in empty text at {Time}", DateTime.Now);
+                http.Response.StatusCode = 400; // Bad Request
+                await http.Response.WriteAsync("Could not transcribe audio");
+                return;
+            }
+
+            services.Logger.LogInformation("Transcribed audio to text: {TranscribedText}", transcribedText);
+
+            // Create a ChatRequest with the transcribed text
+            var chatRequest = new ChatRequest
+            {
+                ConversationId = conversationId,
+                Content = transcribedText,
+                IsVoice = true
+            };
+
+            // Process the chat request using existing logic
+            await StreamChat(services, chatRequest, http, "text/event-stream");
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error processing voice chat request at {Time}", DateTime.Now);
+            http.Response.StatusCode = 500; // Internal Server Error
+            await http.Response.WriteAsync("Error processing voice request");
+        }
     }
 
     private static async Task StreamChatEventStream(
@@ -203,7 +280,34 @@ public static class ChatEndpoints
         var userName = user.FirstName!;
         services.Logger.LogInformation("Using user name {UserName} for conversation {ConversationId}", userName, conversation.Id);
 
-        var chatResponse = await services.AzureOpenAI.GetResponse(request.Content, userId, userName, history);
+        var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(request.Content, userId, userName, history);
+
+        services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
+        // Send citations as metadata before streaming the response
+        if (citations.Any())
+        {
+            var citationsData = citations.Select(c => new
+            {
+                id = c.Id,
+                index = c.Index,
+                sourceFile = c.SourceFile,
+                sourcePage = c.SourcePage,
+                storageUrl = c.StorageUrl,
+                isShared = c.IsShared
+            }).ToList();
+
+            if (contentType == "text/event-stream")
+            {
+                await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "citations", value = citationsData })}\n\n");
+            }
+            else if (contentType == "application/json")
+            {
+                // For JSON, we could include citations in a separate field
+                // For now, we'll send it as a separate message type
+                await http.Response.WriteAsync(JsonSerializer.Serialize(new { type = "citations", value = citationsData }) + "\n");
+            }
+            await http.Response.Body.FlushAsync();
+        }
 
         var assistantMessages = new List<string>();
 
@@ -245,6 +349,7 @@ public class ChatRequest
 {
     public string? ConversationId { get; set; }
     public string Content { get; set; } = string.Empty;
+    public bool IsVoice { get; set; } = false;
 }
 
 public class ChatMessageResponseChunk(string Value, string Type = "text")
@@ -266,4 +371,4 @@ public class ChatMessageResponseChunk(string Value, string Type = "text")
     }
 }
 
-record ChatMessageDto(string Role, string Content);
+public record ChatMessageDto(string Role, string Content);

@@ -1,0 +1,28 @@
+@base_url = {{AUTH0_AUDIENCE}}/coaches
+
+// Get access token
+# @name getAccessToken
+POST https://{{AUTH0_DOMAIN}}/oauth/token HTTP/1.1
+Content-Type: application/json
+
+{
+    "client_id": "{{AUTH0_CLIENT_ID}}",
+    "client_secret": "{{AUTH0_CLIENT_SECRET}}",
+    "audience": "{{AUTH0_AUDIENCE}}",
+    "grant_type": "client_credentials"
+}
+
+###
+
+@access_token = {{getAccessToken.response.body.access_token}}
+@access_token_coach = eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkoyZUNvODNfNXhsalR1dnM5Y3VyZCJ9.eyJodHRwczovL3Byb2plY3RicmFpbi5hcHAvcm9sZXMiOlsiY29hY2giXSwiaXNzIjoiaHR0cHM6Ly9kZXYtY3BkNmFybWE4MDM4Nmk1ci51cy5hdXRoMC5jb20vIiwic3ViIjoiYXV0aDB8NjkwYTYzYTliOTA2MGI0ZWY5NDI1YzkzIiwiYXVkIjpbImh0dHBzOi8vbG9jYWxob3N0Ojc1ODUiLCJodHRwczovL2Rldi1jcGQ2YXJtYTgwMzg2aTVyLnVzLmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjQ0MjY3MzEsImV4cCI6MTc2NDUxMzEzMSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBvZmZsaW5lX2FjY2VzcyIsImF6cCI6ImNNSlI5ZkpHclNaVjZlaEl1azM1cG5sTllsWmk5bHFZIiwicGVybWlzc2lvbnMiOltdfQ.MsCJXiAxSQYIpelDySsQ3RDlYu-5ha7cVffC73QA4zZZGMtNApgKFdc2ki7ipSdJA7SFlbeHs8bNDeNnRc6egMylVWH03__apTlMTiwGcabsOXM87GrtLXmTNgiiXaA-IidDNyVmPzLBHIblC1IfVlRDBYqRE5uNQppUezZG6eC2T72QE_4FVzsBJSVeVwGvz_98pac49UUpOrVHTBYh4guRnWfympvDa75bC1CEEAgX0rvsUImUoaDbe3oWtjMjGp05zvV1vBHW9xhWZ3rqSA4LDUi9vPxyiYfIUFnxdzwwEuGjtepRShkU8Rlc66hDGSelfsuk3OlNfkbfo4IlLA
+
+# GetAll
+GET {{base_url}}/search
+Authorization: Bearer {{access_token}}
+###
+
+# GetConnectedClients
+GET {{base_url}}/clients
+Authorization: Bearer {{access_token_coach}}
+###

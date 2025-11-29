@@ -18,4 +18,6 @@ public class Resource
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
+
+    public bool IsShared { get; set; } = false;
 }

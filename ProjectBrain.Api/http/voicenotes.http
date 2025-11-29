@@ -1,0 +1,31 @@
+@base_url = {{AUTH0_AUDIENCE}}/voicenotes
+
+// Get access token
+# @name getAccessToken
+POST https://{{AUTH0_DOMAIN}}/oauth/token HTTP/1.1
+Content-Type: application/json
+
+{
+    "client_id": "{{AUTH0_CLIENT_ID}}",
+    "client_secret": "{{AUTH0_CLIENT_SECRET}}",
+    "audience": "{{AUTH0_AUDIENCE}}",
+    "grant_type": "client_credentials"
+}
+
+###
+
+@access_token = eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkoyZUNvODNfNXhsalR1dnM5Y3VyZCJ9.eyJodHRwczovL3Byb2plY3RicmFpbi5hcHAvcm9sZXMiOlsidXNlciJdLCJpc3MiOiJodHRwczovL2Rldi1jcGQ2YXJtYTgwMzg2aTVyLnVzLmF1dGgwLmNvbS8iLCJzdWIiOiJ3aW5kb3dzbGl2ZXw2YzFlZjFkNDE1OGUwYTliIiwiYXVkIjpbImh0dHBzOi8vbG9jYWxob3N0Ojc1ODUiLCJodHRwczovL2Rldi1jcGQ2YXJtYTgwMzg2aTVyLnVzLmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjQ0MzM0NTAsImV4cCI6MTc2NDUxOTg1MCwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBvZmZsaW5lX2FjY2VzcyIsImF6cCI6ImxvbXUwdHEwcUhtdlFoQVZjU0ZqOXBqN2hlcURHcndNIiwicGVybWlzc2lvbnMiOltdfQ.BUVLnIozUg66v4RSLCk2V6UnqH-M9g2YTU0u12fn88mAvSWDZrxsuOgWQLoRfTQ0gSp3WTWGlhgddMeNzoq1ots3lcf4Wo6855Len978-eiIQGpT4zndEPeGBGf5h9KydhAW53rEXeowYEchoEE_7GJdk9zJFUQa1anc-fDdShtYjnKozjWLjxQcxX9miQ7rqXKTD9uxRJiDfB70JsZgaVQ13hBfU82jjcTFDkBCjmf-Lg9paKBFKQZgTagTWTwxnSX3wpchMXhGaT85-azaQVhVdHDKQVvGE2yx7uC3Pp3zVrxGL9KngvJjfH489md91y7Wq4fVvcCxAa6YQ76ltg
+# {{getAccessToken.response.body.access_token}}
+
+# get all voice notes
+GET {{base_url}}
+Authorization: Bearer {{access_token}}
+###
+
+# get voice note by id
+@voiceNoteId = 1bebaa6a-03a4-4aad-b70f-9cc21e551ed7
+GET {{base_url}}/{{voiceNoteId}}/audio
+Authorization: Bearer {{access_token}}
+###
+
+# upload voice note

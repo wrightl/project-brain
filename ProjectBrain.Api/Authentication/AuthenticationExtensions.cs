@@ -7,21 +7,18 @@ public static class AuthenticationExtensions
 {
     public static void AddCustomAuthentication(this WebApplicationBuilder builder)
     {
-        builder.Services.AddAuthentication(options =>
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
             {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(options =>
-            {
-                options.Authority = $"https://{builder.Configuration["Auth0:Domain"]}/";
-                options.Audience = "dynamic-audience-placeholder"; //$"{builder.Configuration["Auth0:Audience"]}";
+                options.Authority = $"https://{builder.Configuration["Auth0:Domain"]}";
+                // options.Audience = $"{builder.Configuration["Auth0:Audience"]}";
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     // NameClaimType = ClaimTypes.NameIdentifier,
                     ValidateAudience = true,
                     ValidateIssuerSigningKey = true,
                     ValidateIssuer = true,
-                    ValidIssuer = $"https://{builder.Configuration["Auth0:Domain"]}/",
+                    ValidIssuer = $"https://{builder.Configuration["Auth0:Domain"]}",
                     AudienceValidator = (audiences, securityToken, validationParameters) =>
                     {
                         var httpContext = builder.Services.BuildServiceProvider().GetRequiredService<IHttpContextAccessor>().HttpContext;
@@ -40,17 +37,22 @@ public static class AuthenticationExtensions
 
     public static void AddCustomAuthorisation(this WebApplicationBuilder builder)
     {
-        builder.Services.AddAuthorization();
-        // builder.Services.AddAuthorization(options =>
-        //     {
-        //         options.AddPolicy("read:weather_forecast", policy =>
-        //             {
-        //                 // policy.Requirements.Add(new RbacRequirement("read:weather_forecast"));
-        //                 policy.RequireClaim("scope", "read:weather_forecast");
-        //             });
-        //     });
-
-        // builder.Services.AddSingleton<IAuthorizationHandler, RbacHandler>();
+        // builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("AdminOnly", policy =>
+                    {
+                        policy.RequireClaim("https://projectbrain.app/roles", "admin");
+                    });
+                options.AddPolicy("CoachOnly", policy =>
+                    {
+                        policy.RequireClaim("https://projectbrain.app/roles", "coach");
+                    });
+                // options.AddPolicy("UserOnly", policy =>
+                //     {
+                //         policy.RequireClaim("https://projectbrain.app/roles", "user");
+                //     });
+            });
     }
 
     public static void UseCustomAuthentication(this WebApplication app)

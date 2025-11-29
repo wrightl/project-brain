@@ -1,25 +1,31 @@
 
-using System.Text.Json;
-using Auth0.AuthenticationApi;
-using Auth0.AuthenticationApi.Models;
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Mappers;
 
 public class UserServices(
     ILogger<UserServices> logger,
     IIdentityService identityService,
     IUserService userService,
+    IRoleManagement roleManagementService,
     IMemoryCache memoryCache,
     FeatureFlagService featureFlagService,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    ICoachProfileService coachProfileService,
+    IUserProfileService userProfileService,
+    IUserActivityService userActivityService)
 {
     public ILogger<UserServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public IUserService UserService { get; } = userService;
+    public IRoleManagement RoleManagementService { get; } = roleManagementService;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
     public FeatureFlagService FeatureFlagService { get; } = featureFlagService;
+    public ICoachProfileService CoachProfileService { get; } = coachProfileService;
+    public IUserProfileService UserProfileService { get; } = userProfileService;
+    public IUserActivityService UserActivityService { get; } = userActivityService;
 }
 
 public static class UserEndpoints
@@ -28,41 +34,31 @@ public static class UserEndpoints
     {
         var group = app.MapGroup("users").RequireAuthorization();
 
-        group.MapPost("/me/onboarding", OnboardUser);
+        // User endpoints
+        group.MapPost("/me/onboarding", OnboardUser).WithName("OnboardUser");
+        group.MapPost("/me/onboarding/coach", OnboardCoach).WithName("OnboardCoach");
         group.MapGet("/me", GetCurrentUser).WithName("GetCurrentUser");
+        group.MapPut("/me/{userId}", UpdateUser).WithName("UpdateUser");
         group.MapGet("/roles", GetCurrentUserRoles).WithName("GetCurrentUserRoles");
-        group.MapDelete("/{id}", DeleteUser).WithName("DeleteUser");
 
         if (app.Environment.IsDevelopment())
         {
-            group.MapGet("/config", GetConfig).WithName("GetConfig").AllowAnonymous();
             group.MapGet("/{email}", GetUserByEmail).WithName("GetUserByEmail");
         }
-    }
-
-    private static async Task<IResult> GetConfig([AsParameters] UserServices services)
-    {
-        var config = services.Configuration.GetSection("Auth0");
-
-        var values = new
-        {
-            Auth0Domain = config["Domain"],
-            Auth0ClientId = config["ClientId"],
-            Auth0ManagementApiClientSecret = config["ManagementApiClientSecret"],
-            Auth0ManagementApiClientId = config["ManagementApiClientId"],
-            Token = await getAuth0Token(services, config),
-            CoachEnabled = await services.FeatureFlagService.IsCoachSectionEnabled(),
-            SdkKKey = services.Configuration["LaunchDarkly:SdkKey"]
-        };
-
-        return Results.Ok(values);
     }
 
     private static async Task<IResult> OnboardUser([AsParameters] UserServices services, CreateUserRequest request)
     {
         var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+        // if (!string.Equals(request.Role, "user", StringComparison.OrdinalIgnoreCase))
+        // {
+        //     return Results.BadRequest("User is not a user");
+        // }
         var existingUser = await services.UserService.GetById(userId);
-        _ = request.Role ?? throw new ArgumentNullException(nameof(request.Role));
 
         if (existingUser is not null && existingUser.IsOnboarded)
         {
@@ -74,13 +70,14 @@ public static class UserEndpoints
             Id = userId,
             Email = request.Email,
             FullName = request.FullName,
-            DoB = request.DoB,
-            FavoriteColour = request.FavoriteColor,
             IsOnboarded = true,
             PreferredPronoun = request.PreferredPronoun,
-            NeurodivergentDetails = request.NeurodivergentDetails,
-            Address = request.Address,
-            Experience = request.Experience
+            StreetAddress = request.StreetAddress,
+            AddressLine2 = request.AddressLine2,
+            City = request.City,
+            StateProvince = request.StateProvince,
+            PostalCode = request.PostalCode,
+            Country = request.Country
         };
 
         if (existingUser is not null && existingUser.Roles != null && existingUser.Roles.Count > 0)
@@ -90,11 +87,19 @@ public static class UserEndpoints
         else
         {
             // Assign the role provided in the request
-            user.Roles.Add(request.Role);
+            user.Roles.Add("user");
         }
 
         // Update auth0
-        await updateAuth0UserRole(services, userId, user.Roles);
+        await services.RoleManagementService.UpdateUserRoles(userId, user.Roles);
+
+        // Create or update user profile
+        await services.UserProfileService.CreateOrUpdate(
+            userId,
+            doB: request.DoB,
+            preferredPronoun: request.PreferredPronoun,
+            neurodiverseTraits: request.NeurodiverseTraits,
+            preferences: request.Preferences);
 
         if (existingUser is not null)
         {
@@ -110,11 +115,178 @@ public static class UserEndpoints
         }
     }
 
+    private static async Task<IResult> OnboardCoach([AsParameters] UserServices services, CreateCoachRequest request)
+    {
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+        // if (!string.Equals(request.Role, "coach", StringComparison.OrdinalIgnoreCase))
+        // {
+        //     return Results.BadRequest("User is not a coach");
+        // }
+
+        var existingUser = await services.UserService.GetById(userId);
+        if (existingUser is not null && existingUser.IsOnboarded)
+        {
+            return Results.Conflict($"User with ID {userId} has already been onboarded.");
+        }
+
+        var user = new UserDto()
+        {
+            Id = userId,
+            Email = request.Email,
+            FullName = request.FullName,
+            IsOnboarded = true,
+            StreetAddress = request.StreetAddress,
+            AddressLine2 = request.AddressLine2,
+            City = request.City,
+            StateProvince = request.StateProvince,
+            PostalCode = request.PostalCode,
+            Country = request.Country
+        };
+
+        if (existingUser is not null && existingUser.Roles != null && existingUser.Roles.Count > 0)
+        {
+            user.Roles = existingUser.Roles;
+        }
+        else
+        {
+            // Assign the role provided in the request
+            user.Roles.Add("coach");
+        }
+
+        // Update auth0
+        await services.RoleManagementService.UpdateUserRoles(userId, user.Roles);
+
+        // Create or update coach profile
+        await services.CoachProfileService.CreateOrUpdate(
+            userId,
+            qualifications: request.Qualifications,
+            specialisms: request.Specialisms,
+            ageGroups: request.AgeGroups);
+
+        if (existingUser is not null)
+        {
+            // Update existing user
+            var result = await services.UserService.Update(user);
+            return Results.Ok(result);
+        }
+        else
+        {
+            // Create new user
+            var result = await services.UserService.Create(user);
+            return Results.Ok(result);
+        }
+    }
+
+
     private static async Task<IResult> GetCurrentUser([AsParameters] UserServices services)
     {
         var userId = services.IdentityService.UserId;
-        var result = await services.UserService.GetById(userId!);
-        return result is not null ? Results.Ok(result) : Results.NotFound();
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = await services.UserService.GetById(userId);
+        if (user is null)
+        {
+            return Results.NotFound();
+        }
+
+        // Check if user is a coach
+        var isCoach = user.Roles?.Any(r => string.Equals(r, "coach", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+        if (isCoach)
+        {
+            // Return coach profile data
+            var coachProfile = await services.CoachProfileService.GetByUserId(userId);
+            if (coachProfile is null)
+            {
+                // User has coach role but no coach profile - return basic user data
+                return Results.Ok(user);
+            }
+
+            var coachDto = coachProfile.ToCoachDto();
+
+            // Set online status (30-minute window for coaches)
+            await coachDto.SetOnlineStatusAsync(services.UserActivityService, activityWindowMinutes: 30);
+
+            return Results.Ok(coachDto);
+        }
+        else
+        {
+            // Return user profile data
+            var userProfile = await services.UserProfileService.GetByUserId(userId);
+            if (userProfile is not null)
+            {
+                // Populate UserDto with profile data
+                user.DoB = userProfile.DoB;
+                user.PreferredPronoun = userProfile.PreferredPronoun;
+                user.NeurodiverseTraits = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>();
+                user.Preferences = userProfile.Preference?.Preferences;
+            }
+
+            return Results.Ok(user);
+        }
+    }
+
+    private static async Task<IResult> UpdateUser([AsParameters] UserServices services, string userId, UpdateCurrentUserRequest request)
+    {
+        var loggedInUserId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(loggedInUserId))
+        {
+            return Results.Unauthorized();
+        }
+
+        // Validate that the userId in the URL matches the logged-in user
+        if (!string.Equals(userId, loggedInUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.BadRequest("You can only update your own user data.");
+        }
+
+        var existingUser = await services.UserService.GetById(userId);
+        if (existingUser is null)
+        {
+            return Results.NotFound($"User with ID {userId} not found.");
+        }
+
+        // Update user data
+        var user = new UserDto()
+        {
+            Id = userId,
+            Email = existingUser.Email, // Email should not be changed via this endpoint
+            FullName = request.FullName ?? existingUser.FullName,
+            IsOnboarded = existingUser.IsOnboarded, // Don't allow changing onboarding status via this endpoint
+            StreetAddress = request.StreetAddress ?? existingUser.StreetAddress,
+            AddressLine2 = request.AddressLine2 ?? existingUser.AddressLine2,
+            City = request.City ?? existingUser.City,
+            StateProvince = request.StateProvince ?? existingUser.StateProvince,
+            PostalCode = request.PostalCode ?? existingUser.PostalCode,
+            Country = request.Country ?? existingUser.Country,
+            Roles = existingUser.Roles // Preserve existing roles
+        };
+
+        // Update user in database
+        var updatedUser = await services.UserService.Update(user);
+
+        // Update user profile if profile fields are provided
+        if (request.DoB.HasValue || request.PreferredPronoun != null ||
+            request.NeurodiverseTraits != null || request.Preferences != null)
+        {
+            await services.UserProfileService.CreateOrUpdate(
+                userId,
+                doB: request.DoB,
+                preferredPronoun: request.PreferredPronoun,
+                neurodiverseTraits: request.NeurodiverseTraits,
+                preferences: request.Preferences);
+        }
+
+        // Return the updated user
+        var result = await services.UserService.GetById(userId);
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetCurrentUserRoles([AsParameters] UserServices services)
@@ -129,122 +301,60 @@ public static class UserEndpoints
         var result = await services.UserService.GetByEmail(email);
         return result is not null ? Results.Ok(result) : Results.NotFound();
     }
-
-    // TODO: Needs protecting so only admins can delete users
-    private static async Task<IResult> DeleteUser([AsParameters] UserServices services, string id)
-    {
-        var result = await services.UserService.DeleteById(id);
-
-        return result is not null ? Results.Ok(result) : Results.NotFound();
-    }
-
-    private static async Task updateAuth0UserRole(UserServices services, string userId, List<string> roles)
-    {
-        var config = services.Configuration.GetSection("Auth0");
-        var domain = config["Domain"];
-
-        var token = await getAuth0Token(services, config);
-
-        // Get roles
-        var client = new HttpClient();
-
-        var request = new HttpRequestMessage(HttpMethod.Get, $"https://{domain}/api/v2/roles");
-        request.Headers.Add("Accept", "application/json");
-        request.Headers.Add("Authorization", $"Bearer {token}");
-        var response = await client.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-        var jsonString = await response.Content.ReadAsStringAsync();
-        List<Auth0Role> roleList = JsonSerializer.Deserialize<List<Auth0Role>>(jsonString, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        }) ?? new List<Auth0Role>();
-
-
-        List<string> roleIdsToAssign = new List<string>();
-        foreach (var roleName in roles)
-        {
-            var role = roleList.FirstOrDefault(r => r.Name.Equals(roleName, StringComparison.OrdinalIgnoreCase));
-            if (role != null)
-            {
-                roleIdsToAssign.Add(role.Id);
-            }
-        }
-
-        var roleIdsString = JsonSerializer.Serialize(roleIdsToAssign);
-        services.Logger.LogInformation("Assigning roles to user {roleIdsString}", roleIdsString);
-
-        var assignRoleRequest = new HttpRequestMessage(HttpMethod.Post, $"https://{domain}/api/v2/users/{userId}/roles");
-        assignRoleRequest.Headers.Add("Authorization", $"Bearer {token}");
-        var content = new StringContent("{\"roles\":" + roleIdsString + "}", null, "application/json");
-        assignRoleRequest.Content = content;
-        var assignRoleResponse = await client.SendAsync(assignRoleRequest);
-        assignRoleResponse.EnsureSuccessStatusCode();
-    }
-
-    private static async Task<string> getAuth0Token(UserServices services, IConfigurationSection config)
-    {
-        var domain = config["Domain"];
-        var clientId = config["ManagementApiClientId"];
-        var clientSecret = config["ManagementApiClientSecret"];
-
-        var cache = services.MemoryCache;
-
-        // Check if we have a valid, non-expired token in the cache
-        if (cache.TryGetValue("Auth0ManagementApiToken", out string token))
-        {
-            return token;
-        }
-
-        var authClient = new AuthenticationApiClient(domain);
-
-        services.Logger.LogInformation("Fetching new Auth0 Management API token");
-        services.Logger.LogInformation("ClientId: {ClientId}", clientId);
-        services.Logger.LogInformation("ClientSecret: {ClientSecret}", clientSecret != null ? "****" : "null");
-        services.Logger.LogInformation("Audience: {Audience}", $"https://{domain}/api/v2/");
-
-        // Fetch the access token using the Client Credentials.
-        var accessTokenResponse = await authClient.GetTokenAsync(new ClientCredentialsTokenRequest()
-        {
-            Audience = $"https://{domain}/api/v2/",
-            ClientId = clientId,
-            ClientSecret = clientSecret,
-        });
-
-        services.Logger.LogInformation("Access Token Response: {AccessTokenResponse}", accessTokenResponse.AccessToken);
-        services.Logger.LogInformation("Received Auth0 Management API token, expires in {ExpiresIn} seconds", accessTokenResponse.ExpiresIn);
-
-        // Cache the new token, setting its expiration to 5 minutes before it *actually* expires
-        cache.Set(
-            "Auth0ManagementApiToken",
-            accessTokenResponse.AccessToken,
-            TimeSpan.FromSeconds(accessTokenResponse.ExpiresIn - 300)
-        );
-
-        return accessTokenResponse.AccessToken;
-    }
 }
 
-public class CreateUserRequest
+public class OnboardUserRequest
 {
     public required string Email { get; init; }
     public required string FullName { get; init; }
 
-    public required DateOnly DoB { get; init; }
-    public required string FavoriteColor { get; init; }
+    // public required string Role { get; init; }
 
-    public required string Role { get; init; }
+    // Address fields
+    public string? StreetAddress { get; init; }
+    public string? AddressLine2 { get; init; }
+    public string? City { get; init; }
+    public string? StateProvince { get; init; }
+    public string? PostalCode { get; init; }
+    public string? Country { get; init; }
+}
 
-    // User-specific fields
+public class CreateUserRequest : OnboardUserRequest
+{
+    public DateOnly? DoB { get; init; }
     public string? PreferredPronoun { get; init; }
-    public string? NeurodivergentDetails { get; init; }
+    public IEnumerable<string>? NeurodiverseTraits { get; init; }
+    public string? Preferences { get; init; }
+}
 
-    // Coach-specific fields
-    public string? Address { get; init; }
-    public string? Experience { get; init; }
+public class CreateCoachRequest : OnboardUserRequest
+{
+    public required List<string> Qualifications { get; init; }
+    public required List<string> Specialisms { get; init; }
+    public required List<string> AgeGroups { get; init; }
+}
+
+public class UpdateCurrentUserRequest
+{
+    public string? FullName { get; init; }
+
+    // Address fields
+    public string? StreetAddress { get; init; }
+    public string? AddressLine2 { get; init; }
+    public string? City { get; init; }
+    public string? StateProvince { get; init; }
+    public string? PostalCode { get; init; }
+    public string? Country { get; init; }
+
+    // User profile fields
+    public DateOnly? DoB { get; init; }
+    public string? PreferredPronoun { get; init; }
+    public IEnumerable<string>? NeurodiverseTraits { get; init; }
+    public string? Preferences { get; init; }
 }
 
 public class Auth0Role
 {
-    public string Id { get; set; }
-    public string Name { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 }

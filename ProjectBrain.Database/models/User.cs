@@ -12,22 +12,29 @@ public class User
     [StringLength(255)]
     public required string FullName { get; set; }
     public string? FirstName => FullName.Split(' ').FirstOrDefault();
-    [StringLength(100)]
-    public required string FavoriteColour { get; set; }
-
-    public required DateOnly DoB { get; set; }
 
     public bool IsOnboarded { get; set; } = false;
 
-    // User-specific fields
-    [StringLength(20)]
-    public string? PreferredPronoun { get; set; }
-    public string? NeurodivergentDetails { get; set; }
+    public DateTime? LastActivityAt { get; set; }
 
-    // Coach-specific fields
-    [StringLength(364)]
-    public string? Address { get; set; }
-    public string? Experience { get; set; }
+    // Address fields (applicable for any country)
+    [StringLength(255)]
+    public string? StreetAddress { get; set; }
+
+    [StringLength(255)]
+    public string? AddressLine2 { get; set; }
+
+    [StringLength(100)]
+    public string? City { get; set; }
+
+    [StringLength(100)]
+    public string? StateProvince { get; set; }
+
+    [StringLength(20)]
+    public string? PostalCode { get; set; }
+
+    [StringLength(100)]
+    public string? Country { get; set; }
 
     // Navigation property for roles
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();

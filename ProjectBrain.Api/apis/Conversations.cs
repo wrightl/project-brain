@@ -58,7 +58,6 @@ public static class ConversationEndpoints
         return conversation is not null ? Results.Ok(conversation) : Results.NotFound();
     }
 
-    // TODO: This method doesn't work
     private static async Task<IResult> GetConversationWithMessagesById(
         [AsParameters] ConversationServices services,
         Guid id)
@@ -67,7 +66,24 @@ public static class ConversationEndpoints
         if (string.IsNullOrEmpty(userId))
             return Results.Unauthorized();
         var conversation = await services.ConversationService.GetByIdWithMessages(id, userId);
-        return conversation is not null ? Results.Ok(conversation) : Results.NotFound();
+        if (conversation is null)
+            return Results.NotFound();
+
+        // Map to DTO to avoid circular reference (Conversation -> Messages -> Conversation)
+        var messages = conversation.Messages ?? new List<ChatMessage>();
+        var messageDtos = messages.Select(m => new ChatMessageDto(m.Role, m.Content)).ToList();
+
+        var conversationDto = new ConversationWithMessagesDto
+        {
+            Id = conversation.Id,
+            UserId = conversation.UserId,
+            Title = conversation.Title,
+            CreatedAt = conversation.CreatedAt,
+            UpdatedAt = conversation.UpdatedAt,
+            Messages = messageDtos
+        };
+
+        return Results.Ok(conversationDto);
     }
 
     private static async Task<IResult> GetAllConversationsForUser(
@@ -150,4 +166,14 @@ public class CreateConversationRequest
 public class UpdateConversationRequest
 {
     public required string Title { get; init; }
+}
+
+public class ConversationWithMessagesDto
+{
+    public Guid Id { get; set; }
+    public string UserId { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public List<ChatMessageDto> Messages { get; set; } = new();
 }

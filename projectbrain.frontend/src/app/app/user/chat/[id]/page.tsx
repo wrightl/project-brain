@@ -1,5 +1,5 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
-import { getConversationWithMessages } from '@/_lib/api-client';
+import { ConversationService } from '@/_services/conversation-service';
 import { notFound } from 'next/navigation';
 import ChatInterface from '../_components/chat-interface';
 
@@ -9,7 +9,9 @@ interface ChatPageProps {
 
 export default async function ChatPage({ params }: ChatPageProps) {
     const { id } = await params;
-    const conversation = await getConversationWithMessages(id);
+    const conversation = await ConversationService.getConversationWithMessages(
+        id
+    );
 
     if (!conversation) {
         notFound();
@@ -17,7 +19,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
     return (
         <RoleGuard allowedRoles={['user', 'admin']}>
-            <div className="h-screen flex flex-col bg-gray-50">
+            <div className="h-full w-full flex flex-col bg-gray-50">
                 <ChatInterface conversation={conversation} />
             </div>
         </RoleGuard>

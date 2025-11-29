@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { BackendApiError } from './backend-api';
+import { BackendApiError, SessionExpiredError } from './backend-api';
 import { auth0 } from './auth';
 
 type RouteHandler<T> = (
@@ -31,6 +31,19 @@ export function createApiRoute<T>(handler: RouteHandler<T>) {
             return NextResponse.json(result);
         } catch (error) {
             console.error('API route error:', error);
+
+            // Handle session expiration - return 401 with special header
+            if (error instanceof SessionExpiredError) {
+                return NextResponse.json(
+                    { error: 'Session expired', code: 'SESSION_EXPIRED' },
+                    { 
+                        status: 401,
+                        headers: {
+                            'X-Session-Expired': 'true'
+                        }
+                    }
+                );
+            }
 
             if (error instanceof BackendApiError) {
                 return NextResponse.json(

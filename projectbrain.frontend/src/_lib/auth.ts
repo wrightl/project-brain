@@ -2,6 +2,7 @@ import { UserRole } from '@/_lib/types';
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import { GetAccessTokenOptions } from '@auth0/nextjs-auth0/types';
 import { NextRequest, NextResponse } from 'next/server';
+import { redirect } from 'next/navigation';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
@@ -63,14 +64,28 @@ export async function getUserEmail(): Promise<string | null> {
 export async function getAccessToken(
     options?: GetAccessTokenOptions
 ): Promise<string> {
-    const tokenResponse = await auth0.getAccessToken(options);
+    try {
+        const tokenResponse = await auth0.getAccessToken(options);
 
-    // Handle the case where tokenResponse might be undefined
-    if (!tokenResponse || !tokenResponse.token) {
-        throw new Error('Unable to retrieve access token');
+        // Handle the case where tokenResponse might be undefined
+        if (!tokenResponse || !tokenResponse.token) {
+            redirect('/auth/login?returnTo=/app');
+        }
+
+        return tokenResponse.token;
+    } catch (error) {
+        // If it's a NEXT_REDIRECT error, re-throw it to allow the redirect to propagate
+        if (
+            typeof error === 'object' &&
+            error !== null &&
+            'message' in error &&
+            (error as { message: string }).message === 'NEXT_REDIRECT'
+        ) {
+            throw error;
+        }
+        // If we can't get a token, the session is likely expired - redirect to login
+        redirect('/auth/login?returnTo=/app');
     }
-
-    return tokenResponse.token;
 }
 
 export async function authMiddleware(req: NextRequest): Promise<NextResponse> {

@@ -10,6 +10,9 @@ import {
     CloudArrowUpIcon,
     Cog6ToothIcon,
     ArrowRightStartOnRectangleIcon,
+    UserIcon,
+    DocumentTextIcon,
+    MusicalNoteIcon,
 } from '@heroicons/react/24/outline';
 
 interface DashboardNavProps {
@@ -22,18 +25,23 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
 
     const adminLinks = [
         { href: '/app/admin', label: 'Dashboard', icon: HomeIcon },
-        { href: '/app/admin/users', label: 'Manage Users', icon: UsersIcon },
+        { href: '/app/admin/users', label: 'Users', icon: UsersIcon },
         {
-            href: '/app/admin/upload',
-            label: 'Upload Knowledge',
+            href: '/app/admin/manage-files',
+            label: 'Knowledge',
             icon: CloudArrowUpIcon,
+        },
+        {
+            href: '/app/admin/quizzes',
+            label: 'Quizzes',
+            icon: DocumentTextIcon,
         },
     ];
 
     const coachLinks = [
         { href: '/app/coach', label: 'Dashboard', icon: HomeIcon },
+        { href: '/app/coach/clients', label: 'My Clients', icon: UsersIcon },
         { href: '/app/coach/search', label: 'Find Users', icon: UsersIcon },
-        { href: '/app/coach/settings', label: 'Settings', icon: Cog6ToothIcon },
     ];
 
     const userLinks = [
@@ -44,9 +52,14 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             icon: ChatBubbleLeftRightIcon,
         },
         {
-            href: '/app/user/upload',
-            label: 'Upload Files',
+            href: '/app/user/manage-files',
+            label: 'Manage Files',
             icon: CloudArrowUpIcon,
+        },
+        {
+            href: '/app/user/voicenotes',
+            label: 'Voice Notes',
+            icon: MusicalNoteIcon,
         },
     ];
 
@@ -89,11 +102,26 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                         </div>
                     </div>
                     <div className="flex items-center space-x-4">
-                        <div className="text-sm text-gray-700">
-                            <span className="font-medium">
+                        {role === 'admin' && (
+                            <span className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md">
+                                <UserIcon className="h-5 w-5 mr-2" />
                                 {user?.fullName || 'User'}
                             </span>
-                        </div>
+                        )}
+                        {role !== 'admin' && (
+                            <Link
+                                href={
+                                    role === 'coach'
+                                        ? '/app/coach/profile'
+                                        : '/app/user/profile'
+                                }
+                                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
+                            >
+                                <UserIcon className="h-5 w-5 mr-2" />
+                                {user?.fullName || 'User'}
+                            </Link>
+                        )}
+
                         <a
                             href="/auth/logout"
                             className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"

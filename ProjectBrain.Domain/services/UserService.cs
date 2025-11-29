@@ -45,13 +45,13 @@ public class UserService : IUserService
 
         // Merge updated fields
         user.FullName = updatedUser.FullName;
-        user.DoB = updatedUser.DoB;
-        user.FavoriteColour = updatedUser.FavoriteColour;
         user.IsOnboarded = updatedUser.IsOnboarded;
-        user.PreferredPronoun = updatedUser.PreferredPronoun;
-        user.NeurodivergentDetails = updatedUser.NeurodivergentDetails;
-        user.Address = updatedUser.Address;
-        user.Experience = updatedUser.Experience;
+        user.StreetAddress = updatedUser.StreetAddress;
+        user.AddressLine2 = updatedUser.AddressLine2;
+        user.City = updatedUser.City;
+        user.StateProvince = updatedUser.StateProvince;
+        user.PostalCode = updatedUser.PostalCode;
+        user.Country = updatedUser.Country;
 
         user.UserRoles = userDto.Roles.Select(roleName => new UserRole
         {
@@ -99,7 +99,7 @@ public class UserService : IUserService
 
         _context.Users.Remove(user);
         await _context.SaveChangesAsync();
-        return user?.ToUserDto();
+        return user.ToUserDto();
     }
 }
 
@@ -111,6 +111,6 @@ public interface IUserService
     Task<UserDto?> GetById(string Id);
 
     Task<UserDto?> GetByEmail(string email);
-    Task<UserDto?> DeleteById(string Id);
+    Task<UserDto> DeleteById(string Id);
 }
 

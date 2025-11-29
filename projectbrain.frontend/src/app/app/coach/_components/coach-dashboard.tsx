@@ -5,30 +5,59 @@ import {
     ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { getFlags } from '@/_lib/flags';
+import { StatisticsService } from '@/_services/statistics-service';
 
 export default async function CoachDashboard() {
     // We added your flag key. The React SDK uses camelCase for flag keys automatically
     // useFlags is a custom hook which returns all feature flags
     const enableCoachSection = (await getFlags())['enable-coach-section'];
+    const [
+        coachClientsCount,
+        pendingClientsCount,
+        userConversationsCount,
+        userResourcesCount,
+    ] = await Promise.all([
+        StatisticsService.getCoachClients(),
+        StatisticsService.getPendingClients(),
+        StatisticsService.getUserConversations(),
+        StatisticsService.getUserResources(),
+    ]);
 
     const stats = [
-        { name: 'Active Clients', value: '0', icon: UsersIcon },
-        { name: 'Upcoming Sessions', value: '0', icon: CalendarIcon },
-        { name: 'Messages', value: '0', icon: ChatBubbleLeftRightIcon },
+        {
+            name: 'Active Clients',
+            value: coachClientsCount.toString(),
+            icon: UsersIcon,
+        },
+        {
+            name: 'Pending Clients',
+            value: pendingClientsCount.toString(),
+            icon: UsersIcon,
+        },
+        {
+            name: 'My Conversations',
+            value: userConversationsCount.toString(),
+            icon: ChatBubbleLeftRightIcon,
+        },
+        {
+            name: 'My Resources',
+            value: userResourcesCount.toString(),
+            icon: CalendarIcon,
+        },
     ];
 
     const quickActions = [
         {
             title: 'Find Users',
             description: 'Search for users in your geographical region',
-            href: '/coach/search',
+            href: '/app/coach/search',
             icon: UsersIcon,
             color: 'bg-blue-500',
         },
         {
             title: 'My Profile',
             description: 'Update your experience and availability',
-            href: '/coach/settings',
+            href: '/app/coach/profile',
             icon: CalendarIcon,
             color: 'bg-purple-500',
         },

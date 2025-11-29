@@ -10,34 +10,69 @@ export interface User {
     email: string;
     fullName: string;
     firstName?: string;
-    favoriteColor: string;
-    doB: string; // ISO date string
     isOnboarded: boolean;
     roles: UserRole[];
+    lastActivityAt?: string;
+    // Profile fields
+    doB?: string;
+    preferredPronoun?: string;
+    neurodiverseTraits?: string[];
+    preferences?: string;
+    // Address fields
+    streetAddress?: string;
+    addressLine2?: string;
+    city?: string;
+    stateProvince?: string;
+    postalCode?: string;
+    country?: string;
+}
+
+export interface Coach extends User {
+    qualifications: string[];
+    specialisms: string[];
+    ageGroups: string[];
 }
 
 export interface OnboardingData {
     email: string;
     fullName: string;
-    doB: string;
-    favoriteColor: string;
-    role: UserRole;
+    // role: UserRole;
+    // Address fields
+    streetAddress?: string;
+    addressLine2?: string;
+    city?: string;
+    stateProvince?: string;
+    postalCode?: string;
+    country?: string;
 }
 
 export interface CoachOnboardingData extends OnboardingData {
-    address: string;
-    experience: string;
+    qualifications?: string[];
+    specialisms?: string[];
+    ageGroups?: string[];
 }
 
 export interface UserOnboardingData extends OnboardingData {
+    doB: string;
     preferredPronoun: string;
-    neurodivergentDetails: string;
+    neurodiverseTraits?: string[];
+    preferences?: string;
+}
+
+export interface Citation {
+    id: string;
+    index: number;
+    sourceFile: string;
+    sourcePage?: string;
+    storageUrl: string;
+    isShared: boolean;
 }
 
 export interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
     createdAt?: string;
+    citations?: Citation[];
 }
 
 export interface Conversation {
@@ -74,4 +109,9 @@ export interface Resource {
     sizeInBytes: number;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface ReindexResult {
+    status: 'success' | 'error';
+    filesReindexed: number;
 }

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getUserRoles } from '@/_lib/auth';
 import { UserRole } from '@/_lib/types';
+import { SessionExpiredError } from '@/_lib/backend-api';
 
 interface RoleGuardProps {
     children: React.ReactNode;
@@ -16,11 +17,18 @@ export async function RoleGuard({
     allowedRoles,
     redirectTo = '/app',
 }: RoleGuardProps) {
-    const userRole = await getUserRoles();
+    try {
+        const userRole = await getUserRoles();
 
-    if (!userRole || !allowedRoles.includes(userRole[0])) {
-        redirect(redirectTo);
+        if (!userRole || !allowedRoles.includes(userRole[0])) {
+            redirect(redirectTo);
+        }
+
+        return <>{children}</>;
+    } catch (error) {
+        if (error instanceof SessionExpiredError) {
+            redirect('/auth/login?returnTo=' + encodeURIComponent(redirectTo));
+        }
+        throw error;
     }
-
-    return <>{children}</>;
 }

@@ -87,7 +87,7 @@ public class AISeeding
                 new SimpleField("category", SearchFieldDataType.String) { IsFacetable = true },
                 new SimpleField("sourcepage", SearchFieldDataType.String) { IsFacetable = true },
                 new SimpleField("sourcefile", SearchFieldDataType.String) { IsFacetable = true },
-                new SimpleField("storageUrl", SearchFieldDataType.String) { IsFacetable = false },
+                new SimpleField("storageUrl", SearchFieldDataType.String) { IsFacetable = false, IsFilterable = true },
                 new SimpleField("ownerId", SearchFieldDataType.String) { IsFacetable = false, IsFilterable = true },
                 // new SearchField("oids", SearchFieldDataType.Collection(SearchFieldDataType.String))
                 // {

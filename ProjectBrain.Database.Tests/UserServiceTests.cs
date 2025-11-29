@@ -31,7 +31,6 @@ public class UserServiceTests : IDisposable
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColour = "Blue",
             DoB = new DateOnly(1990, 1, 1),
             IsOnboarded = true
         };
@@ -58,8 +57,6 @@ public class UserServiceTests : IDisposable
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColour = "Blue",
-            DoB = new DateOnly(1990, 1, 1)
         };
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
@@ -92,8 +89,6 @@ public class UserServiceTests : IDisposable
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "Test User",
-            FavoriteColour = "Blue",
-            DoB = new DateOnly(1990, 1, 1)
         };
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
@@ -125,8 +120,6 @@ public class UserServiceTests : IDisposable
             Id = "auth0|123456",
             Email = "test@example.com",
             FullName = "John Doe Smith",
-            FavoriteColour = "Blue",
-            DoB = new DateOnly(1990, 1, 1)
         };
 
         // Assert

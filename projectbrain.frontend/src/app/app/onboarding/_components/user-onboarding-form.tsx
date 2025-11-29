@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserOnboardingData } from '@/_lib/types';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 interface UserOnboardingFormProps {
     userEmail: string;
@@ -19,7 +20,6 @@ export default function UserOnboardingForm({
         email: userEmail,
         fullName: '',
         doB: '',
-        favoriteColor: '',
         preferredPronoun: '',
         neurodivergentDetails: '',
     });
@@ -45,14 +45,13 @@ export default function UserOnboardingForm({
                 email: formData.email,
                 fullName: formData.fullName,
                 doB: formData.doB,
-                favoriteColor: formData.favoriteColor,
                 preferredPronoun: formData.preferredPronoun,
                 neurodivergentDetails: formData.neurodivergentDetails,
                 role: 'user', // Explicitly set role for user onboarding
             };
 
             // Call the Next.js API route instead of backend directly
-            const response = await fetch('/api/users/onboard', {
+            const response = await fetchWithAuth('/api/user/onboard', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -144,23 +143,6 @@ export default function UserOnboardingForm({
                     />
                 </div>
 
-                <div>
-                    <label
-                        htmlFor="favoriteColor"
-                        className="block text-sm font-medium text-gray-700"
-                    >
-                        Favorite Color *
-                    </label>
-                    <input
-                        type="text"
-                        id="favoriteColor"
-                        name="favoriteColor"
-                        required
-                        value={formData.favoriteColor}
-                        onChange={handleChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                    />
-                </div>
             </div>
 
             <div>

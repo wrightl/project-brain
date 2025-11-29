@@ -18,16 +18,54 @@ public class ResourceService : IResourceService
         return resource;
     }
 
-    public async Task<Resource?> GetById(Guid id, string userId)
+    public async Task<Resource?> GetForUserById(Guid id, string userId)
     {
         return await _context.Resources
-            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && c.IsShared == false);
+    }
+
+    public async Task<Resource?> GetForUserByLocation(string location, string userId)
+    {
+        return await _context.Resources
+            .FirstOrDefaultAsync(c => c.Location == location && c.UserId == userId && c.IsShared == false);
+    }
+
+    public async Task<Resource?> GetForUserByFilename(string filename, string userId)
+    {
+        return await _context.Resources
+            .FirstOrDefaultAsync(c => c.FileName == filename && c.UserId == userId && c.IsShared == false);
     }
 
     public async Task<IEnumerable<Resource>> GetAllForUser(string userId)
     {
         return await _context.Resources
-            .Where(c => c.UserId == userId)
+            .Where(c => c.UserId == userId && c.IsShared == false)
+            .OrderByDescending(c => c.UpdatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<Resource?> GetSharedById(Guid id)
+    {
+        return await _context.Resources
+            .FirstOrDefaultAsync(c => c.Id == id && c.IsShared && (c.UserId == null || c.UserId == string.Empty));
+    }
+
+    public async Task<Resource?> GetSharedByLocation(string location)
+    {
+        return await _context.Resources
+            .FirstOrDefaultAsync(c => c.Location == location && c.IsShared && (c.UserId == null || c.UserId == string.Empty));
+    }
+
+    public async Task<Resource?> GetSharedByFilename(string filename)
+    {
+        return await _context.Resources
+            .FirstOrDefaultAsync(c => c.FileName == filename && c.IsShared && (c.UserId == null || c.UserId == string.Empty));
+    }
+
+    public async Task<IEnumerable<Resource>> GetAllShared()
+    {
+        return await _context.Resources
+            .Where(c => c.IsShared && (c.UserId == null || c.UserId == string.Empty))
             .OrderByDescending(c => c.UpdatedAt)
             .ToListAsync();
     }
@@ -50,8 +88,14 @@ public class ResourceService : IResourceService
 public interface IResourceService
 {
     Task<Resource> Add(Resource resource);
-    Task<Resource?> GetById(Guid id, string userId);
+    Task<Resource?> GetForUserById(Guid id, string userId);
+    Task<Resource?> GetForUserByLocation(string location, string userId);
+    Task<Resource?> GetForUserByFilename(string filename, string userId);
     Task<IEnumerable<Resource>> GetAllForUser(string userId);
+    Task<Resource?> GetSharedById(Guid id);
+    Task<Resource?> GetSharedByFilename(string filename);
+    Task<Resource?> GetSharedByLocation(string location);
+    Task<IEnumerable<Resource>> GetAllShared();
     Task<Resource> Update(Resource resource);
     Task<Resource> Remove(Resource resource);
 }

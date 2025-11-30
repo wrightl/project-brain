@@ -3,6 +3,7 @@ import { Coach } from '@/_lib/types';
 import { UserService } from '@/_services/user-service';
 import { callBackendApi } from '@/_lib/backend-api';
 import CoachProfileForm from './_components/coach-profile-form';
+import CoachSubscriptionSummary from './_components/subscription-summary';
 
 export const metadata: Metadata = {
     title: 'Profile',
@@ -57,6 +58,7 @@ export default async function CoachProfilePage() {
                     View and manage your coach profile information
                 </p>
             </div>
+            <CoachSubscriptionSummary />
             <CoachProfileForm coach={coach} />
         </div>
     );

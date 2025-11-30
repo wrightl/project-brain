@@ -7,6 +7,7 @@ import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { PaperAirplaneIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import VoiceRecorder from '@/_components/VoiceRecorder';
+import FeatureGate from '@/_components/feature-gate';
 import ConversationsDrawer from './conversations-drawer';
 
 interface ChatInterfaceProps {
@@ -511,13 +512,15 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                 style={{ maxHeight: '200px' }}
                             />
                         </div>
-                        <VoiceRecorder
-                            onRecordingComplete={handleVoiceRecording}
-                            onError={(error) =>
-                                console.error('Voice recording error:', error)
-                            }
-                            disabled={isStreaming}
-                        />
+                        <FeatureGate feature="speech_input" showUpgradePrompt={false}>
+                            <VoiceRecorder
+                                onRecordingComplete={handleVoiceRecording}
+                                onError={(error) =>
+                                    console.error('Voice recording error:', error)
+                                }
+                                disabled={isStreaming}
+                            />
+                        </FeatureGate>
                         <button
                             type="submit"
                             disabled={!input.trim() || isStreaming}

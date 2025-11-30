@@ -5,13 +5,19 @@ public class ResourceServices(ILogger<ResourceServices> logger,
     IConfiguration config,
     IResourceService resourceService,
     Storage storage,
-    IIdentityService identityService)
+    IIdentityService identityService,
+    IFeatureGateService featureGateService,
+    ISubscriptionService subscriptionService,
+    IUsageTrackingService usageTrackingService)
 {
     public ILogger<ResourceServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
     public IResourceService ResourceService { get; } = resourceService;
     public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
+    public IFeatureGateService FeatureGateService { get; } = featureGateService;
+    public ISubscriptionService SubscriptionService { get; } = subscriptionService;
+    public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
 }
 
 public static class ResourceEndpoints
@@ -122,6 +128,23 @@ public static class ResourceEndpoints
         if (form.Files.Count == 0)
             return Results.BadRequest("No files uploaded");
 
+        // Check file upload limits for users (not for shared files)
+        if (userId != null)
+        {
+            var isCoach = services.IdentityService.IsCoach;
+            var userType = isCoach ? "coach" : "user";
+
+            // Only check limits for regular users, not coaches (coaches don't have file limits)
+            if (userType == "user")
+            {
+                var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "file_upload");
+                if (!allowed)
+                {
+                    return Results.BadRequest(new { error = errorMessage ?? "File upload limit reached" });
+                }
+            }
+        }
+
         var results = new List<object>();
         foreach (var file in form.Files)
         {
@@ -147,6 +170,27 @@ public static class ResourceEndpoints
                 continue;
             }
 
+            // Check file size limit before uploading (for users only)
+            if (userId != null)
+            {
+                var isCoach = services.IdentityService.IsCoach;
+                var userType = isCoach ? "coach" : "user";
+
+                if (userType == "user")
+                {
+                    var currentStorage = await services.UsageTrackingService.GetFileStorageUsageAsync(userId);
+                    var tier = await services.SubscriptionService.GetUserTierAsync(userId, userType);
+                    var maxStorageMB = int.Parse(services.Config[$"TierLimits:User:{tier}:MaxFileStorageMB"] ?? "100");
+                    var maxStorageBytes = maxStorageMB * 1024L * 1024L;
+
+                    if (maxStorageMB >= 0 && (currentStorage + file.Length) > maxStorageBytes)
+                    {
+                        results.Add(new { status = "error", filename, message = $"Uploading this file would exceed your storage limit of {maxStorageMB}MB" });
+                        continue;
+                    }
+                }
+            }
+
             var resourceId = Guid.NewGuid();
             var location = await services.Storage.UploadFile(file, filename, userId, resourceId.ToString());
             results.Add(new { status = "uploaded", filename, fileSize = file.Length, location });
@@ -162,6 +206,12 @@ public static class ResourceEndpoints
                 UpdatedAt = DateTime.Now,
                 IsShared = userId is null ? true : false
             });
+
+            // Track file upload usage (for users only)
+            if (userId != null)
+            {
+                await services.UsageTrackingService.TrackFileUploadAsync(userId, file.Length);
+            }
         }
 
         return Results.Ok(results);

@@ -23,6 +23,10 @@ builder.AddRedisDistributedCache("cache");
 
 builder.AddProjectBrainDomain();
 
+// Add database migrations healthcheck to ensure migrations are applied before marking as healthy
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseMigrationsHealthCheck>("database-migrations");
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(
@@ -117,6 +121,10 @@ app.MapCoachEndpoints();
 app.MapVoiceNoteEndpoints();
 app.MapQuizEndpoints();
 app.MapStatisticsEndpoints();
+app.MapSubscriptionEndpoints();
+app.MapStripeWebhookEndpoints();
+app.MapSubscriptionManagementEndpoints();
+app.MapSubscriptionAnalyticsEndpoints();
 
 app.MapDefaultEndpoints();
 

@@ -5,6 +5,7 @@ import {
     SparklesIcon,
     ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
+import PageHeader from '@/_components/page-header';
 
 export default function Home() {
     // Don't check session on landing page - let users see the homepage
@@ -38,15 +39,16 @@ export default function Home() {
     ];
 
     return (
-        <div className="bg-white">
+        <div className="bg-slate-900">
+            <PageHeader />
             {/* Hero Section */}
-            <div className="relative isolate px-6 pt-14 lg:px-8">
+            <div className="relative isolate px-6 pt-32 lg:px-8">
                 <div className="mx-auto max-w-2xl py-32 sm:py-48 lg:py-56">
                     <div className="text-center">
-                        <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
+                        <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
                             AI-Powered Support for Neurodivergent Individuals
                         </h1>
-                        <p className="mt-6 text-lg leading-8 text-gray-600">
+                        <p className="mt-6 text-lg leading-8 text-gray-300">
                             Connect with expert coaches and access personalized
                             AI assistance designed to support your unique
                             journey.
@@ -54,15 +56,21 @@ export default function Home() {
                         <div className="mt-10 flex items-center justify-center gap-x-6">
                             <a
                                 href="/auth/login?returnTo=/app"
-                                className="rounded-md bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                                className="rounded-md bg-fuchsia-300 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fuchsia-300"
                             >
                                 Get Started
                             </a>
                             <Link
                                 href="/about"
-                                className="text-sm font-semibold leading-6 text-gray-900"
+                                className="text-sm font-semibold leading-6 text-fuchsia-300"
                             >
-                                Learn more <span aria-hidden="true">→</span>
+                                Learn more{' '}
+                                <span
+                                    className="text-violet-100"
+                                    aria-hidden="true"
+                                >
+                                    →
+                                </span>
                             </Link>
                         </div>
                     </div>
@@ -70,16 +78,16 @@ export default function Home() {
             </div>
 
             {/* Features Section */}
-            <div className="py-24 sm:py-32 bg-gray-50">
+            <div className="py-24 sm:py-32 bg-slate-800">
                 <div className="mx-auto max-w-7xl px-6 lg:px-8">
                     <div className="mx-auto max-w-2xl lg:text-center">
-                        <h2 className="text-base font-semibold leading-7 text-indigo-600">
+                        <h2 className="text-base font-semibold leading-7 text-fuchsia-300">
                             Everything you need
                         </h2>
-                        <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                        <h2 className="mt-2 text-3xl font-bold tracking-tight text-fuchsia-300 sm:text-4xl">
                             Comprehensive support at your fingertips
-                        </p>
-                        <p className="mt-6 text-lg leading-8 text-gray-600">
+                        </h2>
+                        <p className="mt-6 text-lg leading-8 text-gray-300">
                             Whether you&apos;re seeking guidance, looking to
                             connect with coaches, or need AI-powered assistance,
                             ProjectBrain provides the tools and support you
@@ -95,14 +103,16 @@ export default function Home() {
                                         key={feature.name}
                                         className="flex flex-col"
                                     >
-                                        <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
+                                        <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-100">
                                             <Icon
-                                                className="h-6 w-6 flex-none text-indigo-600"
+                                                className="h-6 w-6 flex-none text-fuchsia-300"
                                                 aria-hidden="true"
                                             />
-                                            {feature.name}
+                                            <span className="text-violet-100">
+                                                {feature.name}
+                                            </span>
                                         </dt>
-                                        <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
+                                        <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-300">
                                             <p className="flex-auto">
                                                 {feature.description}
                                             </p>
@@ -119,17 +129,17 @@ export default function Home() {
             <div className="py-24 sm:py-32">
                 <div className="mx-auto max-w-7xl px-6 lg:px-8">
                     <div className="mx-auto max-w-2xl text-center">
-                        <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                        <h2 className="text-3xl font-bold tracking-tight text-fuchsia-300 sm:text-4xl">
                             Ready to get started?
                         </h2>
-                        <p className="mt-6 text-lg leading-8 text-gray-600">
+                        <p className="mt-6 text-lg leading-8 text-gray-300">
                             Join ProjectBrain today and experience personalized
                             support designed for you.
                         </p>
                         <div className="mt-10 flex items-center justify-center gap-x-6">
                             <a
                                 href="/auth/login?returnTo=/app"
-                                className="rounded-md bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                                className="rounded-md bg-fuchsia-300 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90"
                             >
                                 Sign Up / Log In
                             </a>

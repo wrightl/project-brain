@@ -10,7 +10,10 @@ public class CoachServices(
     IUserService userService,
     IConnectionService connectionService,
     IUserActivityService userActivityService,
-    IUserProfileService userProfileService)
+    IUserProfileService userProfileService,
+    IFeatureGateService featureGateService,
+    ISubscriptionService subscriptionService,
+    IUsageTrackingService usageTrackingService)
 {
     public ILogger<CoachServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -19,6 +22,9 @@ public class CoachServices(
     public IConnectionService ConnectionService { get; } = connectionService;
     public IUserActivityService UserActivityService { get; } = userActivityService;
     public IUserProfileService UserProfileService { get; } = userProfileService;
+    public IFeatureGateService FeatureGateService { get; } = featureGateService;
+    public ISubscriptionService SubscriptionService { get; } = subscriptionService;
+    public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
 }
 
 public static class CoachEndpoints
@@ -458,6 +464,9 @@ public static class CoachEndpoints
         ConnectionRequestRequest? request)
     {
         var userId = services.IdentityService.UserId!;
+        var user = await services.IdentityService.GetUserAsync();
+        var isCoach = user?.Roles?.Any(r => r.ToLower() == "coach") ?? false;
+        var userType = isCoach ? "coach" : "user";
 
         // Validate user cannot connect to themselves
         if (string.Equals(userId, coachId, StringComparison.OrdinalIgnoreCase))
@@ -470,6 +479,40 @@ public static class CoachEndpoints
                     Message = "You cannot send a connection request to yourself"
                 }
             });
+        }
+
+        // Check connection limits based on user type
+        if (userType == "user")
+        {
+            // Check coach connection limit for users
+            var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "coach_connections");
+            if (!allowed)
+            {
+                return Results.BadRequest(new ErrorResponse
+                {
+                    Error = new ErrorDetail
+                    {
+                        Code = "CONNECTION_LIMIT_REACHED",
+                        Message = errorMessage ?? "You have reached your connection limit"
+                    }
+                });
+            }
+        }
+        else if (userType == "coach")
+        {
+            // Check client connection limit for coaches
+            var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "client_connections");
+            if (!allowed)
+            {
+                return Results.BadRequest(new ErrorResponse
+                {
+                    Error = new ErrorDetail
+                    {
+                        Code = "CONNECTION_LIMIT_REACHED",
+                        Message = errorMessage ?? "You have reached your connection limit"
+                    }
+                });
+            }
         }
 
         // Validate coach exists

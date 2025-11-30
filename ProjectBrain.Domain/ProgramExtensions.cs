@@ -21,6 +21,11 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IQuizResponseService, QuizResponseService>();
         builder.Services.AddScoped<IStatisticsService, StatisticsService>();
         builder.Services.AddScoped<IUserActivityService, UserActivityService>();
+        builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+        builder.Services.AddScoped<IUsageTrackingService, UsageTrackingService>();
+        builder.Services.AddScoped<IFeatureGateService, FeatureGateService>();
+        builder.Services.AddScoped<IStripeService, StripeService>();
+        builder.Services.AddScoped<ISubscriptionAnalyticsService, SubscriptionAnalyticsService>();
         
         // Register background service for syncing activity data
         builder.Services.AddHostedService<UserActivitySyncService>();

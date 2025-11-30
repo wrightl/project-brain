@@ -87,5 +87,70 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         {
             logger.LogInformation("Roles already exist, skipping seed");
         }
+
+        // Seed subscription tiers
+        if (!context.SubscriptionTiers.Any())
+        {
+            logger.LogInformation("Seeding subscription tiers...");
+
+            // Use raw SQL to insert with explicit IDs (IDENTITY_INSERT)
+            // Note: Escaping curly braces as {{}} because ExecuteSqlRawAsync treats the string as a format string
+            var sql = @"
+                SET IDENTITY_INSERT [SubscriptionTiers] ON;
+                
+                INSERT INTO [SubscriptionTiers] ([Id], [Name], [UserType], [Features])
+                VALUES
+                    (1, N'Free', N'user', N'{{}}'),
+                    (2, N'Pro', N'user', N'{{}}'),
+                    (3, N'Ultimate', N'user', N'{{}}'),
+                    (4, N'Free', N'coach', N'{{}}'),
+                    (5, N'Pro', N'coach', N'{{}}');
+                
+                SET IDENTITY_INSERT [SubscriptionTiers] OFF;
+            ";
+
+            await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+
+            logger.LogInformation("Subscription tiers seeded successfully");
+        }
+        else
+        {
+            logger.LogInformation("Subscription tiers already exist, skipping seed");
+        }
+
+        // Seed subscription settings (singleton)
+        if (!context.SubscriptionSettings.Any())
+        {
+            logger.LogInformation("Seeding subscription settings...");
+
+            // Get first admin user or use a default system user ID
+            var adminUser = await context.Users
+                .Include(u => u.UserRoles)
+                .Where(u => u.UserRoles.Any(ur => ur.RoleName == "admin"))
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var updatedBy = adminUser?.Id ?? "system";
+            var updatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+
+            // Use raw SQL to insert with explicit ID (IDENTITY_INSERT)
+            // Escape single quotes in the UpdatedBy value to prevent SQL injection
+            var escapedUpdatedBy = updatedBy.Replace("'", "''");
+            var sql = $@"
+                SET IDENTITY_INSERT [SubscriptionSettings] ON;
+                
+                INSERT INTO [SubscriptionSettings] ([Id], [EnableUserSubscriptions], [EnableCoachSubscriptions], [UpdatedAt], [UpdatedBy])
+                VALUES (1, 1, 1, N'{updatedAt}', N'{escapedUpdatedBy}');
+                
+                SET IDENTITY_INSERT [SubscriptionSettings] OFF;
+            ";
+
+            await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+
+            logger.LogInformation("Subscription settings seeded successfully");
+        }
+        else
+        {
+            logger.LogInformation("Subscription settings already exist, skipping seed");
+        }
     }
 }

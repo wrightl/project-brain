@@ -3,6 +3,7 @@ import { UserService } from '@/_services/user-service';
 import { callBackendApi } from '@/_lib/backend-api';
 import { User, Coach } from '@/_lib/types';
 import ProfileForm from './_components/profile-form';
+import SubscriptionSummary from './_components/subscription-summary';
 
 export const metadata: Metadata = {
     title: 'Profile',
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 
 export default async function ProfilePage() {
     const user = await UserService.getCurrentUser();
-    
+
     if (!user) {
         return (
             <div className="bg-white shadow rounded-lg p-6">
@@ -44,8 +45,8 @@ export default async function ProfilePage() {
                     View and manage your profile information
                 </p>
             </div>
+            <SubscriptionSummary />
             <ProfileForm user={profileData} />
         </div>
     );
 }
-

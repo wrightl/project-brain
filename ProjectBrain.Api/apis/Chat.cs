@@ -2,6 +2,7 @@ using System.Text.Json;
 using ProjectBrain.AI;
 using _shared = ProjectBrain.Models;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Domain;
 using DomainChatService = ProjectBrain.Domain.IChatService;
 using DomainConversationService = ProjectBrain.Domain.IConversationService;
 
@@ -11,7 +12,10 @@ public class ChatServices(ILogger<ChatServices> logger,
     DomainChatService chatService,
     AzureOpenAI azureOpenAI,
     Storage storage,
-    IIdentityService identityService)
+    IIdentityService identityService,
+    IUsageTrackingService usageTrackingService,
+    IFeatureGateService featureGateService,
+    ISubscriptionService subscriptionService)
 {
     public ILogger<ChatServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
@@ -20,6 +24,9 @@ public class ChatServices(ILogger<ChatServices> logger,
     public AzureOpenAI AzureOpenAI { get; } = azureOpenAI;
     public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
+    public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
+    public IFeatureGateService FeatureGateService { get; } = featureGateService;
+    public ISubscriptionService SubscriptionService { get; } = subscriptionService;
 }
 
 public static class ChatEndpoints
@@ -111,11 +118,19 @@ public static class ChatEndpoints
         services.Logger.LogInformation("Entering voice chat stream at {0}", DateTime.Now);
 
         // Get authenticated user from database
-        var user = await services.IdentityService.GetUserAsync();
-        if (user == null)
+        var userId = services.IdentityService.UserId!;
+
+        var isCoach = services.IdentityService.IsCoach;
+        var userType = isCoach ? "coach" : "user";
+
+        // Check if speech input is allowed
+        var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "speech_input");
+        if (!allowed)
         {
-            services.Logger.LogWarning("Unauthorized access attempt to voice chat stream at {Time}", DateTime.Now);
-            http.Response.StatusCode = 401; // Unauthorized
+            services.Logger.LogWarning("Speech input not allowed for user {UserId}: {ErrorMessage}", userId, errorMessage);
+            http.Response.StatusCode = 403; // Forbidden
+            http.Response.ContentType = "application/json";
+            await http.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new { error = errorMessage }));
             return;
         }
 
@@ -197,13 +212,8 @@ public static class ChatEndpoints
         services.Logger.LogInformation("Entering chat stream at {0}", DateTime.Now);
 
         // Get authenticated user from database
+        var userId = services.IdentityService.UserId;
         var user = await services.IdentityService.GetUserAsync();
-        if (user == null)
-        {
-            services.Logger.LogWarning("Unauthorized access attempt to chat stream at {Time}", DateTime.Now);
-            http.Response.StatusCode = 401; // Unauthorized
-            return;
-        }
 
         if (string.IsNullOrWhiteSpace(request.Content))
         {
@@ -229,7 +239,49 @@ public static class ChatEndpoints
         }
 #endif
 
-        var userId = user.Id;
+        var isCoach = services.IdentityService.IsCoach;
+        var userType = isCoach ? "coach" : "user";
+
+        // Check AI query limits (only for users, not coaches)
+        if (userType == "user")
+        {
+            // Check daily limit
+            var dailyLimit = int.Parse(services.Config["TierLimits:User:Free:DailyAIQueries"] ?? "50");
+            var dailyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "daily");
+            var tier = await services.SubscriptionService.GetUserTierAsync(userId, userType);
+            var tierDailyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:DailyAIQueries"] ?? "-1");
+            var effectiveDailyLimit = tierDailyLimit >= 0 ? tierDailyLimit : dailyLimit;
+
+            if (effectiveDailyLimit >= 0 && dailyUsage >= effectiveDailyLimit)
+            {
+                services.Logger.LogWarning("Daily AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, dailyUsage, effectiveDailyLimit);
+                http.Response.StatusCode = 429; // Too Many Requests
+                http.Response.ContentType = "application/json";
+                await http.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    error = $"You have reached your daily limit of {effectiveDailyLimit} AI queries. Please upgrade or try again tomorrow."
+                }));
+                return;
+            }
+
+            // Check monthly limit
+            var monthlyLimit = int.Parse(services.Config["TierLimits:User:Free:MonthlyAIQueries"] ?? "200");
+            var monthlyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "monthly");
+            var tierMonthlyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:MonthlyAIQueries"] ?? "-1");
+            var effectiveMonthlyLimit = tierMonthlyLimit >= 0 ? tierMonthlyLimit : monthlyLimit;
+
+            if (effectiveMonthlyLimit >= 0 && monthlyUsage >= effectiveMonthlyLimit)
+            {
+                services.Logger.LogWarning("Monthly AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, monthlyUsage, effectiveMonthlyLimit);
+                http.Response.StatusCode = 429; // Too Many Requests
+                http.Response.ContentType = "application/json";
+                await http.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    error = $"You have reached your monthly limit of {effectiveMonthlyLimit} AI queries. Please upgrade for unlimited queries."
+                }));
+                return;
+            }
+        }
 
         // Get/Create Conversation
         Conversation? conversation;
@@ -342,6 +394,12 @@ public static class ChatEndpoints
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
+
+        // Track AI query usage (only for users)
+        if (userType == "user")
+        {
+            await services.UsageTrackingService.TrackAIQueryAsync(userId);
+        }
     }
 }
 

@@ -162,6 +162,112 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .Property(qr => qr.Score)
             .HasPrecision(18, 2);
 
+        // Configure SubscriptionTier relationships
+        modelBuilder.Entity<UserSubscription>()
+            .HasOne(us => us.User)
+            .WithMany()
+            .HasForeignKey(us => us.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserSubscription>()
+            .HasOne(us => us.Tier)
+            .WithMany()
+            .HasForeignKey(us => us.TierId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Indexes for UserSubscription
+        modelBuilder.Entity<UserSubscription>()
+            .HasIndex(us => new { us.UserId, us.UserType });
+
+        modelBuilder.Entity<UserSubscription>()
+            .HasIndex(us => new { us.Status, us.UserType });
+
+        // Configure UsageTracking relationships
+        modelBuilder.Entity<UsageTracking>()
+            .HasOne(ut => ut.User)
+            .WithMany()
+            .HasForeignKey(ut => ut.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Index for UsageTracking (composite for efficient queries)
+        modelBuilder.Entity<UsageTracking>()
+            .HasIndex(ut => new { ut.UserId, ut.UsageType, ut.PeriodType, ut.PeriodStart });
+
+        // Configure FileStorageUsage relationships
+        modelBuilder.Entity<FileStorageUsage>()
+            .HasOne(fsu => fsu.User)
+            .WithMany()
+            .HasForeignKey(fsu => fsu.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Configure ResearchReport relationships
+        modelBuilder.Entity<ResearchReport>()
+            .HasOne(rr => rr.User)
+            .WithMany()
+            .HasForeignKey(rr => rr.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ResearchReport>()
+            .HasIndex(rr => rr.UserId);
+
+        // Configure ExternalIntegration relationships
+        modelBuilder.Entity<ExternalIntegration>()
+            .HasOne(ei => ei.User)
+            .WithMany()
+            .HasForeignKey(ei => ei.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ExternalIntegration>()
+            .HasIndex(ei => new { ei.UserId, ei.IntegrationType })
+            .IsUnique();
+
+        // Configure CoachMessage relationships
+        // Note: Using NO ACTION for UserId to avoid cascade path cycles with Connections table
+        modelBuilder.Entity<CoachMessage>()
+            .HasOne(cm => cm.User)
+            .WithMany()
+            .HasForeignKey(cm => cm.UserId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<CoachMessage>()
+            .HasOne(cm => cm.Coach)
+            .WithMany()
+            .HasForeignKey(cm => cm.CoachId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<CoachMessage>()
+            .HasOne(cm => cm.Connection)
+            .WithMany()
+            .HasForeignKey(cm => cm.ConnectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CoachMessage>()
+            .HasIndex(cm => new { cm.UserId, cm.CoachId, cm.CreatedAt });
+
+        // Configure SubscriptionExclusion relationships
+        modelBuilder.Entity<SubscriptionExclusion>()
+            .HasOne(se => se.User)
+            .WithMany()
+            .HasForeignKey(se => se.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SubscriptionExclusion>()
+            .HasOne(se => se.ExcludedByUser)
+            .WithMany()
+            .HasForeignKey(se => se.ExcludedBy)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<SubscriptionExclusion>()
+            .HasIndex(se => new { se.UserId, se.UserType })
+            .IsUnique();
+
+        // Configure SubscriptionSettings relationships
+        modelBuilder.Entity<SubscriptionSettings>()
+            .HasOne(ss => ss.UpdatedByUser)
+            .WithMany()
+            .HasForeignKey(ss => ss.UpdatedBy)
+            .OnDelete(DeleteBehavior.NoAction);
+
         logger.LogInformation("OnModelCreating completed");
     }
 
@@ -183,4 +289,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<Quiz> Quizzes => Set<Quiz>();
     public DbSet<QuizQuestion> QuizQuestions => Set<QuizQuestion>();
     public DbSet<QuizResponse> QuizResponses => Set<QuizResponse>();
+    public DbSet<SubscriptionTier> SubscriptionTiers => Set<SubscriptionTier>();
+    public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
+    public DbSet<UsageTracking> UsageTrackings => Set<UsageTracking>();
+    public DbSet<FileStorageUsage> FileStorageUsages => Set<FileStorageUsage>();
+    public DbSet<ResearchReport> ResearchReports => Set<ResearchReport>();
+    public DbSet<ExternalIntegration> ExternalIntegrations => Set<ExternalIntegration>();
+    public DbSet<CoachMessage> CoachMessages => Set<CoachMessage>();
+    public DbSet<SubscriptionExclusion> SubscriptionExclusions => Set<SubscriptionExclusion>();
+    public DbSet<SubscriptionSettings> SubscriptionSettings => Set<SubscriptionSettings>();
 }

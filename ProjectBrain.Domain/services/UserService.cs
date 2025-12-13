@@ -12,7 +12,7 @@ public class UserService : IUserService
         _context = context;
     }
 
-    public async Task<UserDto> Create(UserDto userDto)
+    public async Task<BaseUserDto> Create(BaseUserDto userDto)
     {
         var user = userDto.ToUser();
 
@@ -29,7 +29,7 @@ public class UserService : IUserService
         return userDto;
     }
 
-    public async Task<UserDto> Update(UserDto userDto)
+    public async Task<BaseUserDto> Update(BaseUserDto userDto)
     {
         var user = await _context.Users
             .Include(c => c.UserRoles)
@@ -66,7 +66,7 @@ public class UserService : IUserService
         return userDto;
     }
 
-    public async Task<UserDto?> GetByEmail(string email)
+    public async Task<BaseUserDto?> GetByEmail(string email)
     {
         var userWithRoles = await _context.Users
             .Include(c => c.UserRoles)
@@ -75,19 +75,19 @@ public class UserService : IUserService
 
         Console.WriteLine($"Fetched user: {userWithRoles?.Email}, Roles count: {userWithRoles?.UserRoles.Count}");
 
-        return userWithRoles?.ToUserDto();
+        return userWithRoles?.ToBaseUserDto();
     }
 
-    public async Task<UserDto?> GetById(string Id)
+    public async Task<BaseUserDto?> GetById(string Id)
     {
         var user = await _context.Users
             .Include(c => c.UserRoles)
             .Where(u => u.Id == Id)
             .FirstOrDefaultAsync();
-        return user?.ToUserDto();
+        return user?.ToBaseUserDto();
     }
 
-    public async Task<UserDto> DeleteById(string Id)
+    public async Task<BaseUserDto> DeleteById(string Id)
     {
         var user = await _context.Users
             .Where(u => u.Id == Id)
@@ -99,18 +99,18 @@ public class UserService : IUserService
 
         _context.Users.Remove(user);
         await _context.SaveChangesAsync();
-        return user.ToUserDto();
+        return user.ToBaseUserDto();
     }
 }
 
 public interface IUserService
 {
-    Task<UserDto> Create(UserDto userDto);
-    Task<UserDto> Update(UserDto userDto);
+    Task<BaseUserDto> Create(BaseUserDto userDto);
+    Task<BaseUserDto> Update(BaseUserDto userDto);
 
-    Task<UserDto?> GetById(string Id);
+    Task<BaseUserDto?> GetById(string Id);
 
-    Task<UserDto?> GetByEmail(string email);
-    Task<UserDto> DeleteById(string Id);
+    Task<BaseUserDto?> GetByEmail(string email);
+    Task<BaseUserDto> DeleteById(string Id);
 }
 

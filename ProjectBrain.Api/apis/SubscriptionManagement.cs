@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 
@@ -29,6 +30,9 @@ public static class SubscriptionManagementEndpoints
 
         // Get all subscriptions
         group.MapGet("/all", GetAllSubscriptions).WithName("GetAllSubscriptions");
+
+        // Get user subscription (admin only)
+        group.MapGet("/user/{userId}", GetUserSubscription).WithName("GetUserSubscription");
     }
 
     private static async Task<IResult> GetSubscriptionSettings([AsParameters] SubscriptionManagementServices services)
@@ -55,12 +59,7 @@ public static class SubscriptionManagementEndpoints
         [AsParameters] SubscriptionManagementServices services,
         UpdateSubscriptionSettingsRequest request)
     {
-        var adminId = services.IdentityService.UserId;
-        if (string.IsNullOrEmpty(adminId))
-        {
-            return Results.Unauthorized();
-        }
-
+        var adminId = services.IdentityService.UserId!;
         try
         {
             await services.SubscriptionService.UpdateSubscriptionSettingsAsync(
@@ -88,11 +87,7 @@ public static class SubscriptionManagementEndpoints
         [AsParameters] SubscriptionManagementServices services,
         AddExclusionRequest request)
     {
-        var adminId = services.IdentityService.UserId;
-        if (string.IsNullOrEmpty(adminId))
-        {
-            return Results.Unauthorized();
-        }
+        var adminId = services.IdentityService.UserId ?? throw new Exception("Admin ID is required");
 
         try
         {
@@ -136,6 +131,66 @@ public static class SubscriptionManagementEndpoints
         // For now, return empty list
         return Results.Ok(new List<object>());
     }
+
+    private static async Task<IResult> GetUserSubscription(
+        [AsParameters] SubscriptionManagementServices services,
+        string userId)
+    {
+        try
+        {
+            // Try both user types
+            var userSubscription = await services.SubscriptionService.GetUserSubscriptionAsync(userId, "user");
+            if (userSubscription == null)
+            {
+                userSubscription = await services.SubscriptionService.GetUserSubscriptionAsync(userId, "coach");
+            }
+
+            // Check if user is excluded
+            var isExcludedUser = await services.SubscriptionService.IsUserExcludedAsync(userId, "user");
+            var isExcludedCoach = await services.SubscriptionService.IsUserExcludedAsync(userId, "coach");
+            var isExcluded = isExcludedUser || isExcludedCoach;
+
+            if (userSubscription == null && !isExcluded)
+            {
+                return Results.Ok(new
+                {
+                    tier = "Free",
+                    status = "active",
+                    userType = "user",
+                    isExcluded = false
+                });
+            }
+
+            if (isExcluded)
+            {
+                return Results.Ok(new
+                {
+                    tier = "Free",
+                    status = "active",
+                    userType = userSubscription?.UserType ?? "user",
+                    isExcluded = true
+                });
+            }
+
+            return Results.Ok(new
+            {
+                id = userSubscription.Id,
+                tier = userSubscription.Tier?.Name ?? "Free",
+                status = userSubscription.Status,
+                trialEndsAt = userSubscription.TrialEndsAt,
+                currentPeriodStart = userSubscription.CurrentPeriodStart,
+                currentPeriodEnd = userSubscription.CurrentPeriodEnd,
+                canceledAt = userSubscription.CanceledAt,
+                userType = userSubscription.UserType,
+                isExcluded = false
+            });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving subscription for user {UserId}", userId);
+            return Results.Problem("An error occurred while retrieving subscription");
+        }
+    }
 }
 
 public class UpdateSubscriptionSettingsRequest
@@ -146,8 +201,8 @@ public class UpdateSubscriptionSettingsRequest
 
 public class AddExclusionRequest
 {
-    public required string UserId { get; init; }
-    public required string UserType { get; init; }
+    public required string UserId { get; init; } = string.Empty;
+    public required string UserType { get; init; } = string.Empty;
     public string? Notes { get; init; }
 }
 

@@ -1,6 +1,9 @@
-﻿namespace ProjectBrain.Domain;
+﻿using System.Text.Json.Serialization;
+using ProjectBrain.Database.Models;
 
-public abstract class BaseUserDto
+namespace ProjectBrain.Domain;
+
+public record BaseUserDto
 {
     public string Id { get; set; }
     public string Email { get; set; }
@@ -19,18 +22,20 @@ public abstract class BaseUserDto
     public string? Country { get; set; }
 }
 
-public class UserDto : BaseUserDto
+public record UserDto : BaseUserDto
 {
+    public string? UserProfileId { get; set; }
     public DateOnly? DoB { get; set; }
     public string? PreferredPronoun { get; set; }
     public List<string> NeurodiverseTraits { get; set; } = new List<string>();
     public string? Preferences { get; set; }
 }
 
-public class CoachDto : BaseUserDto
+public record CoachDto : BaseUserDto
 {
+    public string? CoachProfileId { get; set; }
     public List<string> Qualifications { get; set; } = new List<string>();
     public List<string> Specialisms { get; set; } = new List<string>();
     public List<string> AgeGroups { get; set; } = new List<string>();
-    public bool IsOnline { get; set; }
+    public AvailabilityStatus? AvailabilityStatus { get; set; }
 }

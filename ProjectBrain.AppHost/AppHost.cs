@@ -106,6 +106,7 @@ openai.AddDeployment(
 builder.AddAzureContainerAppEnvironment($"{appName}-environment");
 
 var cache = builder.AddRedis(cacheName)
+        .WithRedisInsight()
         .PublishAsAzureContainerApp((module, app) =>
         {
             // Scale to 0

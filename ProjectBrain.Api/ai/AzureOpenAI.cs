@@ -4,7 +4,6 @@ using System.ClientModel;
 using System.Linq;
 using System.Text;
 using Azure.Search.Documents;
-using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
 using OpenAI;
 using OpenAI.Audio;
@@ -12,39 +11,35 @@ using OpenAI.Chat;
 using OpenAI.Embeddings;
 using _shared = Models;
 
-public interface IChatService
+// public interface IChatService
+// {
+//     Task<CollectionResult<StreamingChatCompletionUpdate>> GetResponse();
+// }
+
+public class AzureOpenAIServices(
+        OpenAIClient openAIClient,
+        ISearchIndexService searchIndexService,
+        IConfiguration configuration,
+        ILogger<AzureOpenAIServices> logger)
 {
-    Task<CollectionResult<StreamingChatCompletionUpdate>> GetResponse();
+
+    public ILogger<AzureOpenAIServices> Logger { get; } = logger;
+    public OpenAIClient OpenAIClient { get; } = openAIClient;
+    public IConfiguration Configuration { get; } = configuration;
+    public ISearchIndexService SearchIndexService { get; } = searchIndexService;
 }
 
-public class AzureOpenAI //: IChatService
+public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 {
-    public const string SEARCH_INDEX_NAME = "projectbrain-documents";
-
-    private readonly OpenAIClient _openAIClient;
-    private readonly SearchIndexClient _searchIndexClient;
-    private readonly IConfiguration _configuration;
-    private readonly ILogger<AzureOpenAI> _logger;
-
-    public AzureOpenAI(
-        OpenAIClient openAIClient,
-        SearchIndexClient searchIndexClient,
-        IConfiguration configuration,
-        ILogger<AzureOpenAI> logger)
-    {
-        _openAIClient = openAIClient;
-        _searchIndexClient = searchIndexClient;
-        _configuration = configuration;
-        _logger = logger;
-    }
+    public AzureOpenAIServices Services { get; } = services;
 
     public async Task<string> TranscribeAudio(Stream audioStream, string fileName)
     {
-        _logger.LogInformation("Starting TranscribeAudio for file: {FileName}", fileName);
+        Services.Logger.LogInformation("Starting TranscribeAudio for file: {FileName}", fileName);
 
         try
         {
-            var audioClient = _openAIClient.GetAudioClient("openai-speech-deployment");
+            var audioClient = Services.OpenAIClient.GetAudioClient("openai-speech-deployment");
 
             // Reset stream position
             audioStream.Position = 0;
@@ -60,23 +55,23 @@ public class AzureOpenAI //: IChatService
 
             var transcription = response.Value.Text;
 
-            _logger.LogInformation("Audio transcription completed. Length: {Length} characters", transcription.Length);
+            Services.Logger.LogInformation("Audio transcription completed. Length: {Length} characters", transcription.Length);
             return transcription;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error transcribing audio for file: {FileName}", fileName);
+            Services.Logger.LogError(ex, "Error transcribing audio for file: {FileName}", fileName);
             throw;
         }
     }
 
     public async Task<string> GetConversationSummary(string userQuery, string userId)
     {
-        _logger.LogInformation("Starting GetConversationSummary for userQuery: {UserQuery}", userQuery);
+        Services.Logger.LogInformation("Starting GetConversationSummary for userQuery: {UserQuery}", userQuery);
 
         try
         {
-            ChatClient chatClient = _openAIClient.GetChatClient("openai-chat-deployment");
+            ChatClient chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
             var response = await chatClient.CompleteChatAsync(
             [
                 new UserChatMessage($"Summarize this query in a short, concise title: {userQuery}")
@@ -85,7 +80,7 @@ public class AzureOpenAI //: IChatService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating conversation summary for query: {UserQuery}", userQuery);
+            Services.Logger.LogError(ex, "Error generating conversation summary for query: {UserQuery}", userQuery);
             // Fallback to a simple truncation if summary generation fails
             return userQuery.Length > 50 ? userQuery[..50] + "..." : userQuery;
         }
@@ -96,9 +91,9 @@ public class AzureOpenAI //: IChatService
     //     return await getChatResponse(userQuery, userId, userName, history);
     // }
 
-    public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(string userQuery, string userId, string userName, List<_shared.ChatMessage> history)
+    public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)
     {
-        return await getChatResponseWithCitations(userQuery, userId, userName, history);
+        return await getChatResponseWithCitations(userQuery, userId, userInformation, userName, history);
     }
 
     // private async Task<AsyncCollectionResult<StreamingChatCompletionUpdate>> getChatResponse(string userQuery, string userId, string userName, List<_shared.ChatMessage> history)
@@ -269,24 +264,24 @@ public class AzureOpenAI //: IChatService
     //     messages.Add(new UserChatMessage(combinedPrompt));
 
     //     // Get streaming response using the same pattern as the working getChatResponse method
-    //     var chatClient = _openAIClient.GetChatClient("openai-chat-deployment");
+    //     var chatClient = _openAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
     //     var response = chatClient.CompleteChatStreamingAsync(messages);
 
     //     return response;
     // }
 
-    private async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> getChatResponseWithCitations(string userQuery, string userId, string userName, List<_shared.ChatMessage> history)
+    private async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> getChatResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)
     {
-        _logger.LogInformation("Starting getNewChatResponseWithCitations for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
+        Services.Logger.LogInformation("Starting getNewChatResponseWithCitations for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
 
         // Get configurable limits from configuration
-        var maxSearchResults = int.Parse(_configuration["AI:MaxSearchResults"] ?? "5");
-        var maxContentLengthPerSource = int.Parse(_configuration["AI:MaxContentLengthPerSource"] ?? "800");
-        var maxHistoryMessages = int.Parse(_configuration["AI:MaxHistoryMessages"] ?? "10");
-        var maxTotalTokens = int.Parse(_configuration["AI:MaxTotalTokens"] ?? "7000");
+        var maxSearchResults = int.Parse(Services.Configuration["AI:MaxSearchResults"] ?? "5");
+        var maxContentLengthPerSource = int.Parse(Services.Configuration["AI:MaxContentLengthPerSource"] ?? "800");
+        var maxHistoryMessages = int.Parse(Services.Configuration["AI:MaxHistoryMessages"] ?? "10");
+        var maxTotalTokens = int.Parse(Services.Configuration["AI:MaxTotalTokens"] ?? "7000");
 
         // Vectorize the query
-        var embedClient = _openAIClient.GetEmbeddingClient("openai-embed-deployment");
+        var embedClient = Services.OpenAIClient.GetEmbeddingClient("openai-embed-deployment");
         var embeddingOptions = new EmbeddingGenerationOptions { Dimensions = 1536 };
         var embedResponse = await embedClient.GenerateEmbeddingAsync(userQuery, embeddingOptions);
         var queryVector = embedResponse.Value.ToFloats();
@@ -316,13 +311,12 @@ public class AzureOpenAI //: IChatService
         searchOptions.Select.Add("category");
         searchOptions.Select.Add("ownerId");
 
-        _logger.LogInformation("Executing vector search for user {UserId} with query: {UserQuery}", userId, userQuery);
+        Services.Logger.LogInformation("Executing vector search for user {UserId} with query: {UserQuery}", userId, userQuery);
 
         // Execute the search
-        var searchClient = _searchIndexClient.GetSearchClient(SEARCH_INDEX_NAME);
-        var searchResults = await searchClient.SearchAsync<SearchDocument>(userQuery, searchOptions);
+        var searchResults = await Services.SearchIndexService.SearchAsync(userQuery, searchOptions);
 
-        _logger.LogInformation("Search results received, processing...");
+        Services.Logger.LogInformation("Search results received, processing...");
 
         // Build formatted sources with citations
         var sourcesFormatted = new StringBuilder();
@@ -378,7 +372,7 @@ public class AzureOpenAI //: IChatService
             citationIndex++;
         }
 
-        _logger.LogInformation("Found {CitationCount} relevant sources for query", citations.Count);
+        Services.Logger.LogInformation("Found {CitationCount} relevant sources for query", citations.Count);
 
         // Build system prompt with instructions
         var systemPrompt = BuildSystemPrompt(userName, citations.Count > 0);
@@ -387,9 +381,9 @@ public class AzureOpenAI //: IChatService
         var limitedHistory = history.TakeLast(maxHistoryMessages).ToList();
 
         // Build the user prompt with context, sources, and instructions
-        var userPrompt = BuildUserPrompt(userQuery, sourcesFormatted.ToString(), citations.Count, limitedHistory);
+        var userPrompt = BuildUserPrompt(userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, limitedHistory);
 
-        _logger.LogInformation("Formatted prompt with {SourceCount} sources and {HistoryCount} history messages (limited from {OriginalHistoryCount})",
+        Services.Logger.LogInformation("Formatted prompt with {SourceCount} sources and {HistoryCount} history messages (limited from {OriginalHistoryCount})",
             citations.Count, limitedHistory.Count, history.Count);
 
         // Create chat messages using limited history
@@ -407,14 +401,14 @@ public class AzureOpenAI //: IChatService
             estimatedTokens += msg.Content.Count / 4;
         }
 
-        _logger.LogInformation("Sending {MessageCount} messages to ChatClient", messages.Count);
-        _logger.LogInformation("Prompt Length: {PromptLength}", combinedPrompt.Length);
-        _logger.LogInformation("Estimated Total Tokens: {Tokens}", estimatedTokens);
+        Services.Logger.LogInformation("Sending {MessageCount} messages to ChatClient", messages.Count);
+        Services.Logger.LogInformation("Prompt Length: {PromptLength}", combinedPrompt.Length);
+        Services.Logger.LogInformation("Estimated Total Tokens: {Tokens}", estimatedTokens);
 
         // If still over limit, truncate sources further
         if (estimatedTokens > maxTotalTokens)
         {
-            _logger.LogWarning("Estimated tokens ({EstimatedTokens}) exceed limit ({MaxTokens}). Truncating sources further.",
+            Services.Logger.LogWarning("Estimated tokens ({EstimatedTokens}) exceed limit ({MaxTokens}). Truncating sources further.",
                 estimatedTokens, maxTotalTokens);
 
             // Reduce content length per source
@@ -442,17 +436,17 @@ public class AzureOpenAI //: IChatService
             }
 
             // Rebuild user prompt with truncated sources
-            userPrompt = BuildUserPrompt(userQuery, sourcesFormatted.ToString(), citations.Count, limitedHistory);
+            userPrompt = BuildUserPrompt(userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, limitedHistory);
             combinedPrompt = $"{systemPrompt}\n\n{userPrompt}";
 
             estimatedTokens = (combinedPrompt.Length / 4) + (messages.Sum(m => m.Content.Count) / 4);
-            _logger.LogInformation("After truncation - Estimated Total Tokens: {Tokens}", estimatedTokens);
+            Services.Logger.LogInformation("After truncation - Estimated Total Tokens: {Tokens}", estimatedTokens);
         }
 
         messages.Add(new UserChatMessage(combinedPrompt));
 
         // Get streaming response
-        var chatClient = _openAIClient.GetChatClient("openai-chat-deployment");
+        var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
         var response = chatClient.CompleteChatStreamingAsync(messages);
 
         return (response, citations);
@@ -508,7 +502,7 @@ public class AzureOpenAI //: IChatService
         return prompt.ToString();
     }
 
-    private string BuildUserPrompt(string userQuery, string sources, int citationCount, List<_shared.ChatMessage> history)
+    private string BuildUserPrompt(string userQuery, string userInformation, string sources, int citationCount, List<_shared.ChatMessage> history)
     {
         var prompt = new StringBuilder();
 
@@ -518,19 +512,22 @@ public class AzureOpenAI //: IChatService
             prompt.AppendLine("---");
             prompt.AppendLine(sources);
             prompt.AppendLine("---");
+            prompt.AppendLine("Answer the query using the sources above. Cite sources with [number] format. If the sources don't help answer the question, ignore them completely.");
             prompt.AppendLine();
-            prompt.AppendLine("User Query:");
-            prompt.AppendLine(userQuery);
-            prompt.AppendLine();
-            prompt.AppendLine("Answer the query using the sources above. Cite sources with [number] format. If the sources don't fully answer the question, acknowledge this and provide what you can.");
         }
-        else
-        {
-            prompt.AppendLine("User Query:");
-            prompt.AppendLine(userQuery);
-            prompt.AppendLine();
-            prompt.AppendLine("No specific sources were found in the user's documents for this query. Provide helpful general guidance and ask if they'd like to search for more specific information.");
-        }
+        // else
+        // {
+        //     prompt.AppendLine();
+        //     prompt.AppendLine("No specific sources were found in the user's documents for this query. Provide helpful general guidance and ask if they'd like to search for more specific information.");
+        // }
+
+        prompt.AppendLine("---");
+        prompt.AppendLine("Here is some data in json format about the user based on their onboarding data:");
+        prompt.AppendLine(userInformation);
+        prompt.AppendLine("---");
+
+        prompt.AppendLine("User Query:");
+        prompt.AppendLine(userQuery);
 
         if (history.Count > 0)
         {
@@ -631,7 +628,7 @@ public class AzureOpenAI //: IChatService
 
     //     _logger.LogInformation("Formatted prompt for LLM: {FormattedPrompt}", formattedPrompt);
 
-    //     ChatClient chatClient = _openAIClient.GetChatClient("openai-chat-deployment");
+    //     ChatClient chatClient = _openAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
 
     //     // Limit conversation history
     //     var limitedHistory = history.TakeLast(maxHistoryMessages).ToList();
@@ -669,7 +666,7 @@ public static class AzureOpenAIExtensions
     {
         builder.AddAzureSearchClient(connectionName: "search");
         builder.AddAzureOpenAIClient(connectionName: "openai")
-               .AddChatClient(deploymentName: "openai-chat-deployment");
+               .AddChatClient(deploymentName: Constants.CHAT_CLIENT_DEPLOYMENT);
 
         builder.AddAzureBlobServiceClient(connectionName: "blobs");
 
@@ -703,6 +700,9 @@ public static class AzureOpenAIExtensions
 
         builder.Services.AddScoped<Storage>();
 
+        builder.Services.AddScoped<AzureOpenAIServices>();
         builder.Services.AddScoped<AzureOpenAI>();
+        builder.Services.AddScoped<ISearchIndexService, AzureSearchClient>();
+        builder.Services.AddScoped<AzureSearchClientServices>();
     }
 }

@@ -292,6 +292,7 @@ public class UserActivityService : IUserActivityService
             var cachedTimestamp = await _cache.GetStringAsync(cacheKey);
             if (!string.IsNullOrEmpty(cachedTimestamp))
             {
+                _logger.LogInformation("Cached timestamp: {CachedTimestamp}", cachedTimestamp);
                 // Parse the timestamp
                 if (long.TryParse(cachedTimestamp, out var binaryTimestamp))
                 {
@@ -299,6 +300,7 @@ public class UserActivityService : IUserActivityService
                     // Check if activity is within the requested window
                     if (activityTime >= cutoffTime)
                     {
+                        _logger.LogInformation("User {UserId} is active", userId);
                         return true;
                     }
                 }
@@ -309,6 +311,7 @@ public class UserActivityService : IUserActivityService
             var userActivityData = await _cache.GetStringAsync(setKey);
             if (!string.IsNullOrEmpty(userActivityData))
             {
+                _logger.LogInformation("User activity data: {UserActivityData}", userActivityData);
                 try
                 {
                     var activity = JsonSerializer.Deserialize<JsonElement>(userActivityData);
@@ -316,6 +319,7 @@ public class UserActivityService : IUserActivityService
                     {
                         if (DateTime.TryParse(timestampProp.GetString(), out var timestamp) && timestamp >= cutoffTime)
                         {
+                            _logger.LogInformation("User {UserId} is active", userId);
                             return true;
                         }
                     }
@@ -328,20 +332,27 @@ public class UserActivityService : IUserActivityService
 
             // If activity window is longer than cache expiration, or Redis doesn't have data, fallback to database
             // This handles cases where the cache has expired but the user might still be active
+            _logger.LogInformation("Activity window is {ActivityWindowMinutes} minutes, cache expiration is {CacheExpirationSeconds} seconds", activityWindowMinutes, CacheExpirationSeconds);
             if (activityWindowMinutes * 60 > CacheExpirationSeconds)
             {
+                _logger.LogInformation("Activity window is longer than cache expiration, checking user {UserId} in database", userId);
                 var user = await _context.Users
                     .Where(u => u.Id == userId)
                     .Select(u => new { u.LastActivityAt })
                     .FirstOrDefaultAsync();
 
                 if (user == null)
+                {
+                    _logger.LogInformation("User {UserId} not found in database", userId);
                     return false;
+                }
 
+                _logger.LogInformation("User {UserId} found in database with last activity at {LastActivityAt}", userId, user.LastActivityAt);
                 return user.LastActivityAt != null && user.LastActivityAt >= cutoffTime;
             }
 
             // If cache doesn't have the data and window is within cache expiration, user is not active
+            _logger.LogInformation("User {UserId} is not active", userId);
             return false;
         }
         catch (Exception ex)
@@ -370,3 +381,29 @@ public class UserActivityService : IUserActivityService
     }
 }
 
+public interface IUserActivityService
+{
+    /// <summary>
+    /// Records user activity by updating both Redis cache and database.
+    /// </summary>
+    Task RecordUserActivityAsync(string userId);
+
+    /// <summary>
+    /// Gets the count of active users (active within the last hour) from Redis cache.
+    /// Falls back to database if Redis is unavailable.
+    /// </summary>
+    Task<int> GetActiveUsersCountAsync();
+
+    /// <summary>
+    /// Gets the list of active user IDs (active within the last hour) from Redis cache.
+    /// Falls back to database if Redis is unavailable.
+    /// </summary>
+    Task<List<string>> GetActiveUserIdsAsync();
+
+    /// <summary>
+    /// Checks if a specific user is active within the specified time window.
+    /// </summary>
+    /// <param name="userId">The user ID to check</param>
+    /// <param name="activityWindowMinutes">The time window in minutes (default: 60)</param>
+    Task<bool> IsUserActiveAsync(string userId, int activityWindowMinutes = 60);
+}

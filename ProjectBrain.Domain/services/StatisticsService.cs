@@ -36,6 +36,13 @@ public class StatisticsService : IStatisticsService
             .CountAsync();
     }
 
+    public async Task<int> GetUserVoiceNotesCountAsync(string userId)
+    {
+        return await _context.VoiceNotes
+            .Where(vn => vn.UserId == userId)
+            .CountAsync();
+    }
+
     public async Task<int> GetCoachClientsCountAsync(string coachId)
     {
         return await _context.Connections
@@ -164,6 +171,7 @@ public interface IStatisticsService
     Task<int> GetUserConversationsCountAsync(string userId, string? period = null);
     Task<int> GetAllConversationsCountAsync(string? period = null);
     Task<int> GetUserResourcesCountAsync(string userId);
+    Task<int> GetUserVoiceNotesCountAsync(string userId);
     Task<int> GetCoachClientsCountAsync(string coachId);
     Task<int> GetPendingClientsCountAsync(string userId);
     Task<int> GetSharedResourcesCountAsync();

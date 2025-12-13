@@ -1,6 +1,7 @@
 namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Database.Models;
 
 public class CoachProfileService : ICoachProfileService
 {
@@ -9,6 +10,16 @@ public class CoachProfileService : ICoachProfileService
     public CoachProfileService(AppDbContext context)
     {
         _context = context;
+    }
+
+    public async Task<CoachProfile?> GetById(int id)
+    {
+        return await _context.CoachProfiles
+            .Include(cp => cp.Qualifications)
+            .Include(cp => cp.Specialisms)
+            .Include(cp => cp.AgeGroups)
+            .Include(cp => cp.User!)
+            .FirstOrDefaultAsync(cp => cp.Id == id);
     }
 
     public async Task<CoachProfile?> GetByUserId(string userId)
@@ -138,6 +149,20 @@ public class CoachProfileService : ICoachProfileService
         }
     }
 
+    public async Task<bool> UpdateAvailabilityStatus(string userId, AvailabilityStatus status)
+    {
+        var coachProfile = await GetByUserId(userId);
+        if (coachProfile == null)
+        {
+            return false;
+        }
+
+        coachProfile.AvailabilityStatus = status;
+        _context.CoachProfiles.Update(coachProfile);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> DeleteByUserId(string userId)
     {
         var profile = await GetByUserId(userId);
@@ -205,12 +230,16 @@ public class CoachProfileService : ICoachProfileService
 
 public interface ICoachProfileService
 {
+    Task<CoachProfile?> GetById(int id);
     Task<CoachProfile?> GetByUserId(string userId);
     Task<CoachProfile> CreateOrUpdate(
         string userId,
         IEnumerable<string>? qualifications = null,
         IEnumerable<string>? specialisms = null,
         IEnumerable<string>? ageGroups = null);
+
+    Task<bool> UpdateAvailabilityStatus(string userId, AvailabilityStatus status);
+
     Task<bool> DeleteByUserId(string userId);
     Task<List<CoachProfile>> Search(
         string? city = null,

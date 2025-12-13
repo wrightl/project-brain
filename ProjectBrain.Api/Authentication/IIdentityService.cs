@@ -17,6 +17,6 @@ namespace ProjectBrain.Api.Authentication
         /// Gets the full User DTO from the database based on the authenticated user's identity.
         /// Returns cached user if already loaded during this request.
         /// </summary>
-        Task<UserDto?> GetUserAsync();
+        Task<BaseUserDto?> GetUserAsync();
     }
 }

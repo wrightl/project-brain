@@ -5,7 +5,7 @@ namespace ProjectBrain.Domain.Mappers;
 
 public static class DtoToDomainMapper
 {
-    public static User ToUser(this UserDto userDto)
+    public static User ToUser(this BaseUserDto userDto)
     {
         var user = new User
         {

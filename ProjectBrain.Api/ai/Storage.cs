@@ -1,12 +1,5 @@
-using Azure.Search.Documents;
-using Azure.Search.Documents.Indexes;
-using Azure.Search.Documents.Models;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using OpenAI;
-using OpenAI.Embeddings;
-using ProjectBrain.AI;
-using ProjectBrain.AI.Embedding;
 using ProjectBrain.Domain;
 
 public class Storage
@@ -14,24 +7,18 @@ public class Storage
     private readonly IConfiguration _configuration;
     private readonly BlobServiceClient _blobServiceClient;
     private readonly ILogger<Storage> _logger;
-    private readonly DocumentEmbedderFactory _embedderFactory;
-    private readonly OpenAIClient _openAIClient;
-    private readonly SearchIndexClient _searchIndexClient;
+    private readonly ISearchIndexService _searchIndexService;
 
     public Storage(
         IConfiguration configuration,
         BlobServiceClient blobServiceClient,
         ILogger<Storage> logger,
-        DocumentEmbedderFactory embedderFactory,
-        OpenAIClient openAIClient,
-        SearchIndexClient searchIndexClient)
+        ISearchIndexService searchIndexService)
     {
         _configuration = configuration;
         _blobServiceClient = blobServiceClient;
         _logger = logger;
-        _embedderFactory = embedderFactory;
-        _openAIClient = openAIClient;
-        _searchIndexClient = searchIndexClient;
+        _searchIndexService = searchIndexService;
     }
 
     public async Task<Stream?> GetFile(string location)
@@ -70,7 +57,7 @@ public class Storage
         _logger.LogInformation("Deleting file from blob storage: {Location}, filename: {Filename}", location, filename);
 
         // Delete documents from search index first
-        await DeleteDocumentsFromIndexAsync(filename, location);
+        await _searchIndexService.DeleteDocumentsFromIndexAsync(filename, location);
 
         // Delete the blob
         var deleted = await blobClient.DeleteIfExistsAsync();
@@ -87,86 +74,6 @@ public class Storage
         return deleted;
     }
 
-    private async Task DeleteDocumentsFromIndexAsync(string filename, string location)
-    {
-        try
-        {
-            _logger.LogInformation("Deleting documents from search index for file: {Filename}, URL: {Location}", filename, location);
-
-            var searchClient = _searchIndexClient.GetSearchClient(AzureOpenAI.SEARCH_INDEX_NAME);
-
-            // Search for all documents matching this file
-            // Use location as the identifier since it's unique per blob
-            var escapedUrl = location.Replace("'", "''");
-            var filter = $"storageUrl eq '{escapedUrl}'";
-
-            _logger.LogInformation("Searching for documents with filter: {Filter}", filter);
-
-            var searchOptions = new SearchOptions
-            {
-                Filter = filter,
-                Size = 1000 // Maximum documents per page
-            };
-            searchOptions.Select.Add("id"); // Only retrieve the id field
-
-            var searchResults = await searchClient.SearchAsync<SearchDocument>("*", searchOptions);
-
-            var documentIdsToDelete = new List<string>();
-            await foreach (var result in searchResults.Value.GetResultsAsync())
-            {
-                if (result.Document.ContainsKey("id") && result.Document["id"] != null)
-                {
-                    documentIdsToDelete.Add(result.Document["id"].ToString()!);
-                }
-            }
-
-            if (documentIdsToDelete.Count == 0)
-            {
-                _logger.LogInformation("No documents found in search index for file: {Filename}", filename);
-                return;
-            }
-
-            _logger.LogInformation("Found {DocumentCount} documents to delete for file: {Filename}", documentIdsToDelete.Count, filename);
-
-            await deleteDocumentsFromIndexAsync(searchClient, documentIdsToDelete);
-
-            _logger.LogInformation("Completed deleting {DocumentCount} documents from search index for file: {Filename}", documentIdsToDelete.Count, filename);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting documents from search index for file: {Filename}", filename);
-            // Don't throw - we don't want to fail the blob deletion if index deletion fails
-        }
-    }
-
-    private async Task deleteDocumentsFromIndexAsync(SearchClient searchClient, List<string> documentIdsToDelete)
-    {
-        // Delete documents in batches (Azure Search supports up to 1000 documents per batch)
-        const int batchSize = 1000;
-        for (int i = 0; i < documentIdsToDelete.Count; i += batchSize)
-        {
-            var batch = documentIdsToDelete.Skip(i).Take(batchSize);
-            var deleteDocuments = batch.Select(id => new SearchDocument { ["id"] = id }).ToList();
-
-            var deleteBatch = IndexDocumentsBatch.Delete(deleteDocuments);
-            var deleteResult = await searchClient.IndexDocumentsAsync(deleteBatch);
-
-            var successCount = deleteResult.Value.Results.Count(r => r.Succeeded);
-            var failedCount = deleteResult.Value.Results.Count(r => !r.Succeeded);
-
-            _logger.LogInformation(
-                "Deleted batch of documents. Success: {SuccessCount}, Failed: {FailedCount}",
-                successCount,
-                failedCount);
-
-            // Log any failures
-            foreach (var result in deleteResult.Value.Results.Where(r => !r.Succeeded))
-            {
-                _logger.LogError("Failed to delete document {Key}: {ErrorMessage}", result.Key, result.ErrorMessage);
-            }
-        }
-    }
-
     private string getContainerName()
     {
         return _configuration["storage:container"] ?? "resources";
@@ -178,10 +85,10 @@ public class Storage
 
         try
         {
-            // Step 1: Delete all documents for this user from the search index
-            await DeleteAllDocumentsFromIndexAsync(userId);
+            // Delete all documents for this user from the search index
+            await _searchIndexService.DeleteAllDocumentsFromIndexAsync(userId);
 
-            // Step 2: List all blobs in the user's folder
+            // List all blobs in the user's folder
             var containerName = getContainerName();
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
             var prefix = $"{(userId is null ? "shared" : userId)}/";
@@ -196,7 +103,7 @@ public class Storage
 
             _logger.LogInformation("Found {BlobCount} blobs to reindex for user {UserId}", blobs.Count, userId);
 
-            // Step 3: Reindex each blob and ensure it exists in database
+            // Reindex each blob and ensure it exists in database
             int reindexedCount = 0;
             foreach (var blobItem in blobs)
             {
@@ -205,48 +112,54 @@ public class Storage
                     var blobClient = containerClient.GetBlobClient(blobItem.Name);
                     var filename = Path.GetFileName(blobItem.Name);
                     var blobPath = blobItem.Name;
-                    // var storageUrl = blobClient.Uri.ToString();
+                    var resourceId = string.Empty;
 
                     _logger.LogInformation("Reindexing blob: {BlobPath}, filename: {Filename}", blobPath, filename);
 
-                    // Check if resource exists in database by location
-                    var resource = (userId is null
-                                    ? await resourceService.GetSharedByLocation(blobPath)
-                                     : await resourceService.GetForUserByLocation(blobPath, userId!));
-                    if (resource == null)
+                    // If not onboarding data, we need to reindex
+                    if (!filename.Equals(Constants.ONBOARDING_DATA_FILENAME))
                     {
-                        // Get blob properties to get size
-                        var blobProperties = await blobClient.GetPropertiesAsync();
-                        var blobSize = (int)blobProperties.Value.ContentLength;
-
-                        // Add resource to database
-                        var newResource = new Resource()
+                        // Check if resource exists in database by location
+                        var resource = (userId is null
+                                        ? await resourceService.GetSharedByLocation(blobPath)
+                                         : await resourceService.GetForUserByLocation(blobPath, userId!));
+                        if (resource == null)
                         {
-                            Id = Guid.NewGuid(),
-                            FileName = filename,
-                            Location = blobPath,
-                            SizeInBytes = blobSize,
-                            UserId = userId is null ? string.Empty : userId!,
-                            CreatedAt = DateTime.Now,
-                            UpdatedAt = DateTime.Now,
-                            IsShared = userId is null ? true : false
-                        };
+                            // Get blob properties to get size
+                            var blobProperties = await blobClient.GetPropertiesAsync();
+                            var blobSize = (int)blobProperties.Value.ContentLength;
 
-                        await resourceService.Add(newResource);
-                        resource = newResource;
-                        _logger.LogInformation("Added resource to database: {BlobPath}", blobPath);
+                            // Add resource to database
+                            var newResource = new Resource()
+                            {
+                                Id = Guid.NewGuid(),
+                                FileName = filename,
+                                Location = blobPath,
+                                SizeInBytes = blobSize,
+                                UserId = userId is null ? string.Empty : userId!,
+                                CreatedAt = DateTime.Now,
+                                UpdatedAt = DateTime.Now,
+                                IsShared = userId is null ? true : false
+                            };
+
+                            await resourceService.Add(newResource);
+                            resource = newResource;
+                            _logger.LogInformation("Added resource to database: {BlobPath}", blobPath);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Resource already exists in database: {BlobPath}", blobPath);
+                        }
+
+                        resourceId = resource.Id.ToString();
+
+                        // Download blob and reindex
+                        await using var stream = await blobClient.OpenReadAsync();
+                        await _searchIndexService.ExtractEmbedAndIndexFromStreamAsync(stream, filename, userId, blobPath, resourceId);
+
+                        reindexedCount++;
+                        _logger.LogInformation("Successfully reindexed blob: {BlobPath}", blobPath);
                     }
-                    else
-                    {
-                        _logger.LogInformation("Resource already exists in database: {BlobPath}", blobPath);
-                    }
-
-                    // Download blob and reindex
-                    await using var stream = await blobClient.OpenReadAsync();
-                    await ExtractEmbedAndIndexFromStreamAsync(stream, filename, userId, blobPath, resource.Id.ToString());
-
-                    reindexedCount++;
-                    _logger.LogInformation("Successfully reindexed blob: {BlobPath}", blobPath);
                 }
                 catch (Exception ex)
                 {
@@ -265,57 +178,7 @@ public class Storage
         }
     }
 
-    private async Task DeleteAllDocumentsFromIndexAsync(string? userId)
-    {
-        try
-        {
-            _logger.LogInformation("Deleting all documents from search index for user: {UserId}", userId);
-
-            var searchClient = _searchIndexClient.GetSearchClient(AzureOpenAI.SEARCH_INDEX_NAME);
-
-            // Search for all documents matching this user or shared
-            var filter = (userId is null ? "ownerId eq '' or ownerId eq null" : $"ownerId eq '{userId.Replace("'", "''")}'");
-
-            _logger.LogInformation("Searching for documents with filter: {Filter}", filter);
-
-            var searchOptions = new SearchOptions
-            {
-                Filter = filter,
-                Size = 1000 // Maximum documents per page
-            };
-            searchOptions.Select.Add("id"); // Only retrieve the id field
-
-            var searchResults = await searchClient.SearchAsync<SearchDocument>("*", searchOptions);
-
-            var documentIdsToDelete = new List<string>();
-            await foreach (var result in searchResults.Value.GetResultsAsync())
-            {
-                if (result.Document.ContainsKey("id") && result.Document["id"] != null)
-                {
-                    documentIdsToDelete.Add(result.Document["id"].ToString()!);
-                }
-            }
-
-            if (documentIdsToDelete.Count == 0)
-            {
-                _logger.LogInformation("No documents found in search index for user: {UserId}", userId);
-                return;
-            }
-
-            _logger.LogInformation("Found {DocumentCount} documents to delete for user: {UserId}", documentIdsToDelete.Count, userId);
-
-            await deleteDocumentsFromIndexAsync(searchClient, documentIdsToDelete);
-
-            _logger.LogInformation("Completed deleting {DocumentCount} documents from search index for user: {UserId}", documentIdsToDelete.Count, userId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting documents from search index for user: {UserId}", userId);
-            // Don't throw - we want to continue with reindexing even if deletion fails
-        }
-    }
-
-    public async Task<string> UploadFile(IFormFile file, string filename, string? userId = null, string? resourceId = null)
+    public async Task<string> UploadFile(Stream stream, string filename, string resourceId, string? userId = null, bool skipIndexing = false, Dictionary<string, string>? metadata = null)
     {
         _logger.LogInformation("Starting file upload for user {UserId}, filename {Filename}", userId, filename);
 
@@ -331,23 +194,29 @@ public class Storage
             var blobClient = containerClient.GetBlobClient(blobPath);
 
             _logger.LogInformation("Uploading file to blob storage at path {BlobPath}", blobPath);
-            await using (var stream = file.OpenReadStream())
+
+            // Reset stream position if possible
+            if (stream.CanSeek)
             {
-                await blobClient.UploadAsync(stream, overwrite: true);
+                stream.Position = 0;
             }
 
-            var metadata = new Dictionary<string, string>
-            {
-                { "userId", userId ?? "" }
-            };
+            await blobClient.UploadAsync(stream, overwrite: true);
+
+            var fileMetadata = metadata ?? new Dictionary<string, string>();
+            fileMetadata["userId"] = userId ?? "";
             await blobClient.SetMetadataAsync(metadata);
 
-            // This is being executed as a background task every 1 minute. Update last file change time instead
-            // var timestampBlob = containerClient.GetBlobClient("last_filechange_timestamp.txt");
-            // await timestampBlob.UploadAsync(new BinaryData(DateTimeOffset.UtcNow.ToString("O")), true);
-
             // Extract, embed, and index the document
-            await ExtractEmbedAndIndexAsync(file, filename, userId, blobPath, resourceId);
+            if (!skipIndexing)
+            {
+                // Reset stream position again for indexing
+                if (stream.CanSeek)
+                {
+                    stream.Position = 0;
+                }
+                await _searchIndexService.ExtractEmbedAndIndexFromStreamAsync(stream, filename, userId, blobPath, resourceId);
+            }
 
             return blobPath;
         }
@@ -408,130 +277,12 @@ public class Storage
         string filename,
         string? userId,
         string blobPath,
-        string? resourceId)
+        string resourceId)
     {
         await using var stream = file.OpenReadStream();
-        await ExtractEmbedAndIndexFromStreamAsync(stream, filename, userId, blobPath, resourceId);
+        await _searchIndexService.ExtractEmbedAndIndexFromStreamAsync(stream, filename, userId, blobPath, resourceId);
     }
 
-    private async Task ExtractEmbedAndIndexFromStreamAsync(
-        Stream stream,
-        string filename,
-        string? userId,
-        string blobPath,
-        string? resourceId)
-    {
-        try
-        {
-            // Check if file type is supported
-            if (!_embedderFactory.IsSupported(filename))
-            {
-                _logger.LogWarning("File type not supported for embedding: {Filename}", filename);
-                return;
-            }
-
-            // TODO - Reinstate this if we decide to only allow unique filenames
-            // Delete from index in case it's a reupload of an existing file
-            // await DeleteDocumentsFromIndexAsync(filename, blobPath);
-
-            // Get the appropriate embedder
-            var embedder = _embedderFactory.GetEmbedder(filename);
-            if (embedder == null)
-            {
-                _logger.LogWarning("No embedder found for file: {Filename}", filename);
-                return;
-            }
-
-            _logger.LogInformation("Extracting text from file: {Filename}", filename);
-
-            // Extract text from the document
-            // Reset stream position to beginning in case it was already read
-            if (stream.CanSeek)
-            {
-                stream.Position = 0;
-            }
-            var pages = await embedder.ExtractTextAsync(stream, filename);
-
-            if (pages.Count == 0)
-            {
-                _logger.LogWarning("No content extracted from file: {Filename}", filename);
-                return;
-            }
-
-            _logger.LogInformation("Extracted {PageCount} pages from file: {Filename}", pages.Count, filename);
-
-            // Generate embeddings and index each page
-            var embedClient = _openAIClient.GetEmbeddingClient("openai-embed-deployment");
-            var embeddingOptions = new EmbeddingGenerationOptions { Dimensions = 1536 };
-            var searchClient = _searchIndexClient.GetSearchClient(AzureOpenAI.SEARCH_INDEX_NAME);
-
-            var documentsToIndex = new List<SearchDocument>();
-
-            foreach (var page in pages)
-            {
-                if (string.IsNullOrWhiteSpace(page.Content))
-                {
-                    _logger.LogWarning("Skipping empty page {PageNumber} from file: {Filename}", page.PageNumber, filename);
-                    continue;
-                }
-
-                // Generate embedding for the page content
-                _logger.LogInformation("Generating embedding for page {PageNumber} of {Filename}", page.PageNumber, filename);
-                var embedResponse = await embedClient.GenerateEmbeddingAsync(page.Content, embeddingOptions);
-                var embeddingFloats = embedResponse.Value.ToFloats();
-                // Convert ReadOnlyMemory<float> to List<float>
-                var embedding = new List<float>();
-                foreach (var f in embeddingFloats.Span)
-                {
-                    embedding.Add(f);
-                }
-
-                // Create search document with Azure Search compliant ID
-                // Azure Search IDs can only contain: letters, digits, underscore (_), dash (-), or equal sign (=)
-                // var documentId = GenerateSearchDocumentId(userId, filename, page.PageNumber);
-                var searchDocument = new SearchDocument
-                {
-                    ["id"] = $"{resourceId}_{page.PageNumber}",
-                    ["content"] = page.Content,
-                    ["category"] = Path.GetExtension(filename).TrimStart('.').ToLowerInvariant(),
-                    ["sourcepage"] = page.PageNumber.ToString(),
-                    ["sourcefile"] = filename,
-                    ["storageUrl"] = blobPath,
-                    ["ownerId"] = userId,
-                    ["embedding"] = embedding
-                };
-
-                documentsToIndex.Add(searchDocument);
-            }
-
-            // Batch index all documents
-            if (documentsToIndex.Count > 0)
-            {
-                _logger.LogInformation("Indexing {DocumentCount} documents for file: {Filename}", documentsToIndex.Count, filename);
-
-                var batch = IndexDocumentsBatch.Upload(documentsToIndex);
-                var indexResult = await searchClient.IndexDocumentsAsync(batch);
-
-                _logger.LogInformation(
-                    "Indexed {DocumentCount} documents for file: {Filename}. Success: {SuccessCount}, Failed: {FailedCount}",
-                    documentsToIndex.Count,
-                    filename,
-                    indexResult.Value.Results.Count(r => r.Succeeded),
-                    indexResult.Value.Results.Count(r => !r.Succeeded));
-
-                // Log any failures
-                foreach (var result in indexResult.Value.Results.Where(r => !r.Succeeded))
-                {
-                    _logger.LogError("Failed to index document {Key}: {ErrorMessage}", result.Key, result.ErrorMessage);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error extracting, embedding, or indexing file: {Filename}", filename);
-            // Don't throw - we don't want to fail the upload if indexing fails
-        }
-    }
 
     /// <summary>
     /// Generates an Azure Search compliant document ID.

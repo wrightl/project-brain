@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using ProjectBrain.Database.Models;
 
 public class CoachProfile
 {
@@ -12,6 +13,9 @@ public class CoachProfile
 
     [ForeignKey(nameof(UserId))]
     public User? User { get; set; }
+
+    [Column(TypeName = "nvarchar(20)")]
+    public AvailabilityStatus? AvailabilityStatus { get; set; }
 
     // Navigation properties for one-to-many relationships
     public ICollection<CoachQualification> Qualifications { get; set; } = new List<CoachQualification>();

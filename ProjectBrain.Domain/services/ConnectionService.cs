@@ -5,7 +5,28 @@ using Microsoft.EntityFrameworkCore;
 public class ConnectionWithStatus
 {
     public required string Id { get; init; }
+    public required string UserId { get; init; }
+    public required string CoachId { get; init; }
     public required string Status { get; init; }
+    public string? UserName { get; init; }
+    public string? CoachName { get; init; }
+    public DateTime RequestedAt { get; internal set; }
+    public DateTime? RespondedAt { get; internal set; }
+
+    public static ConnectionWithStatus FromConnection(Connection connection)
+    {
+        return new ConnectionWithStatus
+        {
+            Id = connection.Id.ToString(),
+            UserId = connection.UserId,
+            CoachId = connection.CoachId,
+            Status = connection.Status,
+            UserName = connection.User?.FullName,
+            CoachName = connection.Coach?.FullName,
+            RequestedAt = connection.RequestedAt,
+            RespondedAt = connection.RespondedAt
+        };
+    }
 }
 
 public class ConnectionService : IConnectionService
@@ -90,9 +111,9 @@ public class ConnectionService : IConnectionService
         return true;
     }
 
-    public async Task<bool> CancelOrDeleteConnectionAsync(string userId, string coachId)
+    public async Task<bool> CancelOrDeleteConnectionAsync(Guid connectionId)
     {
-        var connection = await GetConnectionAsync(userId, coachId);
+        var connection = await GetByIdAsync(connectionId);
 
         if (connection == null)
         {
@@ -143,10 +164,30 @@ public class ConnectionService : IConnectionService
     {
         return await _context.Connections
             .Where(c => c.UserId == userId && (c.Status == "accepted" || c.Status == "pending"))
+            .Select(c => ConnectionWithStatus.FromConnection(c))
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets all user IDs that the coach has an active connection with (accepted or pending).
+    /// Returns the user ID and connection status.
+    /// </summary>
+    public async Task<List<ConnectionWithStatus>> GetConnectionsAsync(string userId, bool isCoach)
+    {
+        return await _context.Connections
+            .Where(c => (c.UserId == userId && !isCoach) || (c.CoachId == userId && isCoach) && (c.Status == "accepted" || c.Status == "pending"))
+            .Include(c => c.User)
+            .Include(c => c.Coach)
             .Select(c => new ConnectionWithStatus
             {
-                Id = c.CoachId,
-                Status = c.Status
+                Id = c.Id.ToString(),
+                Status = c.Status,
+                UserId = c.UserId,
+                CoachId = c.CoachId,
+                UserName = isCoach ? c.User.FullName : c.Coach.FullName,
+                CoachName = isCoach ? c.Coach.FullName : c.User.FullName,
+                RequestedAt = c.RequestedAt,
+                RespondedAt = c.RespondedAt
             })
             .ToListAsync();
     }
@@ -159,11 +200,7 @@ public class ConnectionService : IConnectionService
     {
         return await _context.Connections
             .Where(c => c.CoachId == coachId && (c.Status == "accepted" || c.Status == "pending"))
-            .Select(c => new ConnectionWithStatus
-            {
-                Id = c.UserId,
-                Status = c.Status
-            })
+            .Select(c => ConnectionWithStatus.FromConnection(c))
             .ToListAsync();
     }
 
@@ -175,11 +212,7 @@ public class ConnectionService : IConnectionService
     {
         return await _context.Connections
             .Where(c => c.CoachId == coachId && (c.Status == "accepted" || c.Status == "pending"))
-            .Select(c => new ConnectionWithStatus
-            {
-                Id = c.UserId,
-                Status = c.Status
-            })
+            .Select(c => ConnectionWithStatus.FromConnection(c))
             .ToListAsync();
     }
 
@@ -196,6 +229,15 @@ public class ConnectionService : IConnectionService
 
         return earliestConnection?.CreatedAt;
     }
+
+    /// <summary>
+    /// Gets a connection by its ID.
+    /// Returns the connection or null if it does not exist.
+    /// </summary>
+    public async Task<Connection?> GetByIdAsync(Guid connectionId)
+    {
+        return await _context.Connections.FirstOrDefaultAsync(c => c.Id == connectionId);
+    }
 }
 
 public interface IConnectionService
@@ -207,11 +249,13 @@ public interface IConnectionService
         string requestedBy,
         string? message = null);
     Task<bool> AcceptConnectionAsync(string userId, string coachId);
-    Task<bool> CancelOrDeleteConnectionAsync(string userId, string coachId);
+    Task<bool> CancelOrDeleteConnectionAsync(Guid connectionId);
     Task<bool> RejectConnectionAsync(string userId, string coachId);
     Task<List<ConnectionWithStatus>> GetConnectedCoachIdsAsync(string userId);
     Task<List<ConnectionWithStatus>> GetConnectedUserIdsAsync(string coachId);
     Task<List<ConnectionWithStatus>> GetConnectionsByCoachIdAsync(string coachId);
     Task<DateTime?> GetEarliestConnectionDateAsync(string userId);
+    Task<Connection?> GetByIdAsync(Guid connectionId);
+    Task<List<ConnectionWithStatus>> GetConnectionsAsync(string userId, bool isCoach);
 }
 

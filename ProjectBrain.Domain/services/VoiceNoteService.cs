@@ -24,12 +24,18 @@ public class VoiceNoteService : IVoiceNoteService
             .FirstOrDefaultAsync(vn => vn.Id == id && vn.UserId == userId);
     }
 
-    public async Task<IEnumerable<VoiceNote>> GetAllForUser(string userId)
+    public async Task<IEnumerable<VoiceNote>> GetAllForUser(string userId, int? limit = null)
     {
-        return await _context.VoiceNotes
+        IQueryable<VoiceNote> query = _context.VoiceNotes
             .Where(vn => vn.UserId == userId)
-            .OrderByDescending(vn => vn.CreatedAt)
-            .ToListAsync();
+            .OrderByDescending(vn => vn.CreatedAt);
+
+        if (limit.HasValue && limit.Value > 0)
+        {
+            query = query.Take(limit.Value);
+        }
+
+        return await query.ToListAsync();
     }
 
     public async Task<VoiceNote> Update(VoiceNote voiceNote)
@@ -57,7 +63,7 @@ public interface IVoiceNoteService
 {
     Task<VoiceNote> Add(VoiceNote voiceNote);
     Task<VoiceNote?> GetById(Guid id, string userId);
-    Task<IEnumerable<VoiceNote>> GetAllForUser(string userId);
+    Task<IEnumerable<VoiceNote>> GetAllForUser(string userId, int? limit = null);
     Task<VoiceNote> Update(VoiceNote voiceNote);
     Task<bool> Delete(Guid id, string userId);
 }

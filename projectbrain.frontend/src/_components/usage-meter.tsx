@@ -12,7 +12,10 @@ interface UsageMeterProps {
 function UsageMeter({ label, current, limit, unit = '' }: UsageMeterProps) {
     const isUnlimited = useMemo(() => limit < 0, [limit]);
     const percentage = useMemo(
-        () => (isUnlimited ? 0 : Math.min(100, (current / limit) * 100)),
+        () => {
+            if (isUnlimited || limit === 0) return 0;
+            return Math.min(100, (current / limit) * 100);
+        },
         [current, limit, isUnlimited]
     );
     const isNearLimit = useMemo(() => !isUnlimited && percentage >= 80, [isUnlimited, percentage]);

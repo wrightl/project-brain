@@ -1,10 +1,11 @@
 import { http, HttpResponse } from 'msw';
 
-const API_URL = process.env.API_SERVER_URL || 'https://localhost:7585';
+// Use relative paths for API routes in tests
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export const handlers = [
     // Subscription endpoints
-    http.get(`${API_URL}/subscriptions/me`, () => {
+    http.get(`${API_BASE}/subscriptions/me`, () => {
         return HttpResponse.json({
             id: 'sub_123',
             tier: 'Pro',
@@ -13,7 +14,7 @@ export const handlers = [
         });
     }),
 
-    http.get(`${API_URL}/subscriptions/usage`, () => {
+    http.get(`${API_BASE}/subscriptions/usage`, () => {
         return HttpResponse.json({
             aiQueries: {
                 daily: 10,
@@ -33,7 +34,7 @@ export const handlers = [
     }),
 
     // Resource endpoints
-    http.get(`${API_URL}/resource/user`, () => {
+    http.get(`${API_BASE}/user/resources`, () => {
         return HttpResponse.json([
             {
                 id: 'res_1',
@@ -47,7 +48,7 @@ export const handlers = [
     }),
 
     // Voice note endpoints
-    http.get(`${API_URL}/voicenotes`, () => {
+    http.get(`${API_BASE}/user/voicenotes`, () => {
         return HttpResponse.json([
             {
                 id: 'vn_1',
@@ -63,7 +64,7 @@ export const handlers = [
     }),
 
     // Connection endpoints
-    http.get(`${API_URL}/connections`, () => {
+    http.get(`${API_BASE}/connections`, () => {
         return HttpResponse.json([
             {
                 id: 'conn_1',

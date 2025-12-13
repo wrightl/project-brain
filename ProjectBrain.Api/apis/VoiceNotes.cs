@@ -32,7 +32,9 @@ public static class VoiceNoteEndpoints
         group.MapDelete("/{voiceNoteId}", DeleteVoiceNote).WithName("DeleteVoiceNote");
     }
 
-    private static async Task<IResult> GetAllVoiceNotes([AsParameters] VoiceNoteServices services)
+    private static async Task<IResult> GetAllVoiceNotes(
+        [AsParameters] VoiceNoteServices services,
+        HttpRequest request)
     {
         var userId = services.IdentityService.UserId;
         if (string.IsNullOrEmpty(userId))
@@ -42,7 +44,16 @@ public static class VoiceNoteEndpoints
 
         try
         {
-            var voiceNotes = await services.VoiceNoteService.GetAllForUser(userId);
+            // Parse limit query parameter
+            int? limit = null;
+            if (request.Query.TryGetValue("limit", out var limitValue) &&
+                int.TryParse(limitValue, out var parsedLimit) &&
+                parsedLimit > 0)
+            {
+                limit = parsedLimit;
+            }
+
+            var voiceNotes = await services.VoiceNoteService.GetAllForUser(userId, limit);
             var response = voiceNotes.Select(vn => new
             {
                 id = vn.Id.ToString(),

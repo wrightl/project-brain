@@ -63,7 +63,7 @@ public static class SubscriptionEndpoints
                 {
                     tier = "Free",
                     status = "active",
-                    userType = userType
+                    userType
                 });
             }
 

@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using ProjectBrain.AI;
 using ProjectBrain.Api.Authentication;
@@ -32,13 +33,37 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(
         policy =>
         {
-            policy.AllowAnyOrigin()
+            // Get allowed origins from configuration, fallback to common development origins
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? new[] { "https://localhost:6099", "http://localhost:3000", "http://localhost:6099" };
+
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyMethod()
-                  .AllowAnyHeader();
+                  .AllowAnyHeader()
+                  .AllowCredentials(); // Required when using credentials (Authorization header)
         });
 });
+
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.User.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 300, // TODO: Review this limit later
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+});
+
 builder.AddCustomAuthentication();
 builder.AddCustomAuthorisation();
+
+// Add SignalR
+builder.Services.AddSignalR();
 
 builder.AddAzureOpenAI();
 
@@ -106,7 +131,10 @@ app.MapScalarApiReference(options =>
 // TODO: Decide if this should befixed for .net10 and restored
 // app.UseRobotMiddleware();
 
-// app.UseCors();
+app.UseCors();
+
+app.UseRateLimiter();
+
 app.UseCustomAuthentication();
 app.UseUserActivityTracking(); // Track user activity after authentication
 app.UseCustomAuthorisation();
@@ -118,13 +146,18 @@ app.MapChatEndpoints();
 app.MapConversationEndpoints();
 app.MapResourceEndpoints();
 app.MapCoachEndpoints();
+app.MapConnectionEndpoints();
 app.MapVoiceNoteEndpoints();
+app.MapCoachMessageEndpoints();
 app.MapQuizEndpoints();
 app.MapStatisticsEndpoints();
 app.MapSubscriptionEndpoints();
 app.MapStripeWebhookEndpoints();
 app.MapSubscriptionManagementEndpoints();
 app.MapSubscriptionAnalyticsEndpoints();
+
+// Map SignalR hub
+app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").RequireAuthorization();
 
 app.MapDefaultEndpoints();
 

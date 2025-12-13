@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Database.Models;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbContext> logger) : DbContext(options)
 {
@@ -236,6 +238,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<CoachMessage>()
+            .HasOne(cm => cm.Sender)
+            .WithMany()
+            .HasForeignKey(cm => cm.SenderId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<CoachMessage>()
             .HasOne(cm => cm.Connection)
             .WithMany()
             .HasForeignKey(cm => cm.ConnectionId)
@@ -243,6 +251,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
 
         modelBuilder.Entity<CoachMessage>()
             .HasIndex(cm => new { cm.UserId, cm.CoachId, cm.CreatedAt });
+
+        modelBuilder.Entity<CoachMessage>()
+            .HasIndex(cm => new { cm.SenderId, cm.CreatedAt });
 
         // Configure SubscriptionExclusion relationships
         modelBuilder.Entity<SubscriptionExclusion>()
@@ -267,6 +278,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .WithMany()
             .HasForeignKey(ss => ss.UpdatedBy)
             .OnDelete(DeleteBehavior.NoAction);
+
+        // Configure AvailabilityStatus enum to be stored as string
+        modelBuilder.Entity<CoachProfile>()
+            .Property(cp => cp.AvailabilityStatus)
+            .HasConversion<string>();
 
         logger.LogInformation("OnModelCreating completed");
     }

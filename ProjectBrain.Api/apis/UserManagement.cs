@@ -29,7 +29,7 @@ public static class UserManagement
 {
     public static void MapUserManagementEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("usermanagement").RequireAuthorization();
+        var group = app.MapGroup("usermanagement").RequireAuthorization("AdminOnly");
 
         // Admin-only endpoints
         group.MapGet("", GetAllUsers).WithName("GetAllUsers");
@@ -61,38 +61,38 @@ public static class UserManagement
         return result is not null ? Results.Ok(result) : Results.NotFound();
     }
 
-    private static async Task<IResult> UpdateUser([AsParameters] UserManagementServices services, string id, UpdateUserRequest request)
-    {
-        if (!services.IdentityService.IsAdmin)
-        {
-            return Results.Forbid();
-        }
+    // private static async Task<IResult> UpdateUser([AsParameters] UserManagementServices services, string id, UpdateUserRequest request)
+    // {
+    //     if (!services.IdentityService.IsAdmin)
+    //     {
+    //         return Results.Forbid();
+    //     }
 
-        var existingUser = await services.UserService.GetById(id);
-        if (existingUser == null)
-        {
-            return Results.NotFound();
-        }
+    //     var existingUser = await services.UserService.GetById(id);
+    //     if (existingUser == null)
+    //     {
+    //         return Results.NotFound();
+    //     }
 
-        var userDto = new UserDto
-        {
-            Id = id,
-            Email = existingUser.Email, // Email cannot be changed
-            FullName = request.FullName ?? existingUser.FullName,
-            IsOnboarded = request.IsOnboarded ?? existingUser.IsOnboarded,
-            PreferredPronoun = request.PreferredPronoun ?? existingUser.PreferredPronoun,
-            StreetAddress = request.StreetAddress ?? existingUser.StreetAddress,
-            AddressLine2 = request.AddressLine2 ?? existingUser.AddressLine2,
-            City = request.City ?? existingUser.City,
-            StateProvince = request.StateProvince ?? existingUser.StateProvince,
-            PostalCode = request.PostalCode ?? existingUser.PostalCode,
-            Country = request.Country ?? existingUser.Country,
-            Roles = existingUser.Roles // Roles are updated separately
-        };
+    //     var userDto = new UserDto
+    //     {
+    //         Id = id,
+    //         Email = existingUser.Email, // Email cannot be changed
+    //         FullName = request.FullName ?? existingUser.FullName,
+    //         IsOnboarded = request.IsOnboarded ?? existingUser.IsOnboarded,
+    //         PreferredPronoun = request.PreferredPronoun ?? existingUser.PreferredPronoun,
+    //         StreetAddress = request.StreetAddress ?? existingUser.StreetAddress,
+    //         AddressLine2 = request.AddressLine2 ?? existingUser.AddressLine2,
+    //         City = request.City ?? existingUser.City,
+    //         StateProvince = request.StateProvince ?? existingUser.StateProvince,
+    //         PostalCode = request.PostalCode ?? existingUser.PostalCode,
+    //         Country = request.Country ?? existingUser.Country,
+    //         Roles = existingUser.Roles // Roles are updated separately
+    //     };
 
-        var result = await services.UserService.Update(userDto);
-        return Results.Ok(result);
-    }
+    //     var result = await services.UserService.Update(userDto);
+    //     return Results.Ok(result);
+    // }
 
     private static async Task<IResult> UpdateUserRoles([AsParameters] UserManagementServices services, [FromBody] UpdateUserRolesRequest request, string id)
     {

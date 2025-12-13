@@ -12,16 +12,16 @@ public class UserManagementService : IUserManagementService
         _context = context;
     }
 
-    public async Task<List<UserDto>> GetAll()
+    public async Task<List<BaseUserDto>> GetAll()
     {
         var users = await _context.Users
             .Include(u => u.UserRoles)
             .ToListAsync();
 
-        return users.Select(u => u.ToUserDto()).ToList();
+        return users.Select(u => u.ToBaseUserDto()).ToList();
     }
 
-    public async Task<UserDto> UpdateRoles(string userId, List<string> roles)
+    public async Task<BaseUserDto> UpdateRoles(string userId, List<string> roles)
     {
         var user = await _context.Users
             .Include(u => u.UserRoles)
@@ -48,13 +48,13 @@ public class UserManagementService : IUserManagementService
         _context.Users.Update(user);
         await _context.SaveChangesAsync();
 
-        return user.ToUserDto();
+        return user.ToBaseUserDto();
     }
 }
 
 public interface IUserManagementService
 {
-    Task<List<UserDto>> GetAll();
-    Task<UserDto> UpdateRoles(string userId, List<string> roles);
+    Task<List<BaseUserDto>> GetAll();
+    Task<BaseUserDto> UpdateRoles(string userId, List<string> roles);
 }
 

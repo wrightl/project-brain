@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
+using ProjectBrain.Database.Models;
 
 public class CoachServices(
     ILogger<CoachServices> logger,
@@ -13,7 +14,8 @@ public class CoachServices(
     IUserProfileService userProfileService,
     IFeatureGateService featureGateService,
     ISubscriptionService subscriptionService,
-    IUsageTrackingService usageTrackingService)
+    IUsageTrackingService usageTrackingService,
+    ICoachMessageService coachMessageService)
 {
     public ILogger<CoachServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -25,6 +27,7 @@ public class CoachServices(
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
+    public ICoachMessageService CoachMessageService { get; } = coachMessageService;
 }
 
 public static class CoachEndpoints
@@ -38,12 +41,15 @@ public static class CoachEndpoints
         group.MapGet("/clients", GetConnectedClients).WithName("GetConnectedClients").RequireAuthorization("CoachOnly");
         group.MapPost("/clients/{userId}/accept", AcceptClientConnection).WithName("AcceptClientConnection").RequireAuthorization("CoachOnly");
 
-        group.MapGet("/{coachId}/connection-status", GetConnectionStatus).WithName("GetConnectionStatus");
+        group.MapGet("/{id}/connection-status", GetConnectionStatus).WithName("GetConnectionStatus");
         group.MapPost("/{coachId}/connections", SendConnectionRequest).WithName("SendConnectionRequest");
-        group.MapDelete("/{coachId}/connections", CancelConnectionRequest).WithName("CancelConnectionRequest");
+        group.MapDelete("/{id}/connections", CancelConnectionRequest).WithName("CancelConnectionRequest");
 
-        group.MapGet("/{userId}", GetCoachById).WithName("GetCoachById");
+        group.MapGet("/{id}", GetCoachById).WithName("GetCoachById");
         group.MapPut("/me/{userId}", UpdateCoach).WithName("UpdateCoach").RequireAuthorization("CoachOnly");
+
+        group.MapGet("/availability/status", GetAvailabilityStatus).WithName("GetAvailabilityStatus").RequireAuthorization("CoachOnly");
+        group.MapPut("/availability/status", SetAvailabilityStatus).WithName("SetAvailabilityStatus").RequireAuthorization("CoachOnly");
     }
 
     private static async Task<IResult> GetConnectedCoaches(
@@ -81,7 +87,7 @@ public static class CoachEndpoints
                 .ToList();
 
             // Set online status for all coaches (30-minute window for coaches)
-            await coachDtos.SetOnlineStatusAsync(services.UserActivityService, activityWindowMinutes: 30);
+            await coachDtos.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
             // Create CoachWithConnectionStatusDto list with connection details
             var coachesWithStatus = new List<CoachWithConnectionStatusDto>();
@@ -110,7 +116,7 @@ public static class CoachEndpoints
                     Qualifications = coachDto.Qualifications,
                     Specialisms = coachDto.Specialisms,
                     AgeGroups = coachDto.AgeGroups,
-                    IsOnline = coachDto.IsOnline,
+                    AvailabilityStatus = coachDto.AvailabilityStatus,
 
                     // Connection status properties
                     ConnectionStatus = connectionStatusMap.GetValueOrDefault(coachDto.Id, "pending"), // "pending" or "accepted"
@@ -156,7 +162,7 @@ public static class CoachEndpoints
             var clientDtos = new List<ClientWithConnectionStatusDto>();
             foreach (var connectionWithStatus in connections)
             {
-                var user = await services.UserService.GetById(connectionWithStatus.Id);
+                var user = await services.UserService.GetById(connectionWithStatus.Id) as UserDto;
                 if (user != null)
                 {
                     // Get full connection details to access RequestedAt, RequestedBy, and Message
@@ -310,26 +316,57 @@ public static class CoachEndpoints
             .ToList();
 
         // Set online status for all coaches (30-minute window for coaches)
-        await coachDtos.SetOnlineStatusAsync(services.UserActivityService, activityWindowMinutes: 30);
+        await coachDtos.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
         return Results.Ok(coachDtos);
     }
 
     private static async Task<IResult> GetCoachById(
         [AsParameters] CoachServices services,
-        string userId)
+        string id)
     {
-        var coachProfile = await services.CoachProfileService.GetByUserId(userId);
+        var coachId = int.Parse(id);
+        var coachProfile = await services.CoachProfileService.GetById(coachId);
 
         if (coachProfile == null || coachProfile.User == null)
         {
             return Results.NotFound();
         }
 
+        // Check whether the user is connected to the coach
+        var userId = services.IdentityService.UserId!;
+        // var connection = await services.ConnectionService.GetConnectionAsync(userId, coachProfile.UserId);
+
         var coachDto = coachProfile.ToCoachDto();
+        // var coachProfileWithConnection = new CoachWithConnectionStatusDto
+        // {
+        //     // Copy all properties from coachDto
+        //     Id = coachDto.Id,
+        //     Email = coachDto.Email,
+        //     FullName = coachDto.FullName,
+        //     Roles = coachDto.Roles,
+        //     IsOnboarded = coachDto.IsOnboarded,
+        //     LastActivityAt = coachDto.LastActivityAt,
+        //     StreetAddress = coachDto.StreetAddress,
+        //     AddressLine2 = coachDto.AddressLine2,
+        //     City = coachDto.City,
+        //     StateProvince = coachDto.StateProvince,
+        //     PostalCode = coachDto.PostalCode,
+        //     Country = coachDto.Country,
+        //     Qualifications = coachDto.Qualifications,
+        //     Specialisms = coachDto.Specialisms,
+        //     AgeGroups = coachDto.AgeGroups,
+        //     AvailabilityStatus = coachDto.AvailabilityStatus,
+
+        //     // Add the new property
+        //     ConnectionStatus = connection?.Status ?? "none",
+        //     RequestedAt = connection?.RequestedAt ?? DateTime.UtcNow,
+        //     RequestedBy = connection?.RequestedBy ?? string.Empty,
+        //     Message = connection?.Message ?? string.Empty
+        // };
 
         // Set online status (30-minute window for coaches)
-        await coachDto.SetOnlineStatusAsync(services.UserActivityService, activityWindowMinutes: 30);
+        await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
         return Results.Ok(coachDto);
     }
@@ -403,19 +440,19 @@ public static class CoachEndpoints
         var coachDto = updatedCoachProfile.ToCoachDto();
 
         // Set online status (30-minute window for coaches)
-        await coachDto.SetOnlineStatusAsync(services.UserActivityService, activityWindowMinutes: 30);
+        await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
         return Results.Ok(coachDto);
     }
 
     private static async Task<IResult> GetConnectionStatus(
         [AsParameters] CoachServices services,
-        string coachId)
+        string id)
     {
         var userId = services.IdentityService.UserId!;
 
         // Validate coach exists
-        var coachProfile = await services.CoachProfileService.GetByUserId(coachId);
+        var coachProfile = await services.CoachProfileService.GetById(int.Parse(id));
         if (coachProfile == null || coachProfile.User == null)
         {
             return Results.NotFound(new ErrorResponse
@@ -429,6 +466,7 @@ public static class CoachEndpoints
         }
 
         // Get connection
+        var coachId = coachProfile.UserId;
         var connection = await services.ConnectionService.GetConnectionAsync(userId, coachId);
 
         if (connection == null || connection.Status == "cancelled" || connection.Status == "rejected")
@@ -450,6 +488,7 @@ public static class CoachEndpoints
         var response = new ConnectionStatusResponse
         {
             Status = apiStatus,
+            ConnectionId = connection.Id.ToString(),
             RequestedAt = connection.RequestedAt,
             RespondedAt = connection.RespondedAt,
             RequestedBy = connection.RequestedBy
@@ -580,12 +619,13 @@ public static class CoachEndpoints
 
     private static async Task<IResult> CancelConnectionRequest(
         [AsParameters] CoachServices services,
-        string coachId)
+        string id)
     {
         var userId = services.IdentityService.UserId!;
 
         // Get connection
-        var connection = await services.ConnectionService.GetConnectionAsync(userId, coachId);
+        var connectionId = Guid.Parse(id);
+        var connection = await services.ConnectionService.GetByIdAsync(connectionId);
 
         if (connection == null)
         {
@@ -602,7 +642,7 @@ public static class CoachEndpoints
         }
 
         // Cancel or delete connection
-        var success = await services.ConnectionService.CancelOrDeleteConnectionAsync(userId, coachId);
+        var success = await services.ConnectionService.CancelOrDeleteConnectionAsync(connectionId);
 
         if (!success)
         {
@@ -612,6 +652,85 @@ public static class CoachEndpoints
         }
 
         return Results.Ok(new { message = "Connection request cancelled or removed" });
+    }
+
+    private static async Task<IResult> GetAvailabilityStatus(
+        [AsParameters] CoachServices services)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        try
+        {
+            var coachProfile = await services.CoachProfileService.GetByUserId(userId);
+            if (coachProfile == null)
+            {
+                services.Logger.LogError("Coach profile not found: {UserId}", userId);
+                return Results.NotFound(new ErrorResponse
+                {
+                    Error = new ErrorDetail
+                    {
+                        Code = "COACH_PROFILE_NOT_FOUND",
+                        Message = "Coach profile not found: " + userId
+                    }
+                });
+            }
+
+            return Results.Ok(new { status = coachProfile.AvailabilityStatus?.ToString() ?? AvailabilityStatus.Available.ToString() });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error getting availability status for user {UserId}", userId);
+            return Results.Problem(
+                detail: "An error occurred while getting availability status",
+                statusCode: 500);
+        }
+    }
+
+    private static async Task<IResult> SetAvailabilityStatus(
+        [AsParameters] CoachServices services,
+        SetAvailabilityStatusRequest request)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        // Validate and parse status
+        if (string.IsNullOrEmpty(request.Status) || !Enum.TryParse<AvailabilityStatus>(request.Status, ignoreCase: true, out var status))
+        {
+            return Results.BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "INVALID_STATUS",
+                    Message = $"Status must be one of: {string.Join(", ", Enum.GetNames(typeof(AvailabilityStatus)))}"
+                }
+            });
+        }
+
+        try
+        {
+            var coachProfile = await services.CoachProfileService.GetByUserId(userId);
+            if (coachProfile == null)
+            {
+                return Results.NotFound(new ErrorResponse
+                {
+                    Error = new ErrorDetail
+                    {
+                        Code = "COACH_PROFILE_NOT_FOUND",
+                        Message = "Coach profile not found"
+                    }
+                });
+            }
+
+            await services.CoachProfileService.UpdateAvailabilityStatus(userId, status);
+
+            return Results.Ok(new { status = status.ToString() });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error setting availability status for user {UserId}", userId);
+            return Results.Problem(
+                detail: "An error occurred while setting availability status",
+                statusCode: 500);
+        }
     }
 }
 
@@ -638,9 +757,15 @@ public class ConnectionRequestRequest
     public string? Message { get; init; }
 }
 
+public class SetAvailabilityStatusRequest
+{
+    public required string Status { get; init; } // "Available", "Busy", "Away", "Offline"
+}
+
 public class ConnectionStatusResponse
 {
     public required string Status { get; init; } // "none" | "pending" | "connected"
+    public string? ConnectionId { get; init; }
     public DateTime? RequestedAt { get; init; }
     public DateTime? RespondedAt { get; init; }
     public string? RequestedBy { get; init; } // "user" | "coach"
@@ -707,11 +832,12 @@ public class CoachWithConnectionStatusDto
     public List<string> Specialisms { get; init; } = new List<string>();
     public List<string> AgeGroups { get; init; } = new List<string>();
     public bool IsOnline { get; init; }
+    public AvailabilityStatus? AvailabilityStatus { get; init; }
 
     // Connection status properties
     public required string ConnectionStatus { get; init; } // "pending" or "accepted"
-    public required DateTime RequestedAt { get; init; }
-    public required string RequestedBy { get; init; } // "user" or "coach"
+    public DateTime? RequestedAt { get; init; }
+    public string? RequestedBy { get; init; } // "user" or "coach"
     public string? Message { get; init; }
 }
 

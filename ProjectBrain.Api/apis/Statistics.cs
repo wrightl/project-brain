@@ -21,6 +21,7 @@ public static class StatisticsEndpoints
         group.MapGet("/user-conversations", GetUserConversationsCount).WithName("GetUserConversationsCount");
         group.MapGet("/all-conversations", GetAllConversationsCount).WithName("GetAllConversationsCount");
         group.MapGet("/user-resources", GetUserResourcesCount).WithName("GetUserResourcesCount");
+        group.MapGet("/user-voicenotes", GetUserVoiceNotesCount).WithName("GetUserVoiceNotesCount");
         group.MapGet("/coach-clients", GetCoachClientsCount).WithName("GetCoachClientsCount").RequireAuthorization("CoachOnly");
         group.MapGet("/coach-clients-pending", GetPendingClientsCount).WithName("GetPendingClientsCount").RequireAuthorization("CoachOnly");
         group.MapGet("/shared-resources", GetSharedResourcesCount).WithName("GetSharedResourcesCount").RequireAuthorization("AdminOnly");
@@ -80,6 +81,22 @@ public static class StatisticsEndpoints
         {
             services.Logger.LogError(ex, "Error retrieving user resources count for user {UserId}", userId);
             return Results.Problem("An error occurred while retrieving user resources count.");
+        }
+    }
+
+    private static async Task<IResult> GetUserVoiceNotesCount([AsParameters] StatisticsServices services)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        try
+        {
+            var count = await services.StatisticsService.GetUserVoiceNotesCountAsync(userId);
+            return Results.Ok(new { count });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving user voice notes count for user {UserId}", userId);
+            return Results.Problem("An error occurred while retrieving user voice notes count.");
         }
     }
 

@@ -26,7 +26,8 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IFeatureGateService, FeatureGateService>();
         builder.Services.AddScoped<IStripeService, StripeService>();
         builder.Services.AddScoped<ISubscriptionAnalyticsService, SubscriptionAnalyticsService>();
-        
+        builder.Services.AddScoped<ICoachMessageService, CoachMessageService>();
+
         // Register background service for syncing activity data
         builder.Services.AddHostedService<UserActivitySyncService>();
     }

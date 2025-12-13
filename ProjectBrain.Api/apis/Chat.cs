@@ -34,7 +34,7 @@ public static class ChatEndpoints
 
     public static void MapChatEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("chat").RequireAuthorization();
+        var group = app.MapGroup("chat").RequireAuthorization("UserOnly");
 
         if (app.Environment.IsDevelopment())
         {
@@ -239,48 +239,10 @@ public static class ChatEndpoints
         }
 #endif
 
-        var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
-
-        // Check AI query limits (only for users, not coaches)
-        if (userType == "user")
+        // Check usage limits
+        if (!await CheckUsageLimits(services, http, userId))
         {
-            // Check daily limit
-            var dailyLimit = int.Parse(services.Config["TierLimits:User:Free:DailyAIQueries"] ?? "50");
-            var dailyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "daily");
-            var tier = await services.SubscriptionService.GetUserTierAsync(userId, userType);
-            var tierDailyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:DailyAIQueries"] ?? "-1");
-            var effectiveDailyLimit = tierDailyLimit >= 0 ? tierDailyLimit : dailyLimit;
-
-            if (effectiveDailyLimit >= 0 && dailyUsage >= effectiveDailyLimit)
-            {
-                services.Logger.LogWarning("Daily AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, dailyUsage, effectiveDailyLimit);
-                http.Response.StatusCode = 429; // Too Many Requests
-                http.Response.ContentType = "application/json";
-                await http.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    error = $"You have reached your daily limit of {effectiveDailyLimit} AI queries. Please upgrade or try again tomorrow."
-                }));
-                return;
-            }
-
-            // Check monthly limit
-            var monthlyLimit = int.Parse(services.Config["TierLimits:User:Free:MonthlyAIQueries"] ?? "200");
-            var monthlyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "monthly");
-            var tierMonthlyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:MonthlyAIQueries"] ?? "-1");
-            var effectiveMonthlyLimit = tierMonthlyLimit >= 0 ? tierMonthlyLimit : monthlyLimit;
-
-            if (effectiveMonthlyLimit >= 0 && monthlyUsage >= effectiveMonthlyLimit)
-            {
-                services.Logger.LogWarning("Monthly AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, monthlyUsage, effectiveMonthlyLimit);
-                http.Response.StatusCode = 429; // Too Many Requests
-                http.Response.ContentType = "application/json";
-                await http.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    error = $"You have reached your monthly limit of {effectiveMonthlyLimit} AI queries. Please upgrade for unlimited queries."
-                }));
-                return;
-            }
+            return;
         }
 
         // Get/Create Conversation
@@ -332,7 +294,18 @@ public static class ChatEndpoints
         var userName = user.FirstName!;
         services.Logger.LogInformation("Using user name {UserName} for conversation {ConversationId}", userName, conversation.Id);
 
-        var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(request.Content, userId, userName, history);
+        // Get the onboarding data for the user
+        string userInformation = string.Empty;
+        var userInformationStream = await services.Storage.GetFile($"{userId}/{Constants.ONBOARDING_DATA_FILENAME}");
+        if (userInformationStream is not null)
+        {
+            using (var reader = new StreamReader(userInformationStream))
+            {
+                userInformation = await reader.ReadToEndAsync();
+            }
+        }
+
+        var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(request.Content, userId, userInformation, userName, history);
 
         services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
         // Send citations as metadata before streaming the response
@@ -395,11 +368,49 @@ public static class ChatEndpoints
             UpdatedAt = DateTime.UtcNow
         });
 
-        // Track AI query usage (only for users)
-        if (userType == "user")
+        await services.UsageTrackingService.TrackAIQueryAsync(userId);
+    }
+
+    private static async Task<bool> CheckUsageLimits(ChatServices services, HttpContext http, string? userId)
+    {
+        // Check daily limit
+        var dailyLimit = int.Parse(services.Config["TierLimits:User:Free:DailyAIQueries"] ?? "50");
+        var dailyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "daily");
+        var tier = await services.SubscriptionService.GetUserTierAsync(userId, "user");
+        var tierDailyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:DailyAIQueries"] ?? "-1");
+        var effectiveDailyLimit = tierDailyLimit >= 0 ? tierDailyLimit : dailyLimit;
+
+        if (effectiveDailyLimit >= 0 && dailyUsage >= effectiveDailyLimit)
         {
-            await services.UsageTrackingService.TrackAIQueryAsync(userId);
+            services.Logger.LogWarning("Daily AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, dailyUsage, effectiveDailyLimit);
+            http.Response.StatusCode = 429; // Too Many Requests
+            http.Response.ContentType = "application/json";
+            await http.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                error = $"You have reached your daily limit of {effectiveDailyLimit} AI queries. Please upgrade or try again tomorrow."
+            }));
+            return false;
         }
+
+        // Check monthly limit
+        var monthlyLimit = int.Parse(services.Config["TierLimits:User:Free:MonthlyAIQueries"] ?? "200");
+        var monthlyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "monthly");
+        var tierMonthlyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:MonthlyAIQueries"] ?? "-1");
+        var effectiveMonthlyLimit = tierMonthlyLimit >= 0 ? tierMonthlyLimit : monthlyLimit;
+
+        if (effectiveMonthlyLimit >= 0 && monthlyUsage >= effectiveMonthlyLimit)
+        {
+            services.Logger.LogWarning("Monthly AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, monthlyUsage, effectiveMonthlyLimit);
+            http.Response.StatusCode = 429; // Too Many Requests
+            http.Response.ContentType = "application/json";
+            await http.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                error = $"You have reached your monthly limit of {effectiveMonthlyLimit} AI queries. Please upgrade for unlimited queries."
+            }));
+            return false;
+        }
+
+        return true;
     }
 }
 

@@ -41,11 +41,22 @@ public static class ResourceEndpoints
         group.MapPost("/reindex/shared", ReindexSharedResources).WithName("ReindexSharedResources");
     }
 
-    private static async Task<IResult> GetUserResources([AsParameters] ResourceServices services)
+    private static async Task<IResult> GetUserResources(
+        [AsParameters] ResourceServices services,
+        HttpRequest request)
     {
         var userId = services.IdentityService.UserId;
 
-        var resources = await services.ResourceService.GetAllForUser(userId!);
+        // Parse limit query parameter
+        int? limit = null;
+        if (request.Query.TryGetValue("limit", out var limitValue) &&
+            int.TryParse(limitValue, out var parsedLimit) &&
+            parsedLimit > 0)
+        {
+            limit = parsedLimit;
+        }
+
+        var resources = await services.ResourceService.GetAllForUser(userId!, limit);
         return Results.Ok(resources);
     }
 
@@ -192,7 +203,8 @@ public static class ResourceEndpoints
             }
 
             var resourceId = Guid.NewGuid();
-            var location = await services.Storage.UploadFile(file, filename, userId, resourceId.ToString());
+            var fileStream = file.OpenReadStream();
+            var location = await services.Storage.UploadFile(fileStream, filename, resourceId.ToString(), userId);
             results.Add(new { status = "uploaded", filename, fileSize = file.Length, location });
 
             await services.ResourceService.Add(new Resource()

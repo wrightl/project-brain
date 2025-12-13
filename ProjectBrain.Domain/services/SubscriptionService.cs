@@ -184,6 +184,7 @@ public class SubscriptionService : ISubscriptionService
             throw new Exception($"Tier {tier} not found for user type {userType}");
         }
 
+        // TODO: Check if user has already had a trial. The Status would be 'Expired' and the TrialEndsAt would be in the past.
         // Check if user already has an active subscription
         var existingSubscription = await GetUserSubscriptionAsync(userId, userType);
         if (existingSubscription != null && (existingSubscription.Status == "active" || existingSubscription.Status == "trialing"))
@@ -284,6 +285,12 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
+    public async Task<bool> IsUserExcludedAsync(string userId, string userType)
+    {
+        return await _context.SubscriptionExclusions
+            .AnyAsync(se => se.UserId == userId && se.UserType == userType);
+    }
+
     public async Task<SubscriptionSettings> GetSubscriptionSettingsAsync()
     {
         var settings = await _context.SubscriptionSettings.FirstOrDefaultAsync();
@@ -320,3 +327,18 @@ public class SubscriptionService : ISubscriptionService
     }
 }
 
+public interface ISubscriptionService
+{
+    Task<UserSubscription?> GetUserSubscriptionAsync(string userId, string userType);
+    Task<string> GetUserTierAsync(string userId, string userType);
+    Task<string> CreateCheckoutSessionAsync(string userId, string userType, string tier, bool isAnnual);
+    Task UpdateSubscriptionFromStripeAsync(string stripeSubscriptionId);
+    Task CancelSubscriptionAsync(string userId, string userType);
+    Task StartTrialAsync(string userId, string userType, string tier);
+    Task<bool> IsSubscriptionRequiredAsync(string userId, string userType);
+    Task ExcludeUserFromSubscriptionAsync(string userId, string userType, string excludedBy, string? notes);
+    Task RemoveExclusionAsync(string userId, string userType);
+    Task<bool> IsUserExcludedAsync(string userId, string userType);
+    Task<SubscriptionSettings> GetSubscriptionSettingsAsync();
+    Task UpdateSubscriptionSettingsAsync(bool enableUsers, bool enableCoaches, string updatedBy);
+}

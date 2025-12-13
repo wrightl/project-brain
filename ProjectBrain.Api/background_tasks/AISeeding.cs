@@ -58,7 +58,7 @@ public class AISeeding
     {
         _logger.LogInformation("Starting AI Seeding task...");
 
-        await EnsureSearchIndexAsync(AzureOpenAI.SEARCH_INDEX_NAME);
+        await EnsureSearchIndexAsync(Constants.SEARCH_INDEX_NAME);
 
         _logger.LogInformation("AI Seeding task completed.");
     }

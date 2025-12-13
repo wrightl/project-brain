@@ -29,6 +29,23 @@ public static class AuthenticationExtensions
                         return audiences.Contains(requestedAudience) || audiences.Contains(clientId);
                     }
                 };
+
+                // Handle SignalR connections - extract token from query string
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+
+                        // If the request is for a SignalR hub, get the token from the query string
+                        var path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                        {
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
         // // Prevent mapping "sub" claim to nameidentifier.

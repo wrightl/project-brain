@@ -3,6 +3,8 @@ using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
+using System.Text;
+using System.Text.Json;
 
 public class UserServices(
     ILogger<UserServices> logger,
@@ -14,7 +16,9 @@ public class UserServices(
     IConfiguration configuration,
     ICoachProfileService coachProfileService,
     IUserProfileService userProfileService,
-    IUserActivityService userActivityService)
+    IUserActivityService userActivityService,
+    ICoachMessageService coachMessageService,
+    Storage storage)
 {
     public ILogger<UserServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -26,6 +30,8 @@ public class UserServices(
     public ICoachProfileService CoachProfileService { get; } = coachProfileService;
     public IUserProfileService UserProfileService { get; } = userProfileService;
     public IUserActivityService UserActivityService { get; } = userActivityService;
+    public ICoachMessageService CoachMessageService { get; } = coachMessageService;
+    public Storage Storage { get; } = storage;
 }
 
 public static class UserEndpoints
@@ -49,15 +55,8 @@ public static class UserEndpoints
 
     private static async Task<IResult> OnboardUser([AsParameters] UserServices services, CreateUserRequest request)
     {
-        var userId = services.IdentityService.UserId;
-        if (string.IsNullOrEmpty(userId))
-        {
-            return Results.Unauthorized();
-        }
-        // if (!string.Equals(request.Role, "user", StringComparison.OrdinalIgnoreCase))
-        // {
-        //     return Results.BadRequest("User is not a user");
-        // }
+        var userId = services.IdentityService.UserId!;
+
         var existingUser = await services.UserService.GetById(userId);
 
         if (existingUser is not null && existingUser.IsOnboarded)
@@ -94,12 +93,37 @@ public static class UserEndpoints
         await services.RoleManagementService.UpdateUserRoles(userId, user.Roles);
 
         // Create or update user profile
-        await services.UserProfileService.CreateOrUpdate(
+        var userProfile = await services.UserProfileService.CreateOrUpdate(
             userId,
             doB: request.DoB,
             preferredPronoun: request.PreferredPronoun,
             neurodiverseTraits: request.NeurodiverseTraits,
             preferences: request.Preferences);
+
+        // Convert onboarding data to JSON and store in blob storage
+        var createdUser = await services.UserService.GetById(userId) as UserDto;
+        try
+        {
+            var onboardingData = CreateOnboardingData(userProfile, createdUser!);
+
+            var jsonContent = JsonSerializer.Serialize(onboardingData, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            var filename = $"{Constants.ONBOARDING_DATA_FILENAME}";
+            var jsonBytes = Encoding.UTF8.GetBytes(jsonContent);
+            await using (var stream = new MemoryStream(jsonBytes))
+            {
+                await services.Storage.UploadFile(stream, filename, userId, skipIndexing: true);
+            }
+            services.Logger.LogInformation("Successfully uploaded onboarding data for user {UserId}", userId);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the onboarding process if JSON upload fails
+            services.Logger.LogError(ex, "Failed to upload onboarding data to blob storage for user {UserId}", userId);
+        }
 
         if (existingUser is not null)
         {
@@ -115,17 +139,25 @@ public static class UserEndpoints
         }
     }
 
+    public static object CreateOnboardingData(UserProfile userProfile, UserDto createdUser)
+    {
+        return new
+        {
+            preferredPronoun = userProfile.PreferredPronoun,
+            neurodiverseTraits = userProfile.NeurodiverseTraits.Select(t => t.Trait).ToList(),
+            preferences = userProfile.Preference?.Preferences,
+            streetAddress = createdUser.StreetAddress,
+            addressLine2 = createdUser.AddressLine2,
+            city = createdUser.City,
+            stateProvince = createdUser.StateProvince,
+            postalCode = createdUser.PostalCode,
+            country = createdUser.Country
+        };
+    }
+
     private static async Task<IResult> OnboardCoach([AsParameters] UserServices services, CreateCoachRequest request)
     {
-        var userId = services.IdentityService.UserId;
-        if (string.IsNullOrEmpty(userId))
-        {
-            return Results.Unauthorized();
-        }
-        // if (!string.Equals(request.Role, "coach", StringComparison.OrdinalIgnoreCase))
-        // {
-        //     return Results.BadRequest("User is not a coach");
-        // }
+        var userId = services.IdentityService.UserId!;
 
         var existingUser = await services.UserService.GetById(userId);
         if (existingUser is not null && existingUser.IsOnboarded)
@@ -184,11 +216,7 @@ public static class UserEndpoints
 
     private static async Task<IResult> GetCurrentUser([AsParameters] UserServices services)
     {
-        var userId = services.IdentityService.UserId;
-        if (string.IsNullOrEmpty(userId))
-        {
-            return Results.Unauthorized();
-        }
+        var userId = services.IdentityService.UserId!;
 
         var user = await services.UserService.GetById(userId);
         if (user is null)
@@ -212,21 +240,22 @@ public static class UserEndpoints
             var coachDto = coachProfile.ToCoachDto();
 
             // Set online status (30-minute window for coaches)
-            await coachDto.SetOnlineStatusAsync(services.UserActivityService, activityWindowMinutes: 30);
+            await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
-            return Results.Ok(coachDto);
+            return Results.Ok(user);
         }
         else
         {
             // Return user profile data
             var userProfile = await services.UserProfileService.GetByUserId(userId);
-            if (userProfile is not null)
+            var userDto = user as UserDto;
+            if (userDto is not null && userProfile is not null)
             {
                 // Populate UserDto with profile data
-                user.DoB = userProfile.DoB;
-                user.PreferredPronoun = userProfile.PreferredPronoun;
-                user.NeurodiverseTraits = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>();
-                user.Preferences = userProfile.Preference?.Preferences;
+                userDto.DoB = userProfile.DoB;
+                userDto.PreferredPronoun = userProfile.PreferredPronoun;
+                userDto.NeurodiverseTraits = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>();
+                userDto.Preferences = userProfile.Preference?.Preferences;
             }
 
             return Results.Ok(user);
@@ -235,11 +264,7 @@ public static class UserEndpoints
 
     private static async Task<IResult> UpdateUser([AsParameters] UserServices services, string userId, UpdateCurrentUserRequest request)
     {
-        var loggedInUserId = services.IdentityService.UserId;
-        if (string.IsNullOrEmpty(loggedInUserId))
-        {
-            return Results.Unauthorized();
-        }
+        var loggedInUserId = services.IdentityService.UserId!;
 
         // Validate that the userId in the URL matches the logged-in user
         if (!string.Equals(userId, loggedInUserId, StringComparison.OrdinalIgnoreCase))
@@ -291,8 +316,8 @@ public static class UserEndpoints
 
     private static async Task<IResult> GetCurrentUserRoles([AsParameters] UserServices services)
     {
-        var userId = services.IdentityService.UserId;
-        var result = await services.UserService.GetById(userId!);
+        var userId = services.IdentityService.UserId!;
+        var result = await services.UserService.GetById(userId);
         return result is not null ? Results.Ok(result.Roles) : Results.NotFound();
     }
 

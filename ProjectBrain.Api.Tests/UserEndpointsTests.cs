@@ -1,9 +1,13 @@
+using Azure.Search.Documents.Indexes;
+using Azure.Storage.Blobs;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
+using OpenAI;
+using ProjectBrain.AI.Embedding;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 
@@ -19,6 +23,7 @@ public class UserEndpointsTests
     private readonly Mock<IUserProfileService> _mockUserProfileService;
     private readonly UserServices _userServices;
     private readonly Mock<IUserActivityService> _mockUserActivityService;
+    private readonly Mock<ICoachMessageService> _mockCoachMessageService;
     public UserEndpointsTests()
     {
         _mockLogger = new Mock<ILogger<UserServices>>();
@@ -28,6 +33,7 @@ public class UserEndpointsTests
         _mockCoachProfileService = new Mock<ICoachProfileService>();
         _mockUserProfileService = new Mock<IUserProfileService>();
         _mockUserActivityService = new Mock<IUserActivityService>();
+        _mockCoachMessageService = new Mock<ICoachMessageService>();
         var mockMemoryCache = new Mock<IMemoryCache>();
         var mockFeatureFlagService = new Mock<FeatureFlagService>();
         var mockConfiguration = new Mock<IConfiguration>();
@@ -42,7 +48,9 @@ public class UserEndpointsTests
             mockConfiguration.Object,
             _mockCoachProfileService.Object,
             _mockUserProfileService.Object,
-            _mockUserActivityService.Object
+            _mockUserActivityService.Object,
+            _mockCoachMessageService.Object
+
         );
     }
 

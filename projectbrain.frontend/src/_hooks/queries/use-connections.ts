@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Connection } from '@/_lib/types';
-import { apiClient } from '@/_lib/api-client';
+import { apiClient, ApiClientError } from '@/_lib/api-client';
 import { ConversationSummary } from '@/_services/coach-message-service';
 
 export const connectionKeys = {
@@ -26,8 +26,8 @@ export function useConnection(connectionId: string) {
         queryFn: async () => {
             try {
                 return await apiClient<Connection>(`/api/connections/${connectionId}`);
-            } catch (error: any) {
-                if (error?.status === 404) {
+            } catch (error) {
+                if (error instanceof ApiClientError && error.status === 404) {
                     return null;
                 }
                 throw error;

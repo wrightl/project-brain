@@ -36,12 +36,18 @@ public class ResourceService : IResourceService
             .FirstOrDefaultAsync(c => c.FileName == filename && c.UserId == userId && c.IsShared == false);
     }
 
-    public async Task<IEnumerable<Resource>> GetAllForUser(string userId)
+    public async Task<IEnumerable<Resource>> GetAllForUser(string userId, int? limit = null)
     {
-        return await _context.Resources
+        IQueryable<Resource> query = _context.Resources
             .Where(c => c.UserId == userId && c.IsShared == false)
-            .OrderByDescending(c => c.UpdatedAt)
-            .ToListAsync();
+            .OrderByDescending(c => c.UpdatedAt);
+
+        if (limit.HasValue && limit.Value > 0)
+        {
+            query = query.Take(limit.Value);
+        }
+
+        return await query.ToListAsync();
     }
 
     public async Task<Resource?> GetSharedById(Guid id)
@@ -91,7 +97,7 @@ public interface IResourceService
     Task<Resource?> GetForUserById(Guid id, string userId);
     Task<Resource?> GetForUserByLocation(string location, string userId);
     Task<Resource?> GetForUserByFilename(string filename, string userId);
-    Task<IEnumerable<Resource>> GetAllForUser(string userId);
+    Task<IEnumerable<Resource>> GetAllForUser(string userId, int? limit = null);
     Task<Resource?> GetSharedById(Guid id);
     Task<Resource?> GetSharedByFilename(string filename);
     Task<Resource?> GetSharedByLocation(string location);

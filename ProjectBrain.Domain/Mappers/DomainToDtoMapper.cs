@@ -1,12 +1,15 @@
 
+using Microsoft.EntityFrameworkCore;
+
+using ProjectBrain.Database.Models;
 
 namespace ProjectBrain.Domain.Mappers;
 
 public static class DomainToDtoMapper
 {
-    public static UserDto ToUserDto(this User user)
+    public static BaseUserDto ToBaseUserDto(this User user)
     {
-        return new UserDto
+        return new BaseUserDto
         {
             Id = user.Id,
             Email = user.Email,
@@ -19,9 +22,51 @@ public static class DomainToDtoMapper
             StateProvince = user.StateProvince,
             PostalCode = user.PostalCode,
             Country = user.Country,
-            Roles = user.UserRoles?.Select(ur => ur.RoleName)?.ToList()
+            Roles = user.UserRoles?.Select(ur => ur.RoleName)?.ToList() ?? new List<string>()
         };
     }
+
+    // public static UserDto ToUserDto(this User user)
+    // {
+    //     return new UserDto
+    //     {
+    //         Id = user.Id,
+    //         Email = user.Email,
+    //         FullName = user.FullName,
+    //         IsOnboarded = user.IsOnboarded,
+    //         LastActivityAt = user.LastActivityAt,
+    //         StreetAddress = user.StreetAddress,
+    //         AddressLine2 = user.AddressLine2,
+    //         City = user.City,
+    //         StateProvince = user.StateProvince,
+    //         PostalCode = user.PostalCode,
+    //         Country = user.Country,
+    //         Roles = user.UserRoles?.Select(ur => ur.RoleName)?.ToList() ?? new List<string>()
+    //     };
+    // }
+
+    // public static CoachDto ToCoachDto(this User user)
+    // {
+    //     return new CoachDto
+    //     {
+    //         Id = user.Id,
+    //         Email = user.Email,
+    //         FullName = user.FullName,
+    //         IsOnboarded = user.IsOnboarded,
+    //         LastActivityAt = user.LastActivityAt,
+    //         StreetAddress = user.StreetAddress,
+    //         AddressLine2 = user.AddressLine2,
+    //         City = user.City,
+    //         StateProvince = user.StateProvince,
+    //         PostalCode = user.PostalCode,
+    //         Country = user.Country,
+    //         Roles = user.UserRoles?.Select(ur => ur.RoleName)?.ToList() ?? new List<string>(),
+    //         Qualifications = new List<string>(),
+    //         Specialisms = new List<string>(),
+    //         AgeGroups = new List<string>(),
+    //         AvailabilityStatus = null
+    //     };
+    // }
 
     public static CoachDto ToCoachDto(this CoachProfile coachProfile)
     {
@@ -32,7 +77,8 @@ public static class DomainToDtoMapper
 
         return new CoachDto
         {
-            Id = coachProfile.User.Id,
+            Id = coachProfile.UserId,
+            CoachProfileId = coachProfile.Id.ToString(),
             Email = coachProfile.User.Email,
             FullName = coachProfile.User.FullName,
             IsOnboarded = coachProfile.User.IsOnboarded,
@@ -47,44 +93,88 @@ public static class DomainToDtoMapper
             Qualifications = coachProfile.Qualifications?.Select(q => q.Qualification).ToList() ?? new List<string>(),
             Specialisms = coachProfile.Specialisms?.Select(s => s.Specialism).ToList() ?? new List<string>(),
             AgeGroups = coachProfile.AgeGroups?.Select(ag => ag.AgeGroup).ToList() ?? new List<string>(),
-            IsOnline = false // Will be set by SetOnlineStatus extension method
+            AvailabilityStatus = coachProfile.AvailabilityStatus
         };
     }
 
     /// <summary>
-    /// Sets the IsOnline status for a coach based on their recent activity.
-    /// A coach is considered online if they were active within the last 30 minutes.
+    /// Sets the AvailabilityStatus for a coach based on their recent activity, manual status, and chat activity.
     /// </summary>
     public static async Task<CoachDto> SetOnlineStatusAsync(
         this CoachDto coachDto,
         IUserActivityService userActivityService,
+        ICoachMessageService coachMessageService,
         int activityWindowMinutes = 30)
     {
         try
         {
-            coachDto.IsOnline = await userActivityService.IsUserActiveAsync(coachDto.Id, activityWindowMinutes);
+            var isActive = await userActivityService.IsUserActiveAsync(coachDto.Id, activityWindowMinutes);
+
+            // Determine availability status
+            // Auto-determine status if not manually set
+            if (!isActive)
+            {
+                coachDto.AvailabilityStatus = AvailabilityStatus.Offline;
+            }
+            else
+            {
+                // Check if idle for more than 30 minutes
+                var lastActivity = coachDto.LastActivityAt;
+                if (lastActivity.HasValue)
+                {
+                    var idleMinutes = (DateTime.UtcNow - lastActivity.Value).TotalMinutes;
+                    if (idleMinutes > 30)
+                    {
+                        coachDto.AvailabilityStatus = AvailabilityStatus.Away;
+                    }
+                    else
+                    {
+                        // Check if in active chat
+                        if (coachMessageService != null)
+                        {
+                            var recentChatCutoff = DateTime.UtcNow.AddMinutes(-10);
+                            var hasActiveChat = (await coachMessageService.GetByCoachId(coachDto.Id))
+                                .Any(cm => cm.CreatedAt >= recentChatCutoff);
+
+                            coachDto.AvailabilityStatus = hasActiveChat ? AvailabilityStatus.Busy : AvailabilityStatus.Available;
+                        }
+                        else
+                        {
+                            coachDto.AvailabilityStatus = AvailabilityStatus.Available;
+                        }
+                    }
+                }
+                else
+                {
+                    coachDto.AvailabilityStatus = AvailabilityStatus.Available;
+                }
+            }
         }
         catch
         {
-            // If we can't determine online status, default to false
-            coachDto.IsOnline = false;
+            // If we can't determine online status, default to false and Offline
+            if (!coachDto.AvailabilityStatus.HasValue)
+            {
+                coachDto.AvailabilityStatus = AvailabilityStatus.Offline;
+            }
         }
 
         return coachDto;
     }
 
     /// <summary>
-    /// Sets the IsOnline status for multiple coaches based on their recent activity.
+    /// Sets the IsOnline status and AvailabilityStatus for multiple coaches based on their recent activity.
     /// More efficient than calling SetOnlineStatusAsync for each coach individually.
     /// Uses batch checking for better performance.
     /// </summary>
     public static async Task<List<CoachDto>> SetOnlineStatusAsync(
         this List<CoachDto> coachDtos,
         IUserActivityService userActivityService,
+        ICoachMessageService coachMessageService,
         int activityWindowMinutes = 30)
     {
         if (coachDtos == null || !coachDtos.Any())
-            return coachDtos;
+            return coachDtos ?? new List<CoachDto>();
 
         try
         {
@@ -93,11 +183,14 @@ public static class DomainToDtoMapper
             {
                 try
                 {
-                    coachDto.IsOnline = await userActivityService.IsUserActiveAsync(coachDto.Id, activityWindowMinutes);
+                    await coachDto.SetOnlineStatusAsync(userActivityService, coachMessageService, activityWindowMinutes);
                 }
                 catch
                 {
-                    coachDto.IsOnline = false;
+                    if (!coachDto.AvailabilityStatus.HasValue)
+                    {
+                        coachDto.AvailabilityStatus = AvailabilityStatus.Offline;
+                    }
                 }
             });
 
@@ -108,7 +201,10 @@ public static class DomainToDtoMapper
             // If we can't determine online status, default all to false
             foreach (var coachDto in coachDtos)
             {
-                coachDto.IsOnline = false;
+                if (!coachDto.AvailabilityStatus.HasValue)
+                {
+                    coachDto.AvailabilityStatus = AvailabilityStatus.Offline;
+                }
             }
         }
 

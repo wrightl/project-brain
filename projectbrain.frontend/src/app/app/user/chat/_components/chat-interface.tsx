@@ -32,8 +32,6 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const streamingMessageRef = useRef<string>('');
 
-    // console.log('conversation', conversation);
-
     // Auto-scroll to bottom when messages change
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -512,11 +510,17 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                 style={{ maxHeight: '200px' }}
                             />
                         </div>
-                        <FeatureGate feature="speech_input" showUpgradePrompt={false}>
+                        <FeatureGate
+                            feature="speech_input"
+                            showUpgradePrompt={false}
+                        >
                             <VoiceRecorder
                                 onRecordingComplete={handleVoiceRecording}
                                 onError={(error) =>
-                                    console.error('Voice recording error:', error)
+                                    console.error(
+                                        'Voice recording error:',
+                                        error
+                                    )
                                 }
                                 disabled={isStreaming}
                             />

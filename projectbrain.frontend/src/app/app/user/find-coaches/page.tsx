@@ -10,8 +10,16 @@ import {
 } from '@heroicons/react/24/outline';
 import { CoachSearchParams } from '@/_services/coach-service';
 import { Coach } from '@/_lib/types';
-import { Conversation } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import AvailabilityBadge from '@/_components/coach/availability-badge';
+
+interface ConnectionStatus {
+    status: 'none' | 'pending' | 'connected';
+    connectionId?: string;
+    requestedAt?: string;
+    respondedAt?: string;
+    requestedBy?: 'user' | 'coach';
+}
 
 export default function FindCoachesPage() {
     const router = useRouter();
@@ -26,6 +34,12 @@ export default function FindCoachesPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
+    const [connectionStatuses, setConnectionStatuses] = useState<
+        Record<string, ConnectionStatus>
+    >({});
+    const [connectingCoaches, setConnectingCoaches] = useState<Set<string>>(
+        new Set()
+    );
 
     // Common age groups and specialisms (you may want to make these dynamic)
     const commonAgeGroups = [
@@ -99,6 +113,36 @@ export default function FindCoachesPage() {
 
             const results: Coach[] = await response.json();
             setCoaches(results);
+
+            // Fetch connection status for all coaches
+            const statusPromises = results.map(async (coach) => {
+                try {
+                    const statusResponse = await fetchWithAuth(
+                        `/api/coaches/${coach.coachProfileId}/connection-status`
+                    );
+                    if (statusResponse.ok) {
+                        const status: ConnectionStatus =
+                            await statusResponse.json();
+                        return { coachId: coach.coachProfileId, status };
+                    }
+                } catch (err) {
+                    console.error(
+                        `Error fetching connection status for coach ${coach.coachProfileId}:`,
+                        err
+                    );
+                }
+                return {
+                    coachId: coach.coachProfileId,
+                    status: { status: 'none' as const },
+                };
+            });
+
+            const statusResults = await Promise.all(statusPromises);
+            const statusMap: Record<string, ConnectionStatus> = {};
+            statusResults.forEach(({ coachId, status }) => {
+                statusMap[coachId] = status;
+            });
+            setConnectionStatuses(statusMap);
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : 'Failed to search coaches'
@@ -110,30 +154,77 @@ export default function FindCoachesPage() {
     };
 
     const handleContactCoach = async (coach: Coach) => {
+        const connectionStatus = connectionStatuses[coach.coachProfileId];
+        if (connectionStatus?.connectionId) {
+            router.push(`/app/user/messages/${connectionStatus.connectionId}`);
+        } else {
+            // Fallback: if connection ID is not available, try to get it
+            console.error(
+                'Connection ID not available for coach:',
+                coach.coachProfileId
+            );
+        }
+    };
+
+    const handleConnectCoach = async (coach: Coach) => {
+        if (connectingCoaches.has(coach.coachProfileId)) return;
+
+        setConnectingCoaches((prev) => new Set(prev).add(coach.coachProfileId));
         try {
-            const response = await fetchWithAuth('/api/conversations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    title: `Chat with ${coach.fullName}`,
-                }),
-            });
+            const response = await fetchWithAuth(
+                `/api/coaches/${coach.coachProfileId}/connections`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(
-                    errorData.error || 'Failed to create conversation'
+                    errorData.error?.message ||
+                        'Failed to send connection request'
                 );
             }
 
-            const conversation: Conversation = await response.json();
-            router.push(`/app/user/chat/${conversation.id}`);
+            // Update connection status to pending
+            setConnectionStatuses((prev) => ({
+                ...prev,
+                [coach.coachProfileId]: { status: 'pending' },
+            }));
         } catch (err) {
-            console.error('Failed to create conversation:', err);
-            alert('Failed to start conversation. Please try again.');
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to send connection request'
+            );
+        } finally {
+            setConnectingCoaches((prev) => {
+                const newSet = new Set(prev);
+                newSet.delete(coach.coachProfileId);
+                return newSet;
+            });
         }
+    };
+
+    // Helper function to check if coach is online and available
+    const isCoachOnlineAndAvailable = (coach: Coach): boolean => {
+        if (coach.availabilityStatus !== 'Available') {
+            return false;
+        }
+
+        // Check if coach was active in the last 30 minutes
+        if (coach.lastActivityAt) {
+            const lastActivity = new Date(coach.lastActivityAt);
+            const now = new Date();
+            const minutesSinceActivity =
+                (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+            return minutesSinceActivity <= 30;
+        }
+
+        return false;
     };
 
     const toggleAgeGroup = (ageGroup: string) => {
@@ -344,16 +435,26 @@ export default function FindCoachesPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        {coaches.map((coach) => (
+                        {coaches.map((coach: Coach) => (
                             <div
-                                key={coach.id}
+                                key={coach.coachProfileId}
                                 className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                        <h3 className="text-lg font-semibold text-gray-900">
-                                            {coach.fullName}
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-semibold text-gray-900">
+                                                {coach.fullName}
+                                            </h3>
+                                            {coach.availabilityStatus && (
+                                                <AvailabilityBadge
+                                                    status={
+                                                        coach.availabilityStatus
+                                                    }
+                                                    size="sm"
+                                                />
+                                            )}
+                                        </div>
                                         {coach.city && (
                                             <p className="text-sm text-gray-600 mt-1 flex items-center">
                                                 <MapPinIcon className="h-4 w-4 mr-1" />
@@ -428,21 +529,71 @@ export default function FindCoachesPage() {
                                     <button
                                         onClick={() =>
                                             router.push(
-                                                `/app/user/coaches/${coach.id}`
+                                                `/app/user/coaches/${coach.coachProfileId}`
                                             )
                                         }
                                         className="flex-1 px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 transition-colors"
                                     >
                                         View Details
                                     </button>
-                                    <button
-                                        onClick={() =>
-                                            handleContactCoach(coach)
+                                    {(() => {
+                                        const connectionStatus =
+                                            connectionStatuses[
+                                                coach.coachProfileId
+                                            ]?.status || 'none';
+                                        const isConnected =
+                                            connectionStatus === 'connected';
+                                        const isPending =
+                                            connectionStatus === 'pending';
+                                        const canContact =
+                                            isConnected &&
+                                            isCoachOnlineAndAvailable(coach);
+
+                                        if (isConnected) {
+                                            return (
+                                                <button
+                                                    onClick={() =>
+                                                        handleContactCoach(
+                                                            coach as Coach
+                                                        )
+                                                    }
+                                                    disabled={!canContact}
+                                                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Contact
+                                                </button>
+                                            );
+                                        } else if (isPending) {
+                                            return (
+                                                <button
+                                                    disabled
+                                                    className="flex-1 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-md cursor-not-allowed"
+                                                >
+                                                    Pending
+                                                </button>
+                                            );
+                                        } else {
+                                            return (
+                                                <button
+                                                    onClick={() =>
+                                                        handleConnectCoach(
+                                                            coach as Coach
+                                                        )
+                                                    }
+                                                    disabled={connectingCoaches.has(
+                                                        coach.coachProfileId
+                                                    )}
+                                                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {connectingCoaches.has(
+                                                        coach.coachProfileId
+                                                    )
+                                                        ? 'Connecting...'
+                                                        : 'Connect'}
+                                                </button>
+                                            );
                                         }
-                                        className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
-                                    >
-                                        Contact
-                                    </button>
+                                    })()}
                                 </div>
                             </div>
                         ))}

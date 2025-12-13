@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { ClientWithConnectionStatus } from '@/_services/coach-service';
 import { useRouter } from 'next/navigation';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import toast from 'react-hot-toast';
 
 function formatLastActivity(lastActivityAt?: string): string {
     if (!lastActivityAt) {
@@ -102,9 +103,10 @@ export default function ClientsList({
 
             // Refresh the page to get updated data
             router.refresh();
+            toast.success('Connection accepted successfully');
         } catch (err) {
             console.error('Error accepting connection:', err);
-            alert(
+            toast.error(
                 err instanceof Error
                     ? err.message
                     : 'Failed to accept connection'

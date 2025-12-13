@@ -15,8 +15,9 @@ export class VoiceNoteService {
     /**
      * Get all voice notes for the current user
      */
-    static async getAllVoiceNotes(): Promise<VoiceNote[]> {
-        const response = await callBackendApi('/voicenotes', {
+    static async getAllVoiceNotes(limit?: number): Promise<VoiceNote[]> {
+        const queryParam = limit ? `?limit=${limit}` : '';
+        const response = await callBackendApi(`/voicenotes${queryParam}`, {
             method: 'GET',
         });
 
@@ -89,8 +90,7 @@ export class VoiceNoteService {
         const blob = await response.blob();
 
         // Get headers from the response
-        const contentType =
-            response.headers.get('Content-Type') || 'audio/m4a';
+        const contentType = response.headers.get('Content-Type') || 'audio/m4a';
         const contentDisposition = response.headers.get('Content-Disposition');
 
         // Prepare headers for the Next.js response
@@ -110,4 +110,3 @@ export class VoiceNoteService {
         return { blob, headers };
     }
 }
-

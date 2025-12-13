@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, ReactNode } from 'react';
-import { SubscriptionService } from '@/_services/subscription-service';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import Link from 'next/link';
 
 interface FeatureGateProps {
@@ -11,11 +11,11 @@ interface FeatureGateProps {
     showUpgradePrompt?: boolean;
 }
 
-export default function FeatureGate({ 
-    feature, 
-    children, 
-    fallback, 
-    showUpgradePrompt = true 
+export default function FeatureGate({
+    feature,
+    children,
+    fallback,
+    showUpgradePrompt = true,
 }: FeatureGateProps) {
     const [allowed, setAllowed] = useState<boolean | null>(null);
     const [loading, setLoading] = useState(true);
@@ -26,10 +26,17 @@ export default function FeatureGate({
 
     const checkFeature = async () => {
         try {
-            const { tier } = await SubscriptionService.getTier();
-            
+            const response = await fetchWithAuth('/api/subscriptions/tier');
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch tier information');
+            }
+
+            const data: { tier: string; userType: string } =
+                await response.json();
+
             // Check if feature is allowed based on tier
-            const featureAllowed = checkFeatureAccess(tier, feature);
+            const featureAllowed = checkFeatureAccess(data.tier, feature);
             setAllowed(featureAllowed);
         } catch (error) {
             console.error('Error checking feature access:', error);
@@ -65,7 +72,8 @@ export default function FeatureGate({
             return (
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm text-yellow-800 mb-2">
-                        This feature is only available in Pro and Ultimate tiers.
+                        This feature is only available in Pro and Ultimate
+                        tiers.
                     </p>
                     <Link
                         href="/app/user/subscription"
@@ -82,4 +90,3 @@ export default function FeatureGate({
 
     return <>{children}</>;
 }
-

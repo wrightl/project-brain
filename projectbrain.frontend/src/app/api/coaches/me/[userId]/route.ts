@@ -15,7 +15,7 @@ export const PUT = createApiRoute<Coach>(async (req: NextRequest) => {
     const body = await req.json();
     const response = await callBackendApi(`/coaches/me/${userId}`, {
         method: 'PUT',
-        body: JSON.stringify(body),
+        body: body,
     });
 
     if (!response.ok) {
@@ -28,4 +28,3 @@ export const PUT = createApiRoute<Coach>(async (req: NextRequest) => {
 
     return await response.json();
 });
-

@@ -10,6 +10,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { Conversation } from '@/_lib/types';
+import toast from 'react-hot-toast';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 interface ConversationListItemProps {
     conversation: Conversation;
@@ -22,6 +24,7 @@ export function ConversationListItem({
     const [isDeleting, setIsDeleting] = useState(false);
     const [formattedDate, setFormattedDate] = useState<string>('');
     const [isMounted, setIsMounted] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -38,25 +41,20 @@ export function ConversationListItem({
         );
     }, [conversation.updatedAt]);
 
-    const handleDelete = async (
+    const handleDeleteClick = (
         e: React.MouseEvent<HTMLButtonElement>,
         conversationId: string
     ) => {
         e.preventDefault();
         e.stopPropagation();
+        setDeleteConfirmOpen(true);
+    };
 
-        if (
-            !confirm(
-                'Are you sure you want to delete this conversation? This action cannot be undone.'
-            )
-        ) {
-            return;
-        }
-
+    const handleDelete = async () => {
         try {
             setIsDeleting(true);
             const response = await fetchWithAuth(
-                `/api/conversations/${conversationId}`,
+                `/api/conversations/${conversation.id}`,
                 {
                     method: 'DELETE',
                 }
@@ -67,15 +65,18 @@ export function ConversationListItem({
                     errorData.error || 'Failed to delete conversation'
                 );
             }
+            toast.success('Conversation deleted successfully');
             // Refresh the page to update the conversation list
             router.refresh();
         } catch (err) {
-            alert(
+            toast.error(
                 err instanceof Error
                     ? err.message
                     : 'Failed to delete conversation'
             );
             setIsDeleting(false);
+        } finally {
+            setDeleteConfirmOpen(false);
         }
     };
 
@@ -111,7 +112,7 @@ export function ConversationListItem({
                         <div className="flex items-center gap-2 ml-4">
                             <button
                                 onClick={(e) =>
-                                    handleDelete(e, conversation.id)
+                                    handleDeleteClick(e, conversation.id)
                                 }
                                 disabled={isDeleting}
                                 className="p-1 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -125,6 +126,18 @@ export function ConversationListItem({
                     </div>
                 </div>
             </Link>
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => setDeleteConfirmOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete Conversation"
+                message="Are you sure you want to delete this conversation? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </li>
     );
 }

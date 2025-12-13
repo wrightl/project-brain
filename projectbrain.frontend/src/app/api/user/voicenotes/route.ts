@@ -4,7 +4,11 @@ import { BackendApiError } from '@/_lib/backend-api';
 import { NextRequest } from 'next/server';
 
 export const GET = createApiRoute<VoiceNote[]>(async (req: NextRequest) => {
-    const voiceNotes = await VoiceNoteService.getAllVoiceNotes();
+    const { searchParams } = new URL(req.url);
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+
+    const voiceNotes = await VoiceNoteService.getAllVoiceNotes(limit);
     return voiceNotes;
 });
 
@@ -23,4 +27,3 @@ export const POST = createApiRoute<VoiceNote>(async (req: NextRequest) => {
     );
     return voiceNote;
 });
-

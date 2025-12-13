@@ -8,7 +8,7 @@ interface CoachPageProps {
 
 export default async function CoachPage({ params }: CoachPageProps) {
     const { id } = await params;
-    const coach = await CoachService.getCoachById(id);
+    const coach = await CoachService.getCoachById(parseInt(id));
 
     if (!coach) {
         notFound();

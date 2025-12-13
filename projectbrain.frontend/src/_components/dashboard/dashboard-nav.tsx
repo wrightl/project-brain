@@ -14,6 +14,8 @@ import {
     DocumentTextIcon,
     MusicalNoteIcon,
 } from '@heroicons/react/24/outline';
+import AvailabilityStatusDropdown from './availability-status-dropdown';
+import { useUnreadMessagesCount } from '@/_hooks/use-unread-messages-count';
 
 interface DashboardNavProps {
     user: User | null;
@@ -22,6 +24,7 @@ interface DashboardNavProps {
 
 export default function DashboardNav({ user, role }: DashboardNavProps) {
     const pathname = usePathname();
+    const { unreadCount } = useUnreadMessagesCount();
 
     const adminLinks = [
         { href: '/app/admin', label: 'Dashboard', icon: HomeIcon },
@@ -42,6 +45,7 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
         { href: '/app/coach', label: 'Dashboard', icon: HomeIcon },
         { href: '/app/coach/clients', label: 'My Clients', icon: UsersIcon },
         { href: '/app/coach/search', label: 'Find Users', icon: UsersIcon },
+        { href: '/app/coach/messages', label: 'Messaging', icon: ChatBubbleLeftRightIcon, showUnreadBadge: true },
     ];
 
     const userLinks = [
@@ -52,14 +56,14 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             icon: ChatBubbleLeftRightIcon,
         },
         {
-            href: '/app/user/manage-files',
-            label: 'Manage Files',
-            icon: CloudArrowUpIcon,
+            href: '/app/user/connections',
+            label: 'My Network',
+            icon: UsersIcon,
         },
         {
-            href: '/app/user/voicenotes',
-            label: 'Voice Notes',
-            icon: MusicalNoteIcon,
+            href: '/app/user/resources',
+            label: 'My Resources',
+            icon: CloudArrowUpIcon,
         },
     ];
 
@@ -84,11 +88,12 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                             {links.map((link) => {
                                 const Icon = link.icon;
                                 const isActive = pathname === link.href;
+                                const showBadge = (link as any).showUnreadBadge && unreadCount > 0;
                                 return (
                                     <Link
                                         key={link.href}
                                         href={link.href}
-                                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                                        className={`relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-md ${
                                             isActive
                                                 ? 'text-indigo-600 bg-indigo-50'
                                                 : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-50'
@@ -96,12 +101,18 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                     >
                                         <Icon className="h-5 w-5 mr-2" />
                                         {link.label}
+                                        {showBadge && (
+                                            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-600 text-white">
+                                                {unreadCount > 99 ? '99+' : unreadCount}
+                                            </span>
+                                        )}
                                     </Link>
                                 );
                             })}
                         </div>
                     </div>
                     <div className="flex items-center space-x-4">
+                        {role === 'coach' && <AvailabilityStatusDropdown />}
                         {role === 'admin' && (
                             <span className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md">
                                 <UserIcon className="h-5 w-5 mr-2" />

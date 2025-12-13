@@ -7,6 +7,7 @@ import {
     ChartBarIcon,
     DocumentTextIcon,
 } from '@heroicons/react/24/outline';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 export type TimePeriod =
     | '24h'

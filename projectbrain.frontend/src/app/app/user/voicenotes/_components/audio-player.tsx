@@ -8,6 +8,7 @@ import {
     TrashIcon,
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 interface AudioPlayerProps {
     voiceNoteId: string;
@@ -34,6 +35,7 @@ export default function AudioPlayer({
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
     const blobUrlRef = useRef<string | null>(null);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     // Fetch audio using API route and create blob URL
     useEffect(() => {
@@ -128,11 +130,11 @@ export default function AudioPlayer({
         setCurrentTime(newTime);
     };
 
-    const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete this voice note?')) {
-            return;
-        }
+    const handleDeleteClick = () => {
+        setDeleteConfirmOpen(true);
+    };
 
+    const handleDelete = async () => {
         setIsDeleting(true);
         try {
             await fetchWithAuth(`/api/user/voicenotes/${voiceNoteId}`, {
@@ -145,6 +147,7 @@ export default function AudioPlayer({
             );
         } finally {
             setIsDeleting(false);
+            setDeleteConfirmOpen(false);
         }
     };
 
@@ -193,7 +196,7 @@ export default function AudioPlayer({
                     </div>
                 </div>
                 <button
-                    onClick={handleDelete}
+                    onClick={handleDeleteClick}
                     disabled={isDeleting}
                     className="ml-2 p-2 text-gray-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Delete voice note"
@@ -262,6 +265,18 @@ export default function AudioPlayer({
             {!audioSrc && (
                 <div className="text-sm text-gray-500">Loading audio...</div>
             )}
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => setDeleteConfirmOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete Voice Note"
+                message="Are you sure you want to delete this voice note?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </div>
     );
 }

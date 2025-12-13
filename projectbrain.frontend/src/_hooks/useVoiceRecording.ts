@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface VoiceRecordingOptions {
     onRecordingComplete?: (audioBlob: Blob) => void;
@@ -17,11 +17,22 @@ export interface VoiceRecordingState {
 export function useVoiceRecording(options: VoiceRecordingOptions = {}) {
     const [state, setState] = useState<VoiceRecordingState>({
         isRecording: false,
-        isSupported:
-            typeof window !== 'undefined' && 'mediaDevices' in navigator,
+        isSupported: false, // Initialize to false for consistent SSR
         duration: 0,
         error: null,
     });
+
+    // Check for support only on client after mount to avoid hydration mismatch
+    useEffect(() => {
+        const checkSupport = () => {
+            const supported =
+                typeof window !== 'undefined' &&
+                'mediaDevices' in navigator &&
+                'MediaRecorder' in window;
+            setState((prev) => ({ ...prev, isSupported: supported }));
+        };
+        checkSupport();
+    }, []);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);

@@ -5,8 +5,8 @@ export interface Auth0Resource {
 
 export type UserRole = 'admin' | 'coach' | 'user';
 
-export interface User {
-    id: string;
+export interface BaseUser {
+    id: string; // TODO: Might need to remove this
     email: string;
     fullName: string;
     firstName?: string;
@@ -27,10 +27,16 @@ export interface User {
     country?: string;
 }
 
-export interface Coach extends User {
+export interface User extends BaseUser {
+    userProfileId: string;
+}
+
+export interface Coach extends BaseUser {
+    coachProfileId: string;
     qualifications: string[];
     specialisms: string[];
     ageGroups: string[];
+    availabilityStatus?: 'Available' | 'Busy' | 'Away' | 'Offline';
 }
 
 export interface OnboardingData {

@@ -1,19 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { apiClient } from '@/_lib/api-client';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 interface CoachTierComparisonProps {
-    currentTier: string;
-    onUpgrade: () => void;
+    onUpgrade?: () => void;
 }
 
 export default function CoachTierComparison({
-    currentTier,
     onUpgrade,
 }: CoachTierComparisonProps) {
+    const [currentTier, setCurrentTier] = useState<string>('Free');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadCurrentTier();
+    }, []);
+
+    const loadCurrentTier = async () => {
+        try {
+            const response = await fetchWithAuth('/api/subscriptions/tier');
+            if (response.ok) {
+                const data = await response.json();
+                setCurrentTier(data.tier || 'Free');
+            }
+        } catch (err) {
+            console.error('Failed to load current tier:', err);
+        }
+    };
 
     const handleUpgrade = async (tier: string, isAnnual: boolean) => {
         try {
@@ -27,6 +43,9 @@ export default function CoachTierComparison({
                 }
             );
             window.location.href = url;
+            if (onUpgrade) {
+                onUpgrade();
+            }
         } catch (err) {
             setError(
                 err instanceof Error

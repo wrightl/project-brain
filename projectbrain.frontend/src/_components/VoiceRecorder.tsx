@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { MicrophoneIcon, StopIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { useVoiceRecording } from '@/_hooks/useVoiceRecording';
 
@@ -16,6 +17,7 @@ export default function VoiceRecorder({
     disabled = false,
     className = '',
 }: VoiceRecorderProps) {
+    const [mounted, setMounted] = useState(false);
     const {
         isRecording,
         isSupported,
@@ -28,6 +30,22 @@ export default function VoiceRecorder({
         onRecordingComplete,
         onError,
     });
+
+    // Ensure component is mounted before rendering to avoid hydration mismatch
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Show consistent placeholder during SSR and initial client render
+    if (!mounted) {
+        return (
+            <div
+                className={`flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 ${className}`}
+            >
+                <MicrophoneIcon className="h-5 w-5 text-gray-400" />
+            </div>
+        );
+    }
 
     if (!isSupported) {
         return (

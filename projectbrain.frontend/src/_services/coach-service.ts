@@ -1,5 +1,6 @@
 import { callBackendApi } from '@/_lib/backend-api';
 import { Coach, User } from '@/_lib/types';
+import { convertAvailabilityStatus } from '@/_lib/availability-status';
 
 export interface ClientWithConnectionStatus {
     user: User;
@@ -18,6 +19,25 @@ export interface CoachSearchParams {
 }
 
 export class CoachService {
+    /**
+     * Helper function to transform a coach's availabilityStatus from integer to string
+     */
+    private static transformCoach(coach: any): Coach {
+        return {
+            ...coach,
+            availabilityStatus: convertAvailabilityStatus(
+                coach.availabilityStatus
+            ),
+        };
+    }
+
+    /**
+     * Helper function to transform an array of coaches
+     */
+    private static transformCoaches(coaches: any[]): Coach[] {
+        return coaches.map((coach) => this.transformCoach(coach));
+    }
+
     /**
      * Search for coaches based on location, age groups, and specialisms
      */
@@ -53,21 +73,23 @@ export class CoachService {
         if (!response.ok) {
             throw new Error('Failed to search coaches');
         }
-        return response.json();
+        const coaches = await response.json();
+        return this.transformCoaches(coaches);
     }
 
     /**
      * Get coach by user ID
      */
-    static async getCoachById(userId: string): Promise<Coach | null> {
-        const response = await callBackendApi(`/coaches/${userId}`);
+    static async getCoachById(id: number): Promise<Coach | null> {
+        const response = await callBackendApi(`/coaches/${id}`);
         if (response.status === 404) {
             return null;
         }
         if (!response.ok) {
             throw new Error('Failed to fetch coach');
         }
-        return response.json();
+        const coach = await response.json();
+        return this.transformCoach(coach);
     }
 
     /**
@@ -107,6 +129,38 @@ export class CoachService {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(
                 errorData.error?.message || 'Failed to accept connection'
+            );
+        }
+    }
+
+    /**
+     * Get the current coach's availability status
+     */
+    static async getAvailabilityStatus(): Promise<
+        'Available' | 'Busy' | 'Away' | 'Offline'
+    > {
+        const response = await callBackendApi('/coaches/availability/status');
+        if (!response.ok) {
+            throw new Error('Failed to get availability status');
+        }
+        const data = await response.json();
+        return convertAvailabilityStatus(data.status);
+    }
+
+    /**
+     * Set the current coach's availability status
+     */
+    static async setAvailabilityStatus(
+        status: 'Available' | 'Busy' | 'Away' | 'Offline'
+    ): Promise<void> {
+        const response = await callBackendApi('/coaches/availability/status', {
+            method: 'PUT',
+            body: { status },
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+                errorData.error?.message || 'Failed to set availability status'
             );
         }
     }

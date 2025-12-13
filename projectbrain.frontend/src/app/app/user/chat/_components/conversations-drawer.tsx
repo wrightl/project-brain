@@ -10,6 +10,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { Conversation } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import toast from 'react-hot-toast';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 interface ConversationsDrawerProps {
     isOpen: boolean;
@@ -28,6 +30,8 @@ export default function ConversationsDrawer({
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -51,25 +55,23 @@ export default function ConversationsDrawer({
         }
     };
 
-    const handleDelete = async (
+    const handleDeleteClick = (
         e: React.MouseEvent<HTMLButtonElement>,
         conversationId: string
     ) => {
         e.preventDefault();
         e.stopPropagation();
+        setConversationToDelete(conversationId);
+        setDeleteConfirmOpen(true);
+    };
 
-        if (
-            !confirm(
-                'Are you sure you want to delete this conversation? This action cannot be undone.'
-            )
-        ) {
-            return;
-        }
+    const handleDelete = async () => {
+        if (!conversationToDelete) return;
 
         try {
-            setDeletingIds((prev) => new Set(prev).add(conversationId));
+            setDeletingIds((prev) => new Set(prev).add(conversationToDelete));
             const response = await fetchWithAuth(
-                `/conversation/${conversationId}`,
+                `/conversation/${conversationToDelete}`,
                 {
                     method: 'DELETE',
                 }
@@ -80,23 +82,27 @@ export default function ConversationsDrawer({
 
             // Remove from local state
             setConversations((prev) =>
-                prev.filter((c) => c.id !== conversationId)
+                prev.filter((c) => c.id !== conversationToDelete)
             );
 
+            toast.success('Conversation deleted successfully');
+
             // If we deleted the current conversation, navigate to new chat
-            if (conversationId === currentConversationId) {
+            if (conversationToDelete === currentConversationId) {
                 router.push('/app/user/chat');
                 onClose();
             }
         } catch (error) {
             console.error('Failed to delete conversation:', error);
-            alert('Failed to delete conversation. Please try again.');
+            toast.error('Failed to delete conversation. Please try again.');
         } finally {
             setDeletingIds((prev) => {
                 const next = new Set(prev);
-                next.delete(conversationId);
+                next.delete(conversationToDelete);
                 return next;
             });
+            setDeleteConfirmOpen(false);
+            setConversationToDelete(null);
         }
     };
 
@@ -206,7 +212,7 @@ export default function ConversationsDrawer({
                                                 </div>
                                                 <button
                                                     onClick={(e) =>
-                                                        handleDelete(
+                                                        handleDeleteClick(
                                                             e,
                                                             conversation.id
                                                         )
@@ -242,6 +248,21 @@ export default function ConversationsDrawer({
                     </div>
                 </div>
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setConversationToDelete(null);
+                }}
+                onConfirm={handleDelete}
+                title="Delete Conversation"
+                message="Are you sure you want to delete this conversation? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </>
     );
 }

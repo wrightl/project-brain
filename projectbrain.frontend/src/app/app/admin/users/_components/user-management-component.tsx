@@ -9,7 +9,12 @@ import {
 } from '@heroicons/react/24/outline';
 import UserEditModal from './user-edit-modal';
 import UserRoleModal from './user-role-modal';
+import UserSubscriptionStatus from './user-subscription-status';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import Link from 'next/link';
+import { EyeIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 export default function UserManagementComponent() {
     const [users, setUsers] = useState<User[]>([]);
@@ -22,6 +27,8 @@ export default function UserManagementComponent() {
     const [roleFilter, setRoleFilter] = useState<string>('');
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState<string>('');
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
     useEffect(() => {
         loadUsers();
@@ -90,18 +97,17 @@ export default function UserManagementComponent() {
         setIsRoleModalOpen(true);
     };
 
-    const handleDelete = async (user: User) => {
-        if (
-            !confirm(
-                `Are you sure you want to delete ${user.fullName}? This action cannot be undone.`
-            )
-        ) {
-            return;
-        }
+    const handleDeleteClick = (user: User) => {
+        setUserToDelete(user);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!userToDelete) return;
 
         try {
             const response = await fetchWithAuth(
-                `/api/admin/users/${user.id}`,
+                `/api/admin/users/${userToDelete.id}`,
                 {
                     method: 'DELETE',
                 }
@@ -109,9 +115,13 @@ export default function UserManagementComponent() {
             if (!response.ok) {
                 throw new Error('Failed to delete user');
             }
+            toast.success('User deleted successfully');
             await loadUsers();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete user');
+            toast.error(err instanceof Error ? err.message : 'Failed to delete user');
+        } finally {
+            setDeleteConfirmOpen(false);
+            setUserToDelete(null);
         }
     };
 
@@ -245,6 +255,9 @@ export default function UserManagementComponent() {
                                         Status
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Subscription
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Last Activity
                                     </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -290,6 +303,11 @@ export default function UserManagementComponent() {
                                                     : 'Pending'}
                                             </span>
                                         </td>
+                                        <td className="px-6 py-4">
+                                            <UserSubscriptionStatus
+                                                userId={user.id}
+                                            />
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="text-sm text-gray-500">
                                                 {user.lastActivityAt
@@ -301,15 +319,13 @@ export default function UserManagementComponent() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div className="flex space-x-2">
-                                                {/* <button
-                                                    onClick={() =>
-                                                        handleEdit(user)
-                                                    }
+                                                <Link
+                                                    href={`/app/admin/users/${user.id}`}
                                                     className="text-indigo-600 hover:text-indigo-900"
-                                                    title="Edit user"
+                                                    title="View details"
                                                 >
-                                                    <PencilIcon className="h-5 w-5" />
-                                                </button> */}
+                                                    <EyeIcon className="h-5 w-5" />
+                                                </Link>
                                                 <button
                                                     onClick={() =>
                                                         handleRoleEdit(user)
@@ -321,7 +337,7 @@ export default function UserManagementComponent() {
                                                 </button>
                                                 <button
                                                     onClick={() =>
-                                                        handleDelete(user)
+                                                        handleDeleteClick(user)
                                                     }
                                                     className="text-red-600 hover:text-red-900"
                                                     title="Delete user"
@@ -361,6 +377,25 @@ export default function UserManagementComponent() {
                     />
                 </>
             )}
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setUserToDelete(null);
+                }}
+                onConfirm={handleDelete}
+                title="Delete User"
+                message={
+                    userToDelete
+                        ? `Are you sure you want to delete ${userToDelete.fullName}? This action cannot be undone.`
+                        : ''
+                }
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </div>
     );
 }

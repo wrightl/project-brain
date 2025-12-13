@@ -1,59 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Subscription, Usage } from '@/_services/subscription-service';
-import { apiClient } from '@/_lib/api-client';
+import { useState } from 'react';
 import CoachTierComparison from './coach-tier-comparison';
 import CurrentSubscription from '@/app/app/user/subscription/_components/current-subscription';
 import UsageDisplay from '@/app/app/user/subscription/_components/usage-display';
 
 export default function CoachSubscriptionManagement() {
-    const [subscription, setSubscription] = useState<Subscription | null>(null);
-    const [usage, setUsage] = useState<Usage | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
-        try {
-            setLoading(true);
-            const [subData, usageData] = await Promise.all([
-                apiClient<Subscription>('/api/subscriptions/me'),
-                apiClient<Usage>('/api/subscriptions/usage'),
-            ]);
-            setSubscription(subData);
-            setUsage(usageData);
-        } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : 'Failed to load subscription data'
-            );
-        } finally {
-            setLoading(false);
-        }
+    const handleUpdate = () => {
+        // Force child components to refresh by changing key
+        setRefreshKey((prev) => prev + 1);
     };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-lg">
-                    Loading subscription information...
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-red-600">Error: {error}</div>
-            </div>
-        );
-    }
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -61,13 +19,13 @@ export default function CoachSubscriptionManagement() {
 
             <div className="space-y-8">
                 <CurrentSubscription
-                    subscription={subscription}
-                    onUpdate={loadData}
+                    key={`current-${refreshKey}`}
+                    onUpdate={handleUpdate}
                 />
-                <UsageDisplay usage={usage} subscription={subscription} />
+                <UsageDisplay key={`usage-${refreshKey}`} />
                 <CoachTierComparison
-                    currentTier={subscription?.tier || 'Free'}
-                    onUpgrade={loadData}
+                    key={`tier-${refreshKey}`}
+                    onUpgrade={handleUpdate}
                 />
             </div>
         </div>

@@ -8,9 +8,9 @@ import {
     UserGroupIcon,
     SparklesIcon,
 } from '@heroicons/react/24/outline';
-import { Coach, Conversation } from '@/_lib/types';
+import { Coach } from '@/_lib/types';
 import { useState } from 'react';
-import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import AvailabilityBadge from '@/_components/coach/availability-badge';
 
 interface CoachDetailViewProps {
     coach: Coach;
@@ -18,35 +18,9 @@ interface CoachDetailViewProps {
 
 export default function CoachDetailView({ coach }: CoachDetailViewProps) {
     const router = useRouter();
-    const [contacting, setContacting] = useState(false);
 
     const handleContactCoach = async () => {
-        setContacting(true);
-        try {
-            const response = await fetchWithAuth('/api/conversations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    title: `Chat with ${coach.fullName}`,
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(
-                    errorData.error || 'Failed to create conversation'
-                );
-            }
-
-            const conversation: Conversation = await response.json();
-            router.push(`/app/user/chat/${conversation.id}`);
-        } catch (err) {
-            console.error('Failed to create conversation:', err);
-            alert('Failed to start conversation. Please try again.');
-            setContacting(false);
-        }
+        router.push(`/app/user/messages/${coach.coachProfileId}`);
     };
 
     return (
@@ -55,9 +29,16 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
             <div className="bg-white shadow rounded-lg p-6">
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
-                        <h1 className="text-3xl font-bold text-gray-900">
-                            {coach.fullName}
-                        </h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-bold text-gray-900">
+                                {coach.fullName}
+                            </h1>
+                            {coach.availabilityStatus && (
+                                <AvailabilityBadge
+                                    status={coach.availabilityStatus}
+                                />
+                            )}
+                        </div>
                         {coach.city && (
                             <p className="mt-2 text-gray-600 flex items-center">
                                 <MapPinIcon className="h-5 w-5 mr-2 text-gray-400" />
@@ -79,10 +60,9 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
                     </div>
                     <button
                         onClick={handleContactCoach}
-                        disabled={contacting}
                         className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                     >
-                        {contacting ? 'Starting Chat...' : 'Contact Coach'}
+                        Contact Coach
                     </button>
                 </div>
             </div>
@@ -159,10 +139,9 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
                 </p>
                 <button
                     onClick={handleContactCoach}
-                    disabled={contacting}
                     className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                    {contacting ? 'Starting Chat...' : 'Start Conversation'}
+                    Start Conversation
                 </button>
             </div>
         </div>

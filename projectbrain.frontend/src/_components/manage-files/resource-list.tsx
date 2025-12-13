@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { ReindexResult, Resource } from '@/_lib/types';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import toast from 'react-hot-toast';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 export default function ResourceList({
     triggerRefresh,
@@ -16,6 +18,8 @@ export default function ResourceList({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [resourceToDelete, setResourceToDelete] = useState<string | null>(null);
 
     const fetchResources = useCallback(async () => {
         try {
@@ -64,21 +68,20 @@ export default function ResourceList({
     //     };
     // }, [fetchResources]);
 
-    const handleDelete = async (resourceId: string) => {
-        if (
-            !confirm(
-                'Are you sure you want to delete this file? This action cannot be undone.'
-            )
-        ) {
-            return;
-        }
+    const handleDeleteClick = (resourceId: string) => {
+        setResourceToDelete(resourceId);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!resourceToDelete) return;
 
         try {
-            setDeletingId(resourceId);
+            setDeletingId(resourceToDelete);
             const response = await fetchWithAuth(
                 manageSharedFiles
-                    ? `/api/admin/resources/${resourceId}`
-                    : `/api/user/resources/${resourceId}`,
+                    ? `/api/admin/resources/${resourceToDelete}`
+                    : `/api/user/resources/${resourceToDelete}`,
                 {
                     method: 'DELETE',
                 }
@@ -89,14 +92,17 @@ export default function ResourceList({
             }
             // Remove the deleted resource from the list
             setResources((prev) =>
-                prev.filter((resource) => resource.id !== resourceId)
+                prev.filter((resource) => resource.id !== resourceToDelete)
             );
+            toast.success('File deleted successfully');
         } catch (err) {
-            alert(
+            toast.error(
                 err instanceof Error ? err.message : 'Failed to delete resource'
             );
         } finally {
             setDeletingId(null);
+            setDeleteConfirmOpen(false);
+            setResourceToDelete(null);
         }
     };
 
@@ -118,20 +124,18 @@ export default function ResourceList({
 
             const result: ReindexResult = await response.json();
             if (result.status === 'success') {
-                alert(
+                toast.success(
                     `Files reindexed successfully! ${result.filesReindexed} files processed.`
                 );
                 fetchResources();
             } else {
-                alert('Failed to reindex files');
+                toast.error('Failed to reindex files');
             }
         } catch (error) {
-            alert(
-                `Error: ${
-                    error instanceof Error
-                        ? error.message
-                        : 'Failed to reindex files'
-                }`
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to reindex files'
             );
         } finally {
             setLoading(false);
@@ -267,7 +271,7 @@ export default function ResourceList({
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <button
                                             onClick={() =>
-                                                handleDelete(resource.id)
+                                                handleDeleteClick(resource.id)
                                             }
                                             disabled={
                                                 deletingId === resource.id
@@ -293,6 +297,21 @@ export default function ResourceList({
                     </table>
                 </div>
             )}
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setResourceToDelete(null);
+                }}
+                onConfirm={handleDelete}
+                title="Delete File"
+                message="Are you sure you want to delete this file? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </div>
     );
 }

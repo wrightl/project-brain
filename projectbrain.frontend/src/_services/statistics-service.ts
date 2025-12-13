@@ -46,6 +46,18 @@ export class StatisticsService {
     }
 
     /**
+     * Get count of voice notes for logged in user
+     */
+    static async getUserVoiceNotes(): Promise<number> {
+        const response = await callBackendApi('/statistics/user-voicenotes');
+        if (!response.ok) {
+            throw new Error('Failed to fetch user voice notes count');
+        }
+        const data: StatisticResponse = await response.json();
+        return data.count;
+    }
+
+    /**
      * Get count of clients a coach is connected to (accepted)
      */
     static async getCoachClients(): Promise<number> {

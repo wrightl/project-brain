@@ -9,7 +9,9 @@ interface CoachProfileFormProps {
     coach: Coach;
 }
 
-export default function CoachProfileForm({ coach: initialCoach }: CoachProfileFormProps) {
+export default function CoachProfileForm({
+    coach: initialCoach,
+}: CoachProfileFormProps) {
     const router = useRouter();
     const [isEditing, setIsEditing] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,7 +135,7 @@ export default function CoachProfileForm({ coach: initialCoach }: CoachProfileFo
 
         try {
             const updatedCoach = await apiClient<Coach>(
-                `/api/coaches/me/${coach.id}`,
+                `/api/coaches/me/${coach.coachProfileId}`,
                 {
                     method: 'PUT',
                     body: {
@@ -677,4 +679,3 @@ export default function CoachProfileForm({ coach: initialCoach }: CoachProfileFo
         </form>
     );
 }
-

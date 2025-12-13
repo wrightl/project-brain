@@ -27,7 +27,11 @@ export default function SubscriptionManagement() {
             setSubscription(subData);
             setUsage(usageData);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load subscription data');
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to load subscription data'
+            );
         } finally {
             setLoading(false);
         }
@@ -36,7 +40,9 @@ export default function SubscriptionManagement() {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="text-lg">Loading subscription information...</div>
+                <div className="text-lg">
+                    Loading subscription information...
+                </div>
             </div>
         );
     }
@@ -54,11 +60,13 @@ export default function SubscriptionManagement() {
             <h1 className="text-3xl font-bold mb-8">Subscription Management</h1>
 
             <div className="space-y-8">
-                <CurrentSubscription subscription={subscription} onUpdate={loadData} />
-                <UsageDisplay usage={usage} subscription={subscription} />
-                <TierComparison currentTier={subscription?.tier || 'Free'} onUpgrade={loadData} />
+                <CurrentSubscription onUpdate={loadData} />
+                <UsageDisplay />
+                <TierComparison
+                    currentTier={subscription?.tier || 'Free'}
+                    onUpgrade={loadData}
+                />
             </div>
         </div>
     );
 }
-

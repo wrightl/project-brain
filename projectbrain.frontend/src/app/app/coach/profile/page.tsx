@@ -27,7 +27,7 @@ export default async function CoachProfilePage() {
             } else {
                 // Fetch coach profile data
                 const coachResponse = await callBackendApi(
-                    `/coaches/${user.id}`
+                    `/coaches/${(user as Coach).coachProfileId}`
                 );
                 if (coachResponse.ok) {
                     coach = await coachResponse.json();

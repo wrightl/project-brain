@@ -72,11 +72,6 @@ export default async function CoachDashboard() {
                 <p className="mt-2 text-sm text-gray-600">
                     Welcome back! Manage your clients and coaching sessions.
                 </p>
-                {enableCoachSection ? (
-                    <p>Coach section is enabled.</p>
-                ) : (
-                    <p>Coach section is disabled.</p>
-                )}
             </div>
 
             {/* Stats */}

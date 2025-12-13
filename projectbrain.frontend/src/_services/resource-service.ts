@@ -90,8 +90,9 @@ export class ResourceService {
     /**
      * Get all resources for current user
      */
-    static async getResources(): Promise<Resource[]> {
-        const response = await callBackendApi('/resource/user');
+    static async getResources(limit?: number): Promise<Resource[]> {
+        const queryParam = limit ? `?limit=${limit}` : '';
+        const response = await callBackendApi(`/resource/user${queryParam}`);
         return response.json();
     }
 

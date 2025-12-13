@@ -7,6 +7,9 @@ import {
     CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import { apiClient } from '@/_lib/api-client';
+import { Subscription, Usage } from '@/_services/subscription-service';
+import Link from 'next/link';
 
 interface UploadedFile {
     file: File;
@@ -25,6 +28,16 @@ export default function FileUploadForm({
     const [files, setFiles] = useState<UploadedFile[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [subscription, setSubscription] = useState<Subscription | null>(null);
+    const [usage, setUsage] = useState<Usage | null>(null);
+    const [limitError, setLimitError] = useState<string | null>(null);
+
+    // Load subscription and usage data
+    useEffect(() => {
+        if (!manageSharedFiles) {
+            loadSubscriptionData();
+        }
+    }, [manageSharedFiles]);
 
     // Clear files list when all files have status 'success'
     useEffect(() => {
@@ -36,6 +49,19 @@ export default function FileUploadForm({
             return () => clearTimeout(timer);
         }
     }, [files]);
+
+    const loadSubscriptionData = async () => {
+        try {
+            const [subData, usageData] = await Promise.all([
+                apiClient<Subscription>('/api/subscriptions/me'),
+                apiClient<Usage>('/api/subscriptions/usage'),
+            ]);
+            setSubscription(subData);
+            setUsage(usageData);
+        } catch (err) {
+            console.error('Failed to load subscription data:', err);
+        }
+    };
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
@@ -58,7 +84,58 @@ export default function FileUploadForm({
         addFiles(selectedFiles);
     };
 
+    const getLimits = (tier: string) => {
+        if (tier === 'Free') {
+            return { maxFiles: 20, maxFileStorageMB: 100 };
+        } else if (tier === 'Pro') {
+            return { maxFiles: -1, maxFileStorageMB: 500 };
+        } else {
+            return { maxFiles: -1, maxFileStorageMB: -1 };
+        }
+    };
+
     const addFiles = (newFiles: File[]) => {
+        if (manageSharedFiles) {
+            // Admin can upload without limits
+            const uploadedFiles: UploadedFile[] = newFiles.map((file) => ({
+                file,
+                status: 'pending',
+            }));
+            setFiles((prev) => [...prev, ...uploadedFiles]);
+            return;
+        }
+
+        // Check limits for regular users
+        const tier = subscription?.tier || 'Free';
+        const limits = getLimits(tier);
+
+        // Check file count limit
+        const currentFileCount = usage?.fileStorage ? 0 : 0; // We don't track file count in usage, backend will check
+        const newFileCount = files.length + newFiles.length;
+
+        if (limits.maxFiles >= 0 && newFileCount > limits.maxFiles) {
+            setLimitError(
+                `You've reached your file limit (${limits.maxFiles} files). Upgrade to upload more files.`
+            );
+            return;
+        }
+
+        // Check file size limit
+        const totalNewSize = newFiles.reduce((sum, file) => sum + file.size, 0);
+        const currentStorageMB = usage?.fileStorage?.megabytes || 0;
+        const newStorageMB = currentStorageMB + totalNewSize / (1024 * 1024);
+
+        if (
+            limits.maxFileStorageMB >= 0 &&
+            newStorageMB > limits.maxFileStorageMB
+        ) {
+            setLimitError(
+                `You've reached your storage limit (${limits.maxFileStorageMB} MB). Upgrade to upload more files.`
+            );
+            return;
+        }
+
+        setLimitError(null);
         const uploadedFiles: UploadedFile[] = newFiles.map((file) => ({
             file,
             status: 'pending',
@@ -120,16 +197,28 @@ export default function FileUploadForm({
             // clearCompleted();
 
             onUploadComplete();
+            // Reload usage data after successful upload
+            if (!manageSharedFiles) {
+                await loadSubscriptionData();
+            }
         } catch (error) {
             console.error('Upload failed:', error);
+            const errorMessage =
+                error instanceof Error ? error.message : 'Upload failed';
+
+            // Check if it's a limit error from backend
+            if (
+                errorMessage.includes('limit') ||
+                errorMessage.includes('exceeded')
+            ) {
+                setLimitError(errorMessage);
+            }
+
             setFiles((prev) =>
                 prev.map((f) => ({
                     ...f,
                     status: 'error',
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : 'Upload failed',
+                    message: errorMessage,
                 }))
             );
         } finally {
@@ -151,8 +240,42 @@ export default function FileUploadForm({
         );
     };
 
+    const tier = subscription?.tier || 'Free';
+    const limits = getLimits(tier);
+    const currentStorageMB = usage?.fileStorage?.megabytes || 0;
+
     return (
         <div className="space-y-6">
+            {/* Limit Error */}
+            {limitError && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm text-yellow-800 mb-2">{limitError}</p>
+                    {!manageSharedFiles && (
+                        <Link
+                            href="/app/user/subscription"
+                            className="text-sm text-yellow-900 underline font-medium"
+                        >
+                            Upgrade now →
+                        </Link>
+                    )}
+                </div>
+            )}
+
+            {/* Usage Display */}
+            {!manageSharedFiles && usage && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">File Storage</span>
+                        <span className="text-gray-900 font-medium">
+                            {Math.round(currentStorageMB)} MB
+                            {limits.maxFileStorageMB >= 0 &&
+                                ` / ${limits.maxFileStorageMB} MB`}
+                            {limits.maxFileStorageMB < 0 && ' (unlimited)'}
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* Drop Zone */}
             <div
                 onDragOver={handleDragOver}

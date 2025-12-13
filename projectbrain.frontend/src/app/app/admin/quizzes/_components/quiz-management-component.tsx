@@ -10,6 +10,8 @@ import {
 } from '@heroicons/react/24/outline';
 import QuizFormModal from './quiz-form-modal';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import toast from 'react-hot-toast';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 export default function QuizManagementComponent() {
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -18,6 +20,8 @@ export default function QuizManagementComponent() {
     const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState<string>('');
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null);
 
     useEffect(() => {
         loadQuizzes();
@@ -61,7 +65,7 @@ export default function QuizManagementComponent() {
             setSelectedQuiz(fullQuiz);
             setIsFormModalOpen(true);
         } catch (err) {
-            alert(
+            toast.error(
                 err instanceof Error
                     ? err.message
                     : 'Failed to load quiz details'
@@ -70,18 +74,17 @@ export default function QuizManagementComponent() {
         }
     };
 
-    const handleDelete = async (quiz: Quiz) => {
-        if (
-            !confirm(
-                `Are you sure you want to delete "${quiz.title}"? This action cannot be undone.`
-            )
-        ) {
-            return;
-        }
+    const handleDeleteClick = (quiz: Quiz) => {
+        setQuizToDelete(quiz);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!quizToDelete) return;
 
         try {
             const response = await fetchWithAuth(
-                `/api/admin/quizzes/${quiz.id}`,
+                `/api/admin/quizzes/${quizToDelete.id}`,
                 {
                     method: 'DELETE',
                 }
@@ -94,10 +97,14 @@ export default function QuizManagementComponent() {
                 );
             }
 
+            toast.success('Quiz deleted successfully');
             await loadQuizzes();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete quiz');
+            toast.error(err instanceof Error ? err.message : 'Failed to delete quiz');
             console.error('Error deleting quiz:', err);
+        } finally {
+            setDeleteConfirmOpen(false);
+            setQuizToDelete(null);
         }
     };
 
@@ -220,7 +227,7 @@ export default function QuizManagementComponent() {
                                             Edit
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(quiz)}
+                                            onClick={() => handleDeleteClick(quiz)}
                                             className="inline-flex items-center px-3 py-2 border border-red-300 shadow-sm text-sm leading-4 font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                                         >
                                             <TrashIcon className="h-4 w-4 mr-1" />
@@ -242,6 +249,25 @@ export default function QuizManagementComponent() {
                     onSuccess={handleFormSuccess}
                 />
             )}
+
+            {/* Delete Confirmation Dialog */}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setQuizToDelete(null);
+                }}
+                onConfirm={handleDelete}
+                title="Delete Quiz"
+                message={
+                    quizToDelete
+                        ? `Are you sure you want to delete "${quizToDelete.title}"? This action cannot be undone.`
+                        : ''
+                }
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </div>
     );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+
 import { useState, useEffect } from 'react';
 import { User, UserRole } from '@/_lib/types';
 import { XMarkIcon } from '@heroicons/react/24/outline';

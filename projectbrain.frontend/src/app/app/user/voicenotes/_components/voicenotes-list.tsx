@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import AudioPlayer from './audio-player';
 import VoiceNoteUpload from './voicenote-upload';
-import { VoiceNote } from '@/_services/voicenote-service';
+import { VoiceNote } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 export default function VoiceNotesList() {

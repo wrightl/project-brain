@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import ClientDetailModal from './client-detail-modal';
 import { useState } from 'react';
-import { ClientWithConnectionStatus } from '@/_services/coach-service';
+import { ClientWithConnectionStatus } from '@/_lib/types';
 import { useRouter } from 'next/navigation';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import toast from 'react-hot-toast';

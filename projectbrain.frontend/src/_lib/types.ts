@@ -121,3 +121,76 @@ export interface ReindexResult {
     status: 'success' | 'error';
     filesReindexed: number;
 }
+
+// Subscription types
+export interface Subscription {
+    id?: string;
+    tier: string;
+    status: string;
+    trialEndsAt?: string;
+    currentPeriodStart?: string;
+    currentPeriodEnd?: string;
+    canceledAt?: string;
+    userType: string;
+}
+
+export interface Usage {
+    aiQueries: {
+        daily: number;
+        monthly: number;
+    };
+    coachMessages: {
+        monthly: number;
+    };
+    clientMessages: {
+        monthly: number;
+    };
+    fileStorage: {
+        bytes: number;
+        megabytes: number;
+    };
+    researchReports: {
+        monthly: number;
+    };
+}
+
+// Voice note types
+export interface VoiceNote {
+    id: string;
+    fileName: string;
+    audioUrl: string;
+    duration: number | null;
+    fileSize: number | null;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Connection types
+export interface Connection {
+    id: string;
+    userId: string;
+    coachId: string;
+    status: 'pending' | 'accepted' | 'cancelled' | 'rejected';
+    userName?: string;
+    coachName?: string;
+    requestedAt: string;
+    respondedAt?: string;
+}
+
+// Coach search types
+export interface CoachSearchParams {
+    city?: string;
+    stateProvince?: string;
+    country?: string;
+    ageGroups?: string[];
+    specialisms?: string[];
+}
+
+export interface ClientWithConnectionStatus {
+    user: User;
+    connectionStatus: 'pending' | 'accepted';
+    requestedAt: string;
+    requestedBy: 'user' | 'coach';
+    message?: string;
+}

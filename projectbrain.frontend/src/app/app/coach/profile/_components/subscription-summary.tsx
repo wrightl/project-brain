@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Subscription, Usage } from '@/_services/subscription-service';
+import { Subscription, Usage } from '@/_lib/types';
 import { apiClient } from '@/_lib/api-client';
 
 export default function CoachSubscriptionSummary() {

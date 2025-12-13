@@ -14,6 +14,7 @@ import {
 import VoiceRecorder from '@/_components/VoiceRecorder';
 import { useCoachMessagesSignalR } from '@/_hooks/use-coach-messages-signalr';
 import { Coach, User } from '@/_lib/types';
+import { getUserId } from '@/_lib/user-utils';
 import { ConnectionDetails } from '@/app/api/connections/[connectionId]/route';
 
 interface MessageInterfaceProps {
@@ -89,10 +90,7 @@ export default function MessageInterface({
                 if (currentUserResponse.ok) {
                     const currentUser: User | Coach =
                         await currentUserResponse.json();
-                    const currentUserIdValue =
-                        (currentUser as any).id ||
-                        (currentUser as any).userProfileId ||
-                        (currentUser as any).coachProfileId;
+                    const currentUserIdValue = getUserId(currentUser);
                     setCurrentUserId(currentUserIdValue);
                 }
             } catch (error) {
@@ -129,10 +127,7 @@ export default function MessageInterface({
                 if (currentUserResponse.ok) {
                     const currentUser: User | Coach =
                         await currentUserResponse.json();
-                    currentUserIdValue =
-                        (currentUser as any).id ||
-                        (currentUser as any).userProfileId ||
-                        (currentUser as any).coachProfileId;
+                    currentUserIdValue = getUserId(currentUser);
                     setCurrentUserId(currentUserIdValue);
                 }
             }

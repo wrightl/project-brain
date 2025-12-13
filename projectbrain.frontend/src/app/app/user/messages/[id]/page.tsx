@@ -1,7 +1,16 @@
+import dynamicImport from 'next/dynamic';
 import { UserService } from '@/_services/user-service';
-import MessageInterface from '../../../../../_components/message-interface';
 import { redirect, notFound } from 'next/navigation';
 import { isValidGuid } from '@/_lib/utils';
+import { SkeletonCard } from '@/_components/ui/skeleton';
+
+const MessageInterface = dynamicImport(() => import('@/_components/message-interface'), {
+    loading: () => (
+        <div className="max-w-4xl mx-auto py-8 px-4">
+            <SkeletonCard />
+        </div>
+    ),
+});
 
 export const dynamic = 'force-dynamic';
 export const dynamicParams = true;

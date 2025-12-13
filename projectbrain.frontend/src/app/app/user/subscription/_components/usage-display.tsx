@@ -1,75 +1,31 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { fetchWithAuth } from '@/_lib/fetch-with-auth';
-import { Usage, Subscription } from '@/_services/subscription-service';
+import { useSubscription, useUsage } from '@/_hooks/queries/use-subscription';
 import UsageMeter from '@/_components/usage-meter';
+import { SkeletonCard } from '@/_components/ui/skeleton';
 
 export default function UsageDisplay() {
-    const [usage, setUsage] = useState<Usage | null>(null);
-    const [subscription, setSubscription] = useState<Subscription | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { data: subscription, isLoading: subscriptionLoading, error: subscriptionError } = useSubscription();
+    const { data: usage, isLoading: usageLoading, error: usageError } = useUsage();
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
-        try {
-            setLoading(true);
-            const [usageResponse, subscriptionResponse] = await Promise.all([
-                fetchWithAuth('/api/subscriptions/usage'),
-                fetchWithAuth('/api/subscriptions/me'),
-            ]);
-
-            if (!usageResponse.ok) {
-                throw new Error('Failed to fetch usage data');
-            }
-            if (!subscriptionResponse.ok) {
-                throw new Error('Failed to fetch subscription data');
-            }
-
-            const [usageData, subscriptionData] = await Promise.all([
-                usageResponse.json() as Promise<Usage>,
-                subscriptionResponse.json() as Promise<Subscription>,
-            ]);
-
-            setUsage(usageData);
-            setSubscription(subscriptionData);
-        } catch (err) {
-            console.error('Failed to load usage data:', err);
-            setError(
-                err instanceof Error ? err.message : 'Failed to load usage data'
-            );
-        } finally {
-            setLoading(false);
-        }
-    };
+    const loading = subscriptionLoading || usageLoading;
+    const error = subscriptionError || usageError;
 
     if (loading) {
-        return (
-            <div className="bg-white shadow rounded-lg p-6">
-                <div className="animate-pulse">
-                    <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
-                    <div className="space-y-4">
-                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                    </div>
-                </div>
-            </div>
-        );
+        return <SkeletonCard />;
     }
 
     if (error) {
         return (
             <div className="bg-white shadow rounded-lg p-6">
-                <div className="text-red-600">Error: {error}</div>
+                <div className="text-red-600">
+                    Error: {error instanceof Error ? error.message : 'Failed to load usage data'}
+                </div>
             </div>
         );
     }
 
-    if (!usage) return null;
+    if (!usage || !subscription) return null;
 
     const tier = subscription?.tier || 'Free';
     const userType = subscription?.userType || 'user';

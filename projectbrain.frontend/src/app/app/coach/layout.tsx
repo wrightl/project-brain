@@ -1,6 +1,7 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
 import { getUserRoles } from '@/_lib/auth';
 import DashboardNav from '@/_components/dashboard/dashboard-nav';
+import { User } from '@/_lib/types';
 import { Metadata } from 'next';
 import { UserService } from '@/_services/user-service';
 
@@ -23,7 +24,7 @@ export default async function CoachLayout({
     return (
         <RoleGuard allowedRoles={['coach']} redirectTo="/app">
             <div className="min-h-screen bg-gray-50">
-                <DashboardNav user={user} role={roles?.[0] || null} />
+                <DashboardNav user={user as User | null} role={roles?.[0] || null} />
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     {children}
                 </main>

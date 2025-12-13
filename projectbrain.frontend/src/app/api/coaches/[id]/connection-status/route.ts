@@ -11,7 +11,7 @@ export interface ConnectionStatusResponse {
 }
 
 export const GET = createApiRoute<ConnectionStatusResponse>(
-    async (req: NextRequest, { params }: { params: { id: string } }) => {
+    async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
         const { id: coachId } = await params;
         const response = await callBackendApi(`/coaches/${coachId}/connection-status`);
         if (!response.ok) {

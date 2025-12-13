@@ -8,7 +8,7 @@ import {
     UserGroupIcon,
     AcademicCapIcon,
 } from '@heroicons/react/24/outline';
-import { CoachSearchParams } from '@/_services/coach-service';
+import { CoachSearchParams } from '@/_lib/types';
 import { Coach } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import AvailabilityBadge from '@/_components/coach/availability-badge';

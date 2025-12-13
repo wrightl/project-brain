@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
-import { Subscription } from '@/_services/subscription-service';
+import { Subscription } from '@/_lib/types';
 import toast from 'react-hot-toast';
 import ConfirmationDialog from '@/_components/confirmation-dialog';
 

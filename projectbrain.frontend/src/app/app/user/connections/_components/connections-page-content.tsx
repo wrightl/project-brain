@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -10,54 +10,19 @@ import {
     PaperAirplaneIcon,
     ClockIcon,
 } from '@heroicons/react/24/outline';
-import { Connection } from '@/_services/connection-service';
-import { fetchWithAuth } from '@/_lib/fetch-with-auth';
-import { ConversationSummary } from '@/_services/coach-message-service';
+import { useConnections, useConversations, useDeleteConnection } from '@/_hooks/queries/use-connections';
+import toast from 'react-hot-toast';
+import { SkeletonCard, SkeletonList } from '@/_components/ui/skeleton';
 
 export default function ConnectionsPageContent() {
     const router = useRouter();
-    const [connections, setConnections] = useState<Connection[]>([]);
-    const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { data: connections = [], isLoading: connectionsLoading, error: connectionsError } = useConnections();
+    const { data: conversations = [], isLoading: conversationsLoading, error: conversationsError } = useConversations();
+    const deleteConnection = useDeleteConnection();
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
-    const loadData = useCallback(async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const [connectionsResponse, conversationsResponse] = await Promise.all([
-                fetchWithAuth('/api/connections'),
-                fetchWithAuth('/api/coach-messages/conversations'),
-            ]);
-
-            if (!connectionsResponse.ok) {
-                throw new Error('Failed to load connections');
-            }
-            if (!conversationsResponse.ok) {
-                throw new Error('Failed to load conversations');
-            }
-
-            const connectionsData: Connection[] = await connectionsResponse.json();
-            const conversationsData: ConversationSummary[] = await conversationsResponse.json();
-
-            setConnections(connectionsData);
-            setConversations(conversationsData);
-        } catch (err) {
-            console.error('Error loading data:', err);
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : 'Failed to load connections'
-            );
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+    const loading = connectionsLoading || conversationsLoading;
+    const error = connectionsError || conversationsError;
 
     const handleDeleteConnection = async (connectionId: string) => {
         if (!confirm('Are you sure you want to remove this connection?')) {
@@ -66,19 +31,11 @@ export default function ConnectionsPageContent() {
 
         try {
             setDeletingIds((prev) => new Set(prev).add(connectionId));
-            const response = await fetchWithAuth(`/api/connections/${connectionId}`, {
-                method: 'DELETE',
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to delete connection');
-            }
-
-            // Reload data
-            await loadData();
+            await deleteConnection.mutateAsync(connectionId);
+            toast.success('Connection removed successfully');
         } catch (err) {
             console.error('Error deleting connection:', err);
-            alert('Failed to delete connection. Please try again.');
+            toast.error('Failed to delete connection. Please try again.');
         } finally {
             setDeletingIds((prev) => {
                 const next = new Set(prev);
@@ -147,9 +104,11 @@ export default function ConnectionsPageContent() {
                         Manage your connections with coaches
                     </p>
                 </div>
-                <div className="text-center py-12">
-                    <p className="text-gray-500">Loading...</p>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <SkeletonCard />
+                    <SkeletonCard />
                 </div>
+                <SkeletonList count={3} />
             </div>
         );
     }
@@ -166,13 +125,9 @@ export default function ConnectionsPageContent() {
                     </p>
                 </div>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-red-800">{error}</p>
-                    <button
-                        onClick={loadData}
-                        className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-                    >
-                        Try again
-                    </button>
+                    <p className="text-red-800">
+                        {error instanceof Error ? error.message : 'Failed to load connections'}
+                    </p>
                 </div>
             </div>
         );

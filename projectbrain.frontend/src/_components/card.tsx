@@ -1,4 +1,4 @@
-import { PropsWithChildren } from 'react';
+import React, { PropsWithChildren } from 'react';
 
 export interface CardProps {
     title?: string;
@@ -6,7 +6,7 @@ export interface CardProps {
     // onDragStart: (e: any, cardId: string) => void;
 }
 
-export const Card: React.FC<PropsWithChildren<CardProps>> = ({
+const CardComponent: React.FC<PropsWithChildren<CardProps>> = ({
     children,
     title,
     // onDragStart,
@@ -37,3 +37,5 @@ export const Card: React.FC<PropsWithChildren<CardProps>> = ({
         </div>
     );
 };
+
+export const Card = React.memo(CardComponent);

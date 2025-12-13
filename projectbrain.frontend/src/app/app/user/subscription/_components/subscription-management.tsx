@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Subscription, Usage } from '@/_services/subscription-service';
+import { Subscription, Usage } from '@/_lib/types';
 import { apiClient } from '@/_lib/api-client';
 import TierComparison from './tier-comparison';
 import CurrentSubscription from './current-subscription';

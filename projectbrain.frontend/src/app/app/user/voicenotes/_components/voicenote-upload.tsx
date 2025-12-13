@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import { apiClient } from '@/_lib/api-client';
-import { VoiceNote } from '@/_services/voicenote-service';
+import { VoiceNote } from '@/_lib/types';
 
 interface VoiceNoteUploadProps {
     onUploadComplete: () => void;

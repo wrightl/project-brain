@@ -41,7 +41,6 @@ export default function CoachOnboardingForm({
             const data: CoachOnboardingData = {
                 email: formData.email,
                 fullName: formData.fullName,
-                role: 'coach', // Explicitly set role for coach onboarding
             };
 
             console.log(`Onboarding data ${JSON.stringify(data)}`);

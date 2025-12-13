@@ -46,7 +46,7 @@ export default async function ProfilePage() {
                 </p>
             </div>
             <SubscriptionSummary />
-            <ProfileForm user={profileData} />
+            <ProfileForm user={profileData as User} />
         </div>
     );
 }

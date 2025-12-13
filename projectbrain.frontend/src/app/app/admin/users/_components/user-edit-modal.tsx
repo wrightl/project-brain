@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { User } from '@/_lib/types';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 interface UserEditModalProps {
     user: User;
@@ -22,7 +23,7 @@ export default function UserEditModal({
         doB: user.doB,
         isOnboarded: user.isOnboarded,
         preferredPronoun: user.preferredPronoun || '',
-        neurodivergentDetails: user.neurodivergentDetails || '',
+        neurodivergentDetails: (user as any).neurodivergentDetails || '',
         streetAddress: user.streetAddress || '',
         addressLine2: user.addressLine2 || '',
         city: user.city || '',
@@ -40,7 +41,7 @@ export default function UserEditModal({
                 doB: user.doB,
                 isOnboarded: user.isOnboarded,
                 preferredPronoun: user.preferredPronoun || '',
-                neurodivergentDetails: user.neurodivergentDetails || '',
+                neurodivergentDetails: (user as any).neurodivergentDetails || '',
                 streetAddress: user.streetAddress || '',
                 addressLine2: user.addressLine2 || '',
                 city: user.city || '',

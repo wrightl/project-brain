@@ -1,5 +1,7 @@
 'use client';
 
+import React, { useMemo } from 'react';
+
 interface UsageMeterProps {
     label: string;
     current: number;
@@ -7,11 +9,14 @@ interface UsageMeterProps {
     unit?: string;
 }
 
-export default function UsageMeter({ label, current, limit, unit = '' }: UsageMeterProps) {
-    const isUnlimited = limit < 0;
-    const percentage = isUnlimited ? 0 : Math.min(100, (current / limit) * 100);
-    const isNearLimit = !isUnlimited && percentage >= 80;
-    const isOverLimit = !isUnlimited && current >= limit;
+function UsageMeter({ label, current, limit, unit = '' }: UsageMeterProps) {
+    const isUnlimited = useMemo(() => limit < 0, [limit]);
+    const percentage = useMemo(
+        () => (isUnlimited ? 0 : Math.min(100, (current / limit) * 100)),
+        [current, limit, isUnlimited]
+    );
+    const isNearLimit = useMemo(() => !isUnlimited && percentage >= 80, [isUnlimited, percentage]);
+    const isOverLimit = useMemo(() => !isUnlimited && current >= limit, [isUnlimited, current, limit]);
 
     return (
         <div className="space-y-1">
@@ -24,6 +29,11 @@ export default function UsageMeter({ label, current, limit, unit = '' }: UsageMe
             {!isUnlimited && (
                 <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
+                        role="progressbar"
+                        aria-valuenow={current}
+                        aria-valuemin={0}
+                        aria-valuemax={limit}
+                        aria-label={`${label}: ${current} of ${limit} ${unit}`.trim()}
                         className={`h-2 rounded-full transition-all ${
                             isOverLimit
                                 ? 'bg-red-600'
@@ -38,4 +48,6 @@ export default function UsageMeter({ label, current, limit, unit = '' }: UsageMe
         </div>
     );
 }
+
+export default React.memo(UsageMeter);
 

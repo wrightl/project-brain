@@ -7,6 +7,11 @@ export const GET = createApiRoute<Resource[]>(async (req: NextRequest) => {
     const { searchParams } = new URL(req.url);
     const limitParam = searchParams.get('limit');
     const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const shared = searchParams.get('shared') === 'true';
+
+    if (shared) {
+        return await ResourceService.getSharedResources();
+    }
 
     return await ResourceService.getResources(limit);
 });

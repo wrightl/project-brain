@@ -71,10 +71,8 @@ export class SubscriptionService {
     static async createCheckout(tier: string, isAnnual: boolean): Promise<{ url: string }> {
         const response = await callBackendApi('/subscriptions/checkout', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ tier, isAnnual }),
+            contentType: 'application/json',
+            body: { tier, isAnnual },
         });
         if (!response.ok) {
             throw new Error('Failed to create checkout session');
@@ -101,10 +99,8 @@ export class SubscriptionService {
     static async startTrial(tier: string): Promise<{ message: string }> {
         const response = await callBackendApi('/subscriptions/trial', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ tier }),
+            contentType: 'application/json',
+            body: { tier },
         });
         if (!response.ok) {
             throw new Error('Failed to start trial');

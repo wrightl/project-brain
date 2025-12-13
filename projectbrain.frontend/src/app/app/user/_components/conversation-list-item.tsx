@@ -1,8 +1,8 @@
 'use client';
 
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
 import {
     ChatBubbleLeftRightIcon,
     ClockIcon,
@@ -17,7 +17,7 @@ interface ConversationListItemProps {
     conversation: Conversation;
 }
 
-export function ConversationListItem({
+function ConversationListItem({
     conversation,
 }: ConversationListItemProps) {
     const router = useRouter();
@@ -141,3 +141,6 @@ export function ConversationListItem({
         </li>
     );
 }
+
+export const ConversationListItemMemo = React.memo(ConversationListItem);
+export { ConversationListItemMemo as ConversationListItem };

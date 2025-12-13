@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
     req: NextRequest,
-    { params }: { params: { messageId: string } }
+    { params }: { params: Promise<{ messageId: string }> }
 ) {
     try {
-        const { messageId } = params;
+        const { messageId } = await params;
         const accessToken = await getAccessToken();
         const apiUrl = process.env.API_SERVER_URL || 'https://localhost:7585';
 

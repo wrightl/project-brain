@@ -28,11 +28,12 @@ export default function PageHeader() {
                     <Link href="/" className="-m-1.5 p-1.5">
                         <span className="sr-only">Your Company</span>
                         <Image
-                            alt=""
+                            alt="ProjectBrain Logo"
                             width={60}
                             height={60}
                             src="/dotdash.png"
                             className="h-8 w-auto"
+                            priority
                         />
                     </Link>
                 </div>

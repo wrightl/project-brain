@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
+import { Providers } from '@/_components/providers';
+import { ErrorBoundary } from '@/_components/error-boundary';
+import { SkipLink } from '@/_components/skip-link';
+import { WebVitalsScript } from '@/_components/web-vitals-script';
 
 export const metadata: Metadata = {
     title: {
@@ -51,7 +55,15 @@ export default function RootLayout({
                 />
             </head>
             <body className="antialiased">
-                {children}
+                <SkipLink />
+                <WebVitalsScript />
+                <ErrorBoundary>
+                    <Providers>
+                        <main id="main-content">
+                            {children}
+                        </main>
+                    </Providers>
+                </ErrorBoundary>
                 <Toaster
                     position="top-right"
                     toastOptions={{

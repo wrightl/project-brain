@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
     req: NextRequest,
-    { params }: { params: { connectionId: string } }
+    { params }: { params: Promise<{ connectionId: string }> }
 ) {
     try {
         const { connectionId } = await params;
@@ -37,7 +37,7 @@ export async function GET(
 
 export async function PUT(
     req: NextRequest,
-    { params }: { params: { connectionId: string } }
+    { params }: { params: Promise<{ connectionId: string }> }
 ) {
     try {
         const { connectionId } = await params;

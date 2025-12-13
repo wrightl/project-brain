@@ -1,5 +1,14 @@
+import dynamicImport from 'next/dynamic';
 import { RoleGuard } from '@/_components/auth/role-guard';
-import ChatInterface from './_components/chat-interface';
+import { SkeletonCard } from '@/_components/ui/skeleton';
+
+const ChatInterface = dynamicImport(() => import('./_components/chat-interface'), {
+    loading: () => (
+        <div className="h-full w-full flex flex-col bg-gray-50 p-8">
+            <SkeletonCard />
+        </div>
+    ),
+});
 
 export default function ChatPage() {
     return (

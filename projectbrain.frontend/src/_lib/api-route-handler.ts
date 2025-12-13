@@ -4,31 +4,25 @@ import { auth0 } from './auth';
 
 type RouteHandler<T> = (
     req: NextRequest,
-    context?: unknown
-) => Promise<T> | NextResponse;
+    context?: any
+) => Promise<T | NextResponse> | T | NextResponse;
 
 export function createApiRoute<T>(handler: RouteHandler<T>) {
-    return auth0.withApiAuthRequired(async function (
+    const wrapped = auth0.withApiAuthRequired(async function (
         req: NextRequest,
         context?: unknown
-    ) {
-        //return async function (req: NextRequest, context?: unknown) {
+    ): Promise<NextResponse> {
         try {
-            // const session = await auth0.getSession(); // Get session without req/res for App Router
-            // if (!session || !session.user) {
-            //     return NextResponse.json(
-            //         { error: 'Unauthorized' },
-            //         { status: 401 }
-            //     );
-            // }
-
             const result = await handler(req, context);
             // If result is already a Response, return it directly
-            if (result instanceof NextResponse || result instanceof Response) {
+            if (result instanceof NextResponse) {
                 return result;
             }
+            if (result instanceof Response) {
+                return NextResponse.json(await result.json());
+            }
             // Otherwise, wrap the result in NextResponse.json
-            return NextResponse.json(result);
+            return NextResponse.json(result as T);
         } catch (error) {
             console.error('API route error:', error);
 
@@ -58,4 +52,7 @@ export function createApiRoute<T>(handler: RouteHandler<T>) {
             );
         }
     });
+    
+    // Type assertion to satisfy Next.js route handler types
+    return wrapped as (req: NextRequest, context?: unknown) => Promise<NextResponse>;
 }

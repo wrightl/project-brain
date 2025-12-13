@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
     CloudArrowUpIcon,
@@ -9,71 +8,50 @@ import {
     ClockIcon,
 } from '@heroicons/react/24/outline';
 import { Resource } from '@/_lib/types';
-import { VoiceNote } from '@/_services/voicenote-service';
-import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import { VoiceNote } from '@/_lib/types';
+import {
+    useResources,
+    useResourceStatistics,
+} from '@/_hooks/queries/use-resources';
+import {
+    useVoiceNotes,
+    useVoiceNoteStatistics,
+} from '@/_hooks/queries/use-voicenotes';
+import { SkeletonCard, SkeletonList } from '@/_components/ui/skeleton';
+import { ErrorRetry } from '@/_components/error-retry';
 
 export default function ResourcesPageContent() {
-    const [resources, setResources] = useState<Resource[]>([]);
-    const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
-    const [totalFiles, setTotalFiles] = useState<number>(0);
-    const [totalVoiceNotes, setTotalVoiceNotes] = useState<number>(0);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const {
+        data: resources = [],
+        isLoading: resourcesLoading,
+        error: resourcesError,
+    } = useResources(3);
+    const {
+        data: voiceNotes = [],
+        isLoading: voiceNotesLoading,
+        error: voiceNotesError,
+    } = useVoiceNotes(3);
+    const {
+        data: filesCount,
+        isLoading: filesCountLoading,
+        error: filesCountError,
+    } = useResourceStatistics();
+    const {
+        data: voiceNotesCount,
+        isLoading: voiceNotesCountLoading,
+        error: voiceNotesCountError,
+    } = useVoiceNoteStatistics();
 
-    const loadData = useCallback(async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const [
-                resourcesResponse,
-                voiceNotesResponse,
-                filesCountResponse,
-                voiceNotesCountResponse,
-            ] = await Promise.all([
-                fetchWithAuth('/api/user/resources?limit=3'),
-                fetchWithAuth('/api/user/voicenotes?limit=3'),
-                fetchWithAuth('/api/user/statistics/resources'),
-                fetchWithAuth('/api/user/statistics/voicenotes'),
-            ]);
-
-            if (!resourcesResponse.ok) {
-                throw new Error('Failed to load resources');
-            }
-            if (!voiceNotesResponse.ok) {
-                throw new Error('Failed to load voice notes');
-            }
-            if (!filesCountResponse.ok) {
-                throw new Error('Failed to load files count');
-            }
-            if (!voiceNotesCountResponse.ok) {
-                throw new Error('Failed to load voice notes count');
-            }
-
-            const resourcesData: Resource[] = await resourcesResponse.json();
-            const voiceNotesData: VoiceNote[] = await voiceNotesResponse.json();
-            const filesCountData: { count: number } =
-                await filesCountResponse.json();
-            const voiceNotesCountData: { count: number } =
-                await voiceNotesCountResponse.json();
-
-            // Data is already sorted by the backend (most recent first) and limited to 3
-            setResources(resourcesData);
-            setVoiceNotes(voiceNotesData);
-            setTotalFiles(filesCountData.count);
-            setTotalVoiceNotes(voiceNotesCountData.count);
-        } catch (err) {
-            console.error('Error loading data:', err);
-            setError(
-                err instanceof Error ? err.message : 'Failed to load resources'
-            );
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+    const loading =
+        resourcesLoading ||
+        voiceNotesLoading ||
+        filesCountLoading ||
+        voiceNotesCountLoading;
+    const error =
+        resourcesError ||
+        voiceNotesError ||
+        filesCountError ||
+        voiceNotesCountError;
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -97,12 +75,12 @@ export default function ResourcesPageContent() {
     const stats = [
         {
             name: 'Total Files Uploaded',
-            value: totalFiles.toString(),
+            value: (filesCount?.count ?? 0).toString(),
             icon: DocumentArrowUpIcon,
         },
         {
             name: 'Total Voice Notes',
-            value: totalVoiceNotes.toString(),
+            value: (voiceNotesCount?.count ?? 0).toString(),
             icon: MusicalNoteIcon,
         },
     ];
@@ -139,9 +117,11 @@ export default function ResourcesPageContent() {
                         Manage your files and voice notes
                     </p>
                 </div>
-                <div className="text-center py-12">
-                    <p className="text-gray-500">Loading...</p>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <SkeletonCard />
+                    <SkeletonCard />
                 </div>
+                <SkeletonList count={3} />
             </div>
         );
     }
@@ -157,15 +137,13 @@ export default function ResourcesPageContent() {
                         Manage your files and voice notes
                     </p>
                 </div>
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-red-800">{error}</p>
-                    <button
-                        onClick={loadData}
-                        className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-                    >
-                        Try again
-                    </button>
-                </div>
+                <ErrorRetry
+                    error={error}
+                    onRetry={() => {
+                        // React Query will automatically retry on refetch
+                        window.location.reload();
+                    }}
+                />
             </div>
         );
     }
@@ -289,7 +267,7 @@ export default function ResourcesPageContent() {
                 ) : (
                     <div className="bg-white shadow rounded-lg overflow-hidden">
                         <ul className="divide-y divide-gray-200">
-                            {recentResources.map((resource) => (
+                            {recentResources.map((resource: Resource) => (
                                 <li key={resource.id} className="p-4">
                                     <div className="flex items-center justify-between">
                                         <div className="flex-1 min-w-0">
@@ -357,7 +335,7 @@ export default function ResourcesPageContent() {
                 ) : (
                     <div className="bg-white shadow rounded-lg overflow-hidden">
                         <ul className="divide-y divide-gray-200">
-                            {recentVoiceNotes.map((voiceNote) => (
+                            {recentVoiceNotes.map((voiceNote: VoiceNote) => (
                                 <li key={voiceNote.id} className="p-4">
                                     <div className="flex items-center justify-between">
                                         <div className="flex-1 min-w-0">

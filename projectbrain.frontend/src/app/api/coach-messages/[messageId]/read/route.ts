@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function PUT(
     req: NextRequest,
-    { params }: { params: { messageId: string } }
+    { params }: { params: Promise<{ messageId: string }> }
 ) {
     try {
-        const { messageId } = params;
+        const { messageId } = await params;
         await CoachMessageService.markAsRead(messageId);
         return NextResponse.json({ success: true });
     } catch (error) {

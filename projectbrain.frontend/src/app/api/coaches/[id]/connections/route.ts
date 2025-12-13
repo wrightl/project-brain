@@ -11,7 +11,7 @@ export interface ConnectionResponse {
 }
 
 export const POST = createApiRoute<ConnectionResponse>(
-    async (req: NextRequest, { params }: { params: { id: string } }) => {
+    async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
         const { id: coachId } = await params;
         const body = await req.json().catch(() => ({}));
         

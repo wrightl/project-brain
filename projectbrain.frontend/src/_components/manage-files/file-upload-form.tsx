@@ -8,7 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { apiClient } from '@/_lib/api-client';
-import { Subscription, Usage } from '@/_services/subscription-service';
+import { Subscription, Usage } from '@/_lib/types';
 import Link from 'next/link';
 
 interface UploadedFile {

@@ -12,7 +12,7 @@ export const GET = createApiRoute<Coach>(async (req: NextRequest) => {
         throw new BackendApiError(400, 'Coach ID is required');
     }
 
-    const coach = await CoachService.getCoachById(id);
+    const coach = await CoachService.getCoachById(parseInt(id, 10));
 
     if (!coach) {
         throw new BackendApiError(404, 'Coach not found');

@@ -14,7 +14,7 @@ export interface ConnectionDetails {
 }
 
 export const GET = createApiRoute<ConnectionDetails>(
-    async (_, { params }: { params: { connectionId: string } }) => {
+    async (_, { params }: { params: Promise<{ connectionId: string }> }) => {
         const { connectionId } = await params;
         const response = await callBackendApi(`/connections/${connectionId}`);
 
@@ -27,7 +27,7 @@ export const GET = createApiRoute<ConnectionDetails>(
 );
 
 export const DELETE = createApiRoute(
-    async (_, { params }: { params: { connectionId: string } }) => {
+    async (_, { params }: { params: Promise<{ connectionId: string }> }) => {
         const { connectionId } = await params;
         const response = await callBackendApi(`/connections/${connectionId}`, {
             method: 'DELETE',

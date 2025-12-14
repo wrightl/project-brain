@@ -39,6 +39,9 @@ public static class QuizEndpoints
         group.MapPost("/{quizId}/responses", SubmitQuizResponse).WithName("SubmitQuizResponse");
         group.MapGet("/{quizId}/responses", GetQuizResponses).WithName("GetQuizResponses");
         group.MapGet("/responses", GetAllQuizResponsesForUser).WithName("GetAllQuizResponsesForUser");
+        group.MapGet("/responses/{responseId}", GetQuizResponseById).WithName("GetQuizResponseById");
+        group.MapGet("/responses/count", GetQuizResponsesCount).WithName("GetUserQuizResponsesCount");
+        group.MapDelete("/responses/{responseId}", DeleteQuizResponse).WithName("DeleteQuizResponse");
         group.MapGet("/insights", GetQuizInsights).WithName("GetQuizInsights");
     }
 
@@ -371,6 +374,67 @@ public static class QuizEndpoints
         var responseDtos = QuizResponseMapper.ToDto(responses);
         var response = PagedResponse<QuizResponseResponseDto>.Create(pagedRequest, responseDtos, totalCount);
         return Results.Ok(response);
+    }
+
+    private static async Task<IResult> GetQuizResponseById(
+        [AsParameters] QuizServices services,
+        string responseId)
+    {
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
+
+        if (!Guid.TryParse(responseId, out var id))
+        {
+            throw new ValidationException("responseId", "Invalid response ID format");
+        }
+
+        var response = await services.QuizResponseService.GetById(id, userId);
+        if (response == null)
+        {
+            throw new NotFoundException("QUIZ_RESPONSE_NOT_FOUND", "The specified quiz response does not exist");
+        }
+
+        var responseDto = QuizResponseMapper.ToDto(response);
+        return Results.Ok(responseDto);
+    }
+
+    private static async Task<IResult> GetQuizResponsesCount([AsParameters] QuizServices services)
+    {
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
+
+        var count = await services.QuizResponseService.CountForUser(userId);
+        return Results.Ok(new { count });
+    }
+
+    private static async Task<IResult> DeleteQuizResponse(
+        [AsParameters] QuizServices services,
+        string responseId)
+    {
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
+
+        if (!Guid.TryParse(responseId, out var id))
+        {
+            throw new ValidationException("responseId", "Invalid response ID format");
+        }
+
+        var deleted = await services.QuizResponseService.Delete(id, userId);
+        if (!deleted)
+        {
+            throw new NotFoundException("QUIZ_RESPONSE_NOT_FOUND", "The specified quiz response does not exist");
+        }
+
+        return Results.NoContent();
     }
 
     private static async Task<IResult> GetQuizInsights([AsParameters] QuizServices services)

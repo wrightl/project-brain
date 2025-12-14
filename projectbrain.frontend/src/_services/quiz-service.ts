@@ -36,8 +36,9 @@ export interface Quiz {
 export interface QuizResponse {
     id: string;
     quizId: string;
+    quizTitle?: string;
     userId: string;
-    answers: Record<string, unknown>;
+    answers?: Record<string, unknown>;
     score?: number;
     completedAt: string;
     createdAt: string;
@@ -111,5 +112,103 @@ export class QuizService {
                 errorData.error?.message || 'Failed to delete quiz'
             );
         }
+    }
+
+    /**
+     * Get a single quiz response by ID
+     */
+    static async getQuizResponseById(responseId: string): Promise<QuizResponse> {
+        const response = await callBackendApi(`/quizes/responses/${responseId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch quiz response');
+        }
+        return response.json();
+    }
+
+    /**
+     * Get all quiz responses for the current user
+     */
+    static async getQuizResponses(options?: {
+        page?: number;
+        pageSize?: number;
+    }): Promise<PagedResponse<QuizResponse>> {
+        const params = new URLSearchParams();
+        if (options?.page) {
+            params.append('page', options.page.toString());
+        }
+        if (options?.pageSize) {
+            params.append('pageSize', options.pageSize.toString());
+        }
+        const queryParam = params.toString() ? `?${params.toString()}` : '';
+        const response = await callBackendApi(`/quizes/responses${queryParam}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch quiz responses');
+        }
+        return response.json();
+    }
+
+    /**
+     * Get quiz response count for the current user
+     */
+    static async getQuizResponseCount(): Promise<{ count: number }> {
+        const response = await callBackendApi('/quizes/responses/count');
+        if (!response.ok) {
+            throw new Error('Failed to fetch quiz response count');
+        }
+        return response.json();
+    }
+
+    /**
+     * Delete a quiz response
+     */
+    static async deleteQuizResponse(responseId: string): Promise<void> {
+        const response = await callBackendApi(`/quizes/responses/${responseId}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(
+                errorData.error?.message || 'Failed to delete quiz response'
+            );
+        }
+    }
+
+    /**
+     * Submit a quiz response
+     */
+    static async submitQuizResponse(
+        quizId: string,
+        answers: Record<string, unknown>,
+        completedAt?: string
+    ): Promise<QuizResponse> {
+        const response = await callBackendApi(`/quizes/${quizId}/responses`, {
+            method: 'POST',
+            body: {
+                answers,
+                completedAt,
+            },
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(
+                errorData.error?.message || 'Failed to submit quiz response'
+            );
+        }
+        return response.json();
+    }
+
+    /**
+     * Get quiz insights for the current user
+     */
+    static async getQuizInsights(): Promise<{
+        summary: string;
+        keyInsights: string[];
+        lastUpdated: string;
+    }> {
+        const response = await callBackendApi('/quizes/insights');
+        if (!response.ok) {
+            throw new Error('Failed to fetch quiz insights');
+        }
+        return response.json();
     }
 }

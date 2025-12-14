@@ -7,6 +7,7 @@ import {
     DocumentArrowUpIcon,
     ClockIcon,
     BookOpenIcon,
+    AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import { Resource } from '@/_lib/types';
 import { VoiceNote } from '@/_lib/types';
@@ -22,6 +23,11 @@ import {
     useRecentJournalEntries,
     useJournalEntryCount,
 } from '@/_hooks/queries/use-journals';
+import {
+    useQuizResponseCount,
+    useRecentQuizResponses,
+    useQuizInsights,
+} from '@/_hooks/queries/use-quizzes';
 import { SkeletonCard, SkeletonList } from '@/_components/ui/skeleton';
 import { ErrorRetry } from '@/_components/error-retry';
 
@@ -58,6 +64,21 @@ export default function ResourcesPageContent() {
         isLoading: journalCountLoading,
         error: journalCountError,
     } = useJournalEntryCount();
+    const {
+        data: quizResponseCount,
+        isLoading: quizCountLoading,
+        error: quizCountError,
+    } = useQuizResponseCount();
+    const {
+        data: recentQuizResponses,
+        isLoading: recentQuizzesLoading,
+        error: recentQuizzesError,
+    } = useRecentQuizResponses(3);
+    const {
+        data: quizInsights,
+        isLoading: quizInsightsLoading,
+        error: quizInsightsError,
+    } = useQuizInsights();
 
     const loading =
         resourcesLoading ||
@@ -65,14 +86,20 @@ export default function ResourcesPageContent() {
         filesCountLoading ||
         voiceNotesCountLoading ||
         journalEntriesLoading ||
-        journalCountLoading;
+        journalCountLoading ||
+        quizCountLoading ||
+        recentQuizzesLoading ||
+        quizInsightsLoading;
     const error =
         resourcesError ||
         voiceNotesError ||
         filesCountError ||
         voiceNotesCountError ||
         journalEntriesError ||
-        journalCountError;
+        journalCountError ||
+        quizCountError ||
+        recentQuizzesError ||
+        quizInsightsError;
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -109,6 +136,11 @@ export default function ResourcesPageContent() {
             value: (journalCount?.count ?? 0).toString(),
             icon: BookOpenIcon,
         },
+        {
+            name: 'Quizzes Taken',
+            value: (quizResponseCount?.count ?? 0).toString(),
+            icon: AcademicCapIcon,
+        },
     ];
 
     const quickActions = [
@@ -139,6 +171,13 @@ export default function ResourcesPageContent() {
             href: '/app/user/journal/new',
             icon: BookOpenIcon,
             color: 'bg-green-500',
+        },
+        {
+            title: 'Take a Quiz',
+            description: 'Take a quiz to assess your progress',
+            href: '/app/user/quizzes',
+            icon: AcademicCapIcon,
+            color: 'bg-blue-500',
         },
     ];
 
@@ -200,7 +239,7 @@ export default function ResourcesPageContent() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 {stats.map((stat) => {
                     const Icon = stat.icon;
                     return (
@@ -421,6 +460,127 @@ export default function ResourcesPageContent() {
                                             </div>
                                         </div>
                                     </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+
+            {/* Quiz Insights */}
+            {quizInsights && (
+                <div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-semibold text-gray-900">
+                            Quiz Insights
+                        </h2>
+                        <Link
+                            href="/app/user/quizzes/responses"
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                        >
+                            View all
+                        </Link>
+                    </div>
+                    <div className="bg-white shadow rounded-lg p-6">
+                        <p className="text-sm text-gray-700 mb-4">
+                            {quizInsights.summary}
+                        </p>
+                        {quizInsights.keyInsights &&
+                            quizInsights.keyInsights.length > 0 && (
+                                <ul className="space-y-2">
+                                    {quizInsights.keyInsights.map(
+                                        (insight, index) => (
+                                            <li
+                                                key={index}
+                                                className="text-sm text-gray-600 flex items-start"
+                                            >
+                                                <span className="text-indigo-600 mr-2">
+                                                    •
+                                                </span>
+                                                {insight}
+                                            </li>
+                                        )
+                                    )}
+                                </ul>
+                            )}
+                    </div>
+                </div>
+            )}
+
+            {/* Recent Quiz Responses */}
+            <div>
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                        Recent Quiz Responses
+                    </h2>
+                    {recentQuizResponses && recentQuizResponses.length > 0 && (
+                        <Link
+                            href="/app/user/quizzes/responses"
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                        >
+                            View all
+                        </Link>
+                    )}
+                </div>
+                {!recentQuizResponses || recentQuizResponses.length === 0 ? (
+                    <div className="bg-white shadow rounded-lg p-8 text-center">
+                        <AcademicCapIcon className="mx-auto h-12 w-12 text-gray-400" />
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">
+                            No quiz responses yet
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Start by taking your first quiz.
+                        </p>
+                        <div className="mt-6">
+                            <Link
+                                href="/app/user/quizzes"
+                                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                            >
+                                Take a Quiz
+                            </Link>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-white shadow rounded-lg overflow-hidden">
+                        <ul className="divide-y divide-gray-200">
+                            {recentQuizResponses.map((response) => (
+                                <li key={response.id} className="p-4">
+                                    <Link
+                                        href={`/app/user/quizzes/responses/${response.id}`}
+                                        className="block"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center">
+                                                    <AcademicCapIcon className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                                            {response.quizTitle ||
+                                                                'Untitled Quiz'}
+                                                        </p>
+                                                        <div className="mt-1 flex items-center text-sm text-gray-500">
+                                                            <ClockIcon className="h-4 w-4 mr-1" />
+                                                            {formatDate(
+                                                                response.completedAt
+                                                            )}
+                                                        </div>
+                                                        {response.score !==
+                                                            null &&
+                                                            response.score !==
+                                                                undefined && (
+                                                                <div className="mt-1 text-sm text-gray-600">
+                                                                    Score:{' '}
+                                                                    {response.score.toFixed(
+                                                                        1
+                                                                    )}
+                                                                    %
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Link>
                                 </li>
                             ))}
                         </ul>

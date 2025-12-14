@@ -167,6 +167,8 @@ app.MapSubscriptionEndpoints();
 app.MapStripeWebhookEndpoints();
 app.MapSubscriptionManagementEndpoints();
 app.MapSubscriptionAnalyticsEndpoints();
+app.MapJournalEndpoints();
+app.MapTagEndpoints();
 
 // Map SignalR hub
 app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").RequireAuthorization();

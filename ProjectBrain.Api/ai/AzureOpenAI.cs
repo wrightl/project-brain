@@ -679,6 +679,7 @@ public static class AzureOpenAIExtensions
         builder.Services.AddSingleton<Embedding.XlsxDocumentEmbedder>();
         builder.Services.AddSingleton<Embedding.PptxDocumentEmbedder>();
         builder.Services.AddSingleton<Embedding.PngDocumentEmbedder>();
+        builder.Services.AddSingleton<Embedding.JsonDocumentEmbedder>();
 
         // Register factory as singleton
         builder.Services.AddSingleton<Embedding.DocumentEmbedderFactory>(sp =>
@@ -692,7 +693,8 @@ public static class AzureOpenAIExtensions
                 sp.GetRequiredService<Embedding.DocxDocumentEmbedder>(),
                 sp.GetRequiredService<Embedding.XlsxDocumentEmbedder>(),
                 sp.GetRequiredService<Embedding.PptxDocumentEmbedder>(),
-                sp.GetRequiredService<Embedding.PngDocumentEmbedder>()
+                sp.GetRequiredService<Embedding.PngDocumentEmbedder>(),
+                sp.GetRequiredService<Embedding.JsonDocumentEmbedder>()
             };
             var logger = sp.GetRequiredService<ILogger<Embedding.DocumentEmbedderFactory>>();
             return new Embedding.DocumentEmbedderFactory(embedders, logger);

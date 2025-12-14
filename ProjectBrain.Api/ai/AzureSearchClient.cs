@@ -33,7 +33,8 @@ public class AzureSearchClient(AzureSearchClientServices services) : ISearchInde
         string filename,
         string? userId,
         string blobPath,
-        string resourceId)
+        string resourceId,
+        bool removeExistingDocuments = false)
     {
         try
         {
@@ -44,9 +45,11 @@ public class AzureSearchClient(AzureSearchClientServices services) : ISearchInde
                 return;
             }
 
-            // TODO - Reinstate this if we decide to only allow unique filenames
             // Delete from index in case it's a reupload of an existing file
-            // await DeleteDocumentsFromIndexAsync(filename, blobPath);
+            if (removeExistingDocuments)
+            {
+                await DeleteDocumentsFromIndexAsync(filename, blobPath);
+            }
 
             // Get the appropriate embedder
             var embedder = services.EmbedderFactory.GetEmbedder(filename);
@@ -287,5 +290,5 @@ public interface ISearchIndexService
     Task<Response<SearchResults<SearchDocument>>> SearchAsync(string query, SearchOptions searchOptions);
     Task DeleteDocumentsFromIndexAsync(string filename, string location);
     Task DeleteAllDocumentsFromIndexAsync(string? userId);
-    Task ExtractEmbedAndIndexFromStreamAsync(Stream stream, string filename, string? userId, string blobPath, string resourceId);
+    Task ExtractEmbedAndIndexFromStreamAsync(Stream stream, string filename, string? userId, string blobPath, string resourceId, bool removeExistingDocuments = false);
 }

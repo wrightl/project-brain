@@ -272,7 +272,9 @@ public static class VoiceNoteEndpoints
         string fileName)
     {
         // Use a simpler upload path for voice notes: voicenotes/{userId}/{fileName}
-        var blobPath = $"voicenotes/{userId}/{fileName}";
+        // UploadFile constructs path as {userId}/{filename}, so we pass voicenotes/{fileName} as filename
+        var filename = $"{fileName}";
+        var resourceId = Guid.NewGuid().ToString();
 
         var metadata = new Dictionary<string, string>
         {
@@ -280,7 +282,8 @@ public static class VoiceNoteEndpoints
             { "mimeType", file.ContentType ?? "audio/m4a" }
         };
 
-        return await services.Storage.UploadAudioFile(file, blobPath, userId, metadata);
+        await using var stream = file.OpenReadStream();
+        return await services.Storage.UploadFile(stream, filename, resourceId, userId, skipIndexing: true, metadata, parentFolder: "voicenotes");
     }
 
     private static string SanitizeFileName(string fileName)

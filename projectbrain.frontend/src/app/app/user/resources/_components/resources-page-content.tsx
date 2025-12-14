@@ -6,6 +6,7 @@ import {
     MusicalNoteIcon,
     DocumentArrowUpIcon,
     ClockIcon,
+    BookOpenIcon,
 } from '@heroicons/react/24/outline';
 import { Resource } from '@/_lib/types';
 import { VoiceNote } from '@/_lib/types';
@@ -17,6 +18,10 @@ import {
     useVoiceNotes,
     useVoiceNoteStatistics,
 } from '@/_hooks/queries/use-voicenotes';
+import {
+    useRecentJournalEntries,
+    useJournalEntryCount,
+} from '@/_hooks/queries/use-journals';
 import { SkeletonCard, SkeletonList } from '@/_components/ui/skeleton';
 import { ErrorRetry } from '@/_components/error-retry';
 
@@ -43,17 +48,31 @@ export default function ResourcesPageContent() {
         isLoading: voiceNotesCountLoading,
         error: voiceNotesCountError,
     } = useVoiceNoteStatistics();
+    const {
+        data: journalEntries,
+        isLoading: journalEntriesLoading,
+        error: journalEntriesError,
+    } = useRecentJournalEntries(3);
+    const {
+        data: journalCount,
+        isLoading: journalCountLoading,
+        error: journalCountError,
+    } = useJournalEntryCount();
 
     const loading =
         resourcesLoading ||
         voiceNotesLoading ||
         filesCountLoading ||
-        voiceNotesCountLoading;
+        voiceNotesCountLoading ||
+        journalEntriesLoading ||
+        journalCountLoading;
     const error =
         resourcesError ||
         voiceNotesError ||
         filesCountError ||
-        voiceNotesCountError;
+        voiceNotesCountError ||
+        journalEntriesError ||
+        journalCountError;
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -85,6 +104,11 @@ export default function ResourcesPageContent() {
             value: (voiceNotesCount?.count ?? 0).toString(),
             icon: MusicalNoteIcon,
         },
+        {
+            name: 'Total Journal Entries',
+            value: (journalCount?.count ?? 0).toString(),
+            icon: BookOpenIcon,
+        },
     ];
 
     const quickActions = [
@@ -101,6 +125,20 @@ export default function ResourcesPageContent() {
             href: '/app/user/voicenotes',
             icon: MusicalNoteIcon,
             color: 'bg-purple-500',
+        },
+        {
+            title: 'Journal Entries',
+            description: 'View your journal entries',
+            href: '/app/user/journal',
+            icon: BookOpenIcon,
+            color: 'bg-green-500',
+        },
+        {
+            title: 'Add Journal Entry',
+            description: 'Create a new journal entry',
+            href: '/app/user/journal/new',
+            icon: BookOpenIcon,
+            color: 'bg-green-500',
         },
     ];
 
@@ -162,7 +200,7 @@ export default function ResourcesPageContent() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                 {stats.map((stat) => {
                     const Icon = stat.icon;
                     return (
@@ -239,7 +277,7 @@ export default function ResourcesPageContent() {
                     <h2 className="text-xl font-semibold text-gray-900">
                         Recent Files
                     </h2>
-                    {resources.length > 3 && (
+                    {resources.length > 0 && (
                         <Link
                             href="/app/user/manage-files"
                             className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
@@ -306,7 +344,7 @@ export default function ResourcesPageContent() {
                     <h2 className="text-xl font-semibold text-gray-900">
                         Recent Voice Notes
                     </h2>
-                    {voiceNotes.length > 3 && (
+                    {voiceNotes.length > 0 && (
                         <Link
                             href="/app/user/voicenotes"
                             className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
@@ -383,6 +421,114 @@ export default function ResourcesPageContent() {
                                             </div>
                                         </div>
                                     </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+
+            {/* Recent Journal Entries */}
+            <div>
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                        Recent Journal Entries
+                    </h2>
+                    {journalEntries && journalEntries.length > 0 && (
+                        <Link
+                            href="/app/user/journal"
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                        >
+                            View all
+                        </Link>
+                    )}
+                </div>
+                {!journalEntries || journalEntries.length === 0 ? (
+                    <div className="bg-white shadow rounded-lg p-8 text-center">
+                        <BookOpenIcon className="mx-auto h-12 w-12 text-gray-400" />
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">
+                            No journal entries yet
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Start by creating your first journal entry.
+                        </p>
+                        <div className="mt-6">
+                            <Link
+                                href="/app/user/journal/new"
+                                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                            >
+                                Create Journal Entry
+                            </Link>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-white shadow rounded-lg overflow-hidden">
+                        <ul className="divide-y divide-gray-200">
+                            {journalEntries.map((entry) => (
+                                <li key={entry.id} className="p-4">
+                                    <Link
+                                        href={`/app/user/journal/${entry.id}`}
+                                        className="block"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center">
+                                                    <BookOpenIcon className="h-5 w-5 text-gray-400 mr-3 flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-gray-900 truncate">
+                                                            {entry.summary ||
+                                                                'Untitled Entry'}
+                                                        </p>
+                                                        <div className="mt-1 flex items-center text-sm text-gray-500">
+                                                            <ClockIcon className="h-4 w-4 mr-1" />
+                                                            {formatDate(
+                                                                entry.createdAt
+                                                            )}
+                                                        </div>
+                                                        {entry.tags &&
+                                                            entry.tags.length >
+                                                                0 && (
+                                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                                    {entry.tags
+                                                                        .slice(
+                                                                            0,
+                                                                            3
+                                                                        )
+                                                                        .map(
+                                                                            (
+                                                                                tag
+                                                                            ) => (
+                                                                                <span
+                                                                                    key={
+                                                                                        tag.id
+                                                                                    }
+                                                                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
+                                                                                >
+                                                                                    {
+                                                                                        tag.name
+                                                                                    }
+                                                                                </span>
+                                                                            )
+                                                                        )}
+                                                                    {entry.tags
+                                                                        .length >
+                                                                        3 && (
+                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                                                                            +
+                                                                            {entry
+                                                                                .tags
+                                                                                .length -
+                                                                                3}{' '}
+                                                                            more
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Link>
                                 </li>
                             ))}
                         </ul>

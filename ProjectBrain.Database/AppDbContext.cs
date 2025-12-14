@@ -284,6 +284,36 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .Property(cp => cp.AvailabilityStatus)
             .HasConversion<string>();
 
+        // Configure JournalEntry relationships
+        modelBuilder.Entity<JournalEntry>()
+            .HasIndex(je => je.UserId);
+
+        modelBuilder.Entity<JournalEntry>()
+            .HasIndex(je => je.CreatedAt);
+
+        // Configure Tag relationships
+        modelBuilder.Entity<Tag>()
+            .HasIndex(t => new { t.UserId, t.Name })
+            .IsUnique();
+
+        // Configure JournalEntryTag many-to-many relationship
+        modelBuilder.Entity<JournalEntryTag>()
+            .HasOne(jet => jet.JournalEntry)
+            .WithMany(je => je.JournalEntryTags)
+            .HasForeignKey(jet => jet.JournalEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<JournalEntryTag>()
+            .HasOne(jet => jet.Tag)
+            .WithMany(t => t.JournalEntryTags)
+            .HasForeignKey(jet => jet.TagId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Unique constraint to prevent duplicate tag assignments
+        modelBuilder.Entity<JournalEntryTag>()
+            .HasIndex(jet => new { jet.JournalEntryId, jet.TagId })
+            .IsUnique();
+
         logger.LogInformation("OnModelCreating completed");
     }
 
@@ -314,4 +344,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<CoachMessage> CoachMessages => Set<CoachMessage>();
     public DbSet<SubscriptionExclusion> SubscriptionExclusions => Set<SubscriptionExclusion>();
     public DbSet<SubscriptionSettings> SubscriptionSettings => Set<SubscriptionSettings>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<JournalEntryTag> JournalEntryTags => Set<JournalEntryTag>();
 }

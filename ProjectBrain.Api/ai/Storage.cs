@@ -178,19 +178,19 @@ public class Storage
         }
     }
 
-    public async Task<string> UploadFile(Stream stream, string filename, string resourceId, string? userId = null, bool skipIndexing = false, Dictionary<string, string>? metadata = null)
+    public async Task<string> UploadFile(Stream stream, string filename, string resourceId, string? userId = null, bool skipIndexing = false, Dictionary<string, string>? metadata = null, string? containerName = null, string? parentFolder = null)
     {
         _logger.LogInformation("Starting file upload for user {UserId}, filename {Filename}", userId, filename);
 
         try
         {
-            var containerName = getContainerName();
+            containerName = containerName ?? getContainerName();
             var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
 
             // Create container if it doesn't exist
             await containerClient.CreateIfNotExistsAsync();
 
-            var blobPath = $"{(userId is null ? "shared" : userId)}/{filename}";
+            var blobPath = $"{(parentFolder is null ? string.Empty : parentFolder + "/") + (userId is null ? "shared" : userId)}/{filename}";
             var blobClient = containerClient.GetBlobClient(blobPath);
 
             _logger.LogInformation("Uploading file to blob storage at path {BlobPath}", blobPath);
@@ -227,117 +227,117 @@ public class Storage
         }
     }
 
-    /// <summary>
-    /// Uploads an audio file to blob storage without embedding/indexing.
-    /// Used for voice notes and other audio files that don't need to be indexed.
-    /// </summary>
-    public async Task<string> UploadAudioFile(IFormFile file, string blobPath, string? userId = null, Dictionary<string, string>? metadata = null)
-    {
-        _logger.LogInformation("Starting audio file upload for user {UserId}, path {BlobPath}", userId, blobPath);
+    // /// <summary>
+    // /// Uploads an audio file to blob storage without embedding/indexing.
+    // /// Used for voice notes and other audio files that don't need to be indexed.
+    // /// </summary>
+    // public async Task<string> UploadAudioFile(IFormFile file, string blobPath, string? userId = null, Dictionary<string, string>? metadata = null)
+    // {
+    //     _logger.LogInformation("Starting audio file upload for user {UserId}, path {BlobPath}", userId, blobPath);
 
-        try
-        {
-            var containerName = getContainerName();
-            var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+    //     try
+    //     {
+    //         var containerName = getContainerName();
+    //         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
 
-            // Create container if it doesn't exist
-            await containerClient.CreateIfNotExistsAsync();
+    //         // Create container if it doesn't exist
+    //         await containerClient.CreateIfNotExistsAsync();
 
-            var blobClient = containerClient.GetBlobClient(blobPath);
+    //         var blobClient = containerClient.GetBlobClient(blobPath);
 
-            _logger.LogInformation("Uploading audio file to blob storage at path {BlobPath}", blobPath);
-            await using (var stream = file.OpenReadStream())
-            {
-                await blobClient.UploadAsync(stream, overwrite: true);
-            }
+    //         _logger.LogInformation("Uploading audio file to blob storage at path {BlobPath}", blobPath);
+    //         await using (var stream = file.OpenReadStream())
+    //         {
+    //             await blobClient.UploadAsync(stream, overwrite: true);
+    //         }
 
-            // Set metadata
-            var fileMetadata = metadata ?? new Dictionary<string, string>();
-            if (userId != null && !fileMetadata.ContainsKey("userId"))
-            {
-                fileMetadata["userId"] = userId;
-            }
-            if (!fileMetadata.ContainsKey("mimeType"))
-            {
-                fileMetadata["mimeType"] = file.ContentType ?? "audio/m4a";
-            }
-            await blobClient.SetMetadataAsync(fileMetadata);
+    //         // Set metadata
+    //         var fileMetadata = metadata ?? new Dictionary<string, string>();
+    //         if (userId != null && !fileMetadata.ContainsKey("userId"))
+    //         {
+    //             fileMetadata["userId"] = userId;
+    //         }
+    //         if (!fileMetadata.ContainsKey("mimeType"))
+    //         {
+    //             fileMetadata["mimeType"] = file.ContentType ?? "audio/m4a";
+    //         }
+    //         await blobClient.SetMetadataAsync(fileMetadata);
 
-            return blobPath;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading audio file for user {UserId}, path {BlobPath}", userId, blobPath);
-            throw;
-        }
-    }
+    //         return blobPath;
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         _logger.LogError(ex, "Error uploading audio file for user {UserId}, path {BlobPath}", userId, blobPath);
+    //         throw;
+    //     }
+    // }
 
-    private async Task ExtractEmbedAndIndexAsync(
-        IFormFile file,
-        string filename,
-        string? userId,
-        string blobPath,
-        string resourceId)
-    {
-        await using var stream = file.OpenReadStream();
-        await _searchIndexService.ExtractEmbedAndIndexFromStreamAsync(stream, filename, userId, blobPath, resourceId);
-    }
+    // private async Task ExtractEmbedAndIndexAsync(
+    //     IFormFile file,
+    //     string filename,
+    //     string? userId,
+    //     string blobPath,
+    //     string resourceId)
+    // {
+    //     await using var stream = file.OpenReadStream();
+    //     await _searchIndexService.ExtractEmbedAndIndexFromStreamAsync(stream, filename, userId, blobPath, resourceId);
+    // }
 
 
-    /// <summary>
-    /// Generates an Azure Search compliant document ID.
-    /// Azure Search IDs can only contain: letters, digits, underscore (_), dash (-), or equal sign (=)
-    /// </summary>
-    private string GenerateSearchDocumentId(string? userId, string filename, int pageNumber)
-    {
-        // Sanitize userId - replace invalid characters with underscores
-        var sanitizedUserId = SanitizeForSearchId(userId ?? "shared");
+    // /// <summary>
+    // /// Generates an Azure Search compliant document ID.
+    // /// Azure Search IDs can only contain: letters, digits, underscore (_), dash (-), or equal sign (=)
+    // /// </summary>
+    // private string GenerateSearchDocumentId(string? userId, string filename, int pageNumber)
+    // {
+    //     // Sanitize userId - replace invalid characters with underscores
+    //     var sanitizedUserId = SanitizeForSearchId(userId ?? "shared");
 
-        // Sanitize filename - remove extension and sanitize
-        var fileNameWithoutExt = Path.GetFileNameWithoutExtension(filename);
-        var sanitizedFilename = SanitizeForSearchId(fileNameWithoutExt);
+    //     // Sanitize filename - remove extension and sanitize
+    //     var fileNameWithoutExt = Path.GetFileNameWithoutExtension(filename);
+    //     var sanitizedFilename = SanitizeForSearchId(fileNameWithoutExt);
 
-        // Generate a short unique identifier (first 8 chars of GUID, already hex which is safe)
-        var uniqueId = Guid.NewGuid().ToString("N")[..8];
+    //     // Generate a short unique identifier (first 8 chars of GUID, already hex which is safe)
+    //     var uniqueId = Guid.NewGuid().ToString("N")[..8];
 
-        // Build ID: (userId or "shared")_filename_pageNumber_uniqueId
-        // All parts are sanitized, and we use underscores as separators
-        return $"{sanitizedUserId}_{sanitizedFilename}_{pageNumber}_{uniqueId}";
-    }
+    //     // Build ID: (userId or "shared")_filename_pageNumber_uniqueId
+    //     // All parts are sanitized, and we use underscores as separators
+    //     return $"{sanitizedUserId}_{sanitizedFilename}_{pageNumber}_{uniqueId}";
+    // }
 
-    /// <summary>
-    /// Sanitizes a string to only contain characters allowed in Azure Search document IDs:
-    /// letters, digits, underscore (_), dash (-), or equal sign (=)
-    /// Invalid characters are replaced with underscores.
-    /// </summary>
-    private string SanitizeForSearchId(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-            return "unknown";
+    // /// <summary>
+    // /// Sanitizes a string to only contain characters allowed in Azure Search document IDs:
+    // /// letters, digits, underscore (_), dash (-), or equal sign (=)
+    // /// Invalid characters are replaced with underscores.
+    // /// </summary>
+    // private string SanitizeForSearchId(string input)
+    // {
+    //     if (string.IsNullOrEmpty(input))
+    //         return "unknown";
 
-        var result = new System.Text.StringBuilder();
+    //     var result = new System.Text.StringBuilder();
 
-        foreach (var c in input)
-        {
-            // Allow: letters, digits, underscore, dash, equal sign
-            if (char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '=')
-            {
-                result.Append(c);
-            }
-            else
-            {
-                // Replace invalid characters with underscore
-                result.Append('_');
-            }
-        }
+    //     foreach (var c in input)
+    //     {
+    //         // Allow: letters, digits, underscore, dash, equal sign
+    //         if (char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '=')
+    //         {
+    //             result.Append(c);
+    //         }
+    //         else
+    //         {
+    //             // Replace invalid characters with underscore
+    //             result.Append('_');
+    //         }
+    //     }
 
-        // Remove consecutive underscores and trim
-        var sanitized = result.ToString();
-        while (sanitized.Contains("__"))
-        {
-            sanitized = sanitized.Replace("__", "_");
-        }
+    //     // Remove consecutive underscores and trim
+    //     var sanitized = result.ToString();
+    //     while (sanitized.Contains("__"))
+    //     {
+    //         sanitized = sanitized.Replace("__", "_");
+    //     }
 
-        return sanitized.Trim('_');
-    }
+    //     return sanitized.Trim('_');
+    // }
 }

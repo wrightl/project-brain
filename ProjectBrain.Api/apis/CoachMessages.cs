@@ -340,8 +340,19 @@ public static class CoachMessageEndpoints
 
             // Upload file to storage
             var storageFileName = $"{messageId}{extension}";
-            var blobPath = $"coach-messages/{currentUserId}/{storageFileName}";
-            var location = await services.Storage.UploadAudioFile(file, blobPath, currentUserId);
+            await using var fileStream = file.OpenReadStream();
+            var metadata = new Dictionary<string, string>
+            {
+                ["mimeType"] = contentType ?? "audio/m4a"
+            };
+            var blobPath = await services.Storage.UploadFile(
+                fileStream,
+                storageFileName,
+                messageId.ToString(),
+                currentUserId,
+                skipIndexing: true,
+                metadata: metadata,
+                parentFolder: "coach-messages");
 
             // Build audio URL
             var baseUrl = services.Configuration["ApiBaseUrl"] ??

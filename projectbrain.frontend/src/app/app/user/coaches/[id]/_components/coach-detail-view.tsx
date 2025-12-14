@@ -13,7 +13,9 @@ import {
 import { Coach } from '@/_lib/types';
 import { useState, useEffect } from 'react';
 import AvailabilityBadge from '@/_components/coach/availability-badge';
+import StarRating from '@/_components/coach/star-rating';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import Link from 'next/link';
 
 interface ConnectionStatus {
     status: 'none' | 'pending' | 'connected';
@@ -118,6 +120,23 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
                                 <EnvelopeIcon className="h-5 w-5 mr-2 text-gray-400" />
                                 {coach.email}
                             </p>
+                        )}
+                        {coach.averageRating !== undefined && coach.averageRating !== null && (
+                            <div className="mt-3 flex items-center gap-3">
+                                <StarRating
+                                    rating={coach.averageRating}
+                                    size="md"
+                                    showValue={true}
+                                />
+                                {coach.ratingCount !== undefined && coach.ratingCount > 0 && (
+                                    <Link
+                                        href={`/app/user/coaches/${coach.coachProfileId}/ratings`}
+                                        className="text-sm text-indigo-600 hover:text-indigo-800 underline"
+                                    >
+                                        View all {coach.ratingCount} {coach.ratingCount === 1 ? 'rating' : 'ratings'}
+                                    </Link>
+                                )}
+                            </div>
                         )}
                     </div>
                     <button

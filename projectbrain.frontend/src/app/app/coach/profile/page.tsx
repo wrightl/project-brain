@@ -4,6 +4,7 @@ import { UserService } from '@/_services/user-service';
 import { callBackendApi } from '@/_lib/backend-api';
 import CoachProfileForm from './_components/coach-profile-form';
 import CoachSubscriptionSummary from './_components/subscription-summary';
+import RecentRatings from './_components/recent-ratings';
 
 export const metadata: Metadata = {
     title: 'Profile',
@@ -16,7 +17,7 @@ export default async function CoachProfilePage() {
 
     try {
         const user = await UserService.getCurrentUser();
-
+        console.log('user', user);
         if (!user) {
             error = 'User not found';
         } else {
@@ -25,12 +26,14 @@ export default async function CoachProfilePage() {
             if (!isCoach) {
                 error = 'User is not a coach';
             } else {
+                console.log('user', user);
                 // Fetch coach profile data
                 const coachResponse = await callBackendApi(
-                    `/coaches/${(user as Coach).coachProfileId}`
+                    `/coaches/${(user as Coach).id}/profile`
                 );
                 if (coachResponse.ok) {
                     coach = await coachResponse.json();
+                    console.log('coach', coach);
                 } else {
                     error = 'Failed to load coach profile';
                 }
@@ -44,7 +47,7 @@ export default async function CoachProfilePage() {
         return (
             <div className="bg-white shadow rounded-lg p-6">
                 <p className="text-gray-600">
-                    {error || 'Coach profile not found.'}
+                    {error || 'Coach profile not found?.'}
                 </p>
             </div>
         );
@@ -59,6 +62,7 @@ export default async function CoachProfilePage() {
                 </p>
             </div>
             <CoachSubscriptionSummary />
+            <RecentRatings coachId={coach.coachProfileId.toString()} />
             <CoachProfileForm coach={coach} />
         </div>
     );

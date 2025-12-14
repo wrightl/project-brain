@@ -5,7 +5,7 @@ using Auth0.AuthenticationApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Api.Exceptions;
+using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Shared.Dtos.Pagination;
 

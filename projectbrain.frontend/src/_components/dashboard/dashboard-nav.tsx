@@ -6,6 +6,7 @@ import { User, UserRole } from '@/_lib/types';
 import {
     HomeIcon,
     ChatBubbleLeftRightIcon,
+    SparklesIcon,
     UsersIcon,
     CloudArrowUpIcon,
     Cog6ToothIcon,
@@ -53,7 +54,7 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
         {
             href: '/app/user/chat',
             label: 'Chat',
-            icon: ChatBubbleLeftRightIcon,
+            icon: SparklesIcon,
         },
         {
             href: '/app/user/connections',

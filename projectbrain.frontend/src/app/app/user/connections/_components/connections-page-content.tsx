@@ -9,6 +9,7 @@ import {
     XMarkIcon,
     PaperAirplaneIcon,
     ClockIcon,
+    StarIcon,
 } from '@heroicons/react/24/outline';
 import { useConnections, useConversations, useDeleteConnection } from '@/_hooks/queries/use-connections';
 import toast from 'react-hot-toast';
@@ -53,6 +54,14 @@ export default function ConnectionsPageContent() {
             month: 'short',
             day: 'numeric',
         });
+    };
+
+    const handleRateCoach = (coachProfileId?: string) => {
+        if (!coachProfileId) {
+            toast.error('Coach profile not available');
+            return;
+        }
+        router.push(`/app/user/coaches/${coachProfileId}/ratings`);
     };
 
     const totalConnections = connections.filter(
@@ -304,6 +313,18 @@ export default function ConnectionsPageContent() {
                                                         >
                                                             <PaperAirplaneIcon className="h-4 w-4 mr-1" />
                                                             Message
+                                                        </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                handleRateCoach(
+                                                                    connection.coachProfileId
+                                                                )
+                                                            }
+                                                            disabled={!connection.coachProfileId}
+                                                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50"
+                                                        >
+                                                            <StarIcon className="h-4 w-4 mr-1" />
+                                                            Rate Coach
                                                         </button>
                                                         <button
                                                             onClick={() =>

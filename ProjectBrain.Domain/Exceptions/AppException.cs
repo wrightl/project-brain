@@ -1,4 +1,4 @@
-namespace ProjectBrain.Api.Exceptions;
+namespace ProjectBrain.Domain.Exceptions;
 
 /// <summary>
 /// Base exception for application-specific errors

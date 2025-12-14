@@ -1,4 +1,4 @@
-namespace ProjectBrain.Api.Exceptions;
+namespace ProjectBrain.Domain.Exceptions;
 
 /// <summary>
 /// Exception thrown when validation fails

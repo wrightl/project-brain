@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Api.Exceptions;
+using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Domain.Repositories;

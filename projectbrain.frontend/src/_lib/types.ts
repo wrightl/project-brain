@@ -37,6 +37,8 @@ export interface Coach extends BaseUser {
     specialisms: string[];
     ageGroups: string[];
     availabilityStatus?: 'Available' | 'Busy' | 'Away' | 'Offline';
+    averageRating?: number;
+    ratingCount?: number;
 }
 
 export interface OnboardingData {
@@ -184,6 +186,7 @@ export interface Connection {
     status: 'pending' | 'accepted' | 'cancelled' | 'rejected';
     userName?: string;
     coachName?: string;
+    coachProfileId?: string;
     requestedAt: string;
     respondedAt?: string;
 }

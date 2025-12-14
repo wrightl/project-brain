@@ -1,5 +1,5 @@
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Api.Exceptions;
+using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Pagination;
@@ -107,10 +107,37 @@ public static class ConnectionEndpoints
         var take = pagedRequest.GetTake();
         var paginatedConnections = await services.ConnectionRepository.GetPagedConnectionsAsync(currentUserId, isCoach, skip, take, CancellationToken.None);
 
-        // Map to ConnectionWithStatus using the service method
-        var connectionWithStatus = paginatedConnections.Select(c => ConnectionWithStatus.FromConnection(c));
+        // Map to ConnectionWithStatus and enrich with coachProfileId
+        var connectionWithStatusList = new List<ConnectionWithStatus>();
+        foreach (var connection in paginatedConnections)
+        {
+            var connectionWithStatus = ConnectionWithStatus.FromConnection(connection);
 
-        var response = PagedResponse<ConnectionWithStatus>.Create(pagedRequest, connectionWithStatus, totalCount);
+            // Get coachProfileId if this is a user viewing their coaches
+            if (!isCoach && connection.Coach != null)
+            {
+                var coachProfile = await services.CoachProfileService.GetByUserId(connection.CoachId);
+                if (coachProfile != null)
+                {
+                    connectionWithStatus = new ConnectionWithStatus
+                    {
+                        Id = connectionWithStatus.Id,
+                        UserId = connectionWithStatus.UserId,
+                        CoachId = connectionWithStatus.CoachId,
+                        Status = connectionWithStatus.Status,
+                        UserName = connectionWithStatus.UserName,
+                        CoachName = connectionWithStatus.CoachName,
+                        CoachProfileId = coachProfile.Id.ToString(),
+                        RequestedAt = connectionWithStatus.RequestedAt,
+                        RespondedAt = connectionWithStatus.RespondedAt
+                    };
+                }
+            }
+
+            connectionWithStatusList.Add(connectionWithStatus);
+        }
+
+        var response = PagedResponse<ConnectionWithStatus>.Create(pagedRequest, connectionWithStatusList, totalCount);
         return Results.Ok(response);
     }
 

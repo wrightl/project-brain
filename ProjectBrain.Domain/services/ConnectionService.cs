@@ -12,8 +12,9 @@ public class ConnectionWithStatus
     public required string Status { get; init; }
     public string? UserName { get; init; }
     public string? CoachName { get; init; }
-    public DateTime RequestedAt { get; internal set; }
-    public DateTime? RespondedAt { get; internal set; }
+    public string? CoachProfileId { get; init; }
+    public DateTime RequestedAt { get; init; }
+    public DateTime? RespondedAt { get; init; }
 
     public static ConnectionWithStatus FromConnection(Connection connection)
     {

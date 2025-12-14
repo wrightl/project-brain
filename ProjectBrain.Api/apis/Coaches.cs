@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Database.Models;
+using ProjectBrain.Shared.Dtos.CoachRatings;
+using ProjectBrain.Shared.Dtos.Pagination;
 
 public class CoachServices(
     ILogger<CoachServices> logger,
@@ -15,7 +18,8 @@ public class CoachServices(
     IFeatureGateService featureGateService,
     ISubscriptionService subscriptionService,
     IUsageTrackingService usageTrackingService,
-    ICoachMessageService coachMessageService)
+    ICoachMessageService coachMessageService,
+    ICoachRatingService coachRatingService)
 {
     public ILogger<CoachServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -28,6 +32,7 @@ public class CoachServices(
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
     public ICoachMessageService CoachMessageService { get; } = coachMessageService;
+    public ICoachRatingService CoachRatingService { get; } = coachRatingService;
 }
 
 public static class CoachEndpoints
@@ -46,10 +51,17 @@ public static class CoachEndpoints
         group.MapDelete("/{id}/connections", CancelConnectionRequest).WithName("CancelConnectionRequest");
 
         group.MapGet("/{id}", GetCoachById).WithName("GetCoachById");
+        group.MapGet("/{userId}/profile", GetCoachProfileByUserId).WithName("GetCoachProfileByUserId");
         group.MapPut("/me/{userId}", UpdateCoach).WithName("UpdateCoach").RequireAuthorization("CoachOnly");
 
         group.MapGet("/availability/status", GetAvailabilityStatus).WithName("GetAvailabilityStatus").RequireAuthorization("CoachOnly");
         group.MapPut("/availability/status", SetAvailabilityStatus).WithName("SetAvailabilityStatus").RequireAuthorization("CoachOnly");
+
+        // Rating endpoints
+        group.MapPost("/{id}/ratings", CreateOrUpdateRating).WithName("CreateOrUpdateRating");
+        group.MapGet("/{id}/ratings", GetRatings).WithName("GetRatings");
+        group.MapGet("/ratings/mine", GetMyRatings).WithName("GetMyRatings").RequireAuthorization("CoachOnly");
+        group.MapGet("/{id}/ratings/me", GetMyRating).WithName("GetMyRating");
     }
 
     private static async Task<IResult> GetConnectedCoaches(
@@ -318,6 +330,13 @@ public static class CoachEndpoints
         // Set online status for all coaches (30-minute window for coaches)
         await coachDtos.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
+        // Populate rating data for all coaches
+        foreach (var coachDto in coachDtos)
+        {
+            coachDto.AverageRating = await services.CoachRatingService.GetAverageRatingAsync(coachDto.Id);
+            coachDto.RatingCount = await services.CoachRatingService.GetRatingCountAsync(coachDto.Id);
+        }
+
         return Results.Ok(coachDtos);
     }
 
@@ -368,6 +387,24 @@ public static class CoachEndpoints
         // Set online status (30-minute window for coaches)
         await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
+        // Populate rating data
+        coachDto.AverageRating = await services.CoachRatingService.GetAverageRatingAsync(coachDto.Id);
+        coachDto.RatingCount = await services.CoachRatingService.GetRatingCountAsync(coachDto.Id);
+
+        return Results.Ok(coachDto);
+    }
+
+    private static async Task<IResult> GetCoachProfileByUserId(
+        [AsParameters] CoachServices services,
+        string userId)
+    {
+        var coachProfile = await services.CoachProfileService.GetByUserId(userId);
+        if (coachProfile == null)
+        {
+            return Results.NotFound();
+        }
+
+        var coachDto = coachProfile.ToCoachDto();
         return Results.Ok(coachDto);
     }
 
@@ -731,6 +768,146 @@ public static class CoachEndpoints
                 detail: "An error occurred while setting availability status",
                 statusCode: 500);
         }
+    }
+
+    private static async Task<IResult> CreateOrUpdateRating(
+        [AsParameters] CoachServices services,
+        string id,
+        CreateCoachRatingRequestDto request)
+    {
+        var userId = services.IdentityService.UserId!;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+        var coachProfileId = int.Parse(id);
+
+        try
+        {
+            // id is coachProfileId, need to get the UserId
+            var coachProfile = await services.CoachProfileService.GetByIdWithRelated(coachProfileId);
+            if (coachProfile == null || coachProfile.User == null)
+            {
+                return Results.NotFound();
+            }
+
+            var rating = await services.CoachRatingService.CreateOrUpdateRatingAsync(
+                userId,
+                coachProfile.UserId,
+                request.Rating,
+                request.Feedback);
+
+            var ratingDto = rating.ToDto();
+            return Results.Ok(ratingDto);
+        }
+        catch (AppException ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: ex.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error creating/updating rating for coach {CoachProfileId} by user {UserId}", coachProfileId, userId);
+            return Results.Problem(
+                detail: "An error occurred while creating/updating the rating",
+                statusCode: 500);
+        }
+    }
+
+    private static async Task<IResult> GetRatings(
+        [AsParameters] CoachServices services,
+        string id,
+        int page = 1,
+        int pageSize = 10)
+    {
+        var coachProfileId = int.Parse(id);
+        try
+        {
+            // id is coachProfileId, need to get the UserId
+            var coachProfile = await services.CoachProfileService.GetByIdWithRelated(coachProfileId);
+            if (coachProfile == null || coachProfile.User == null)
+            {
+                return Results.NotFound();
+            }
+
+            var pagedRequest = new PagedRequest { Page = page, PageSize = pageSize };
+            var skip = pagedRequest.GetSkip();
+            var take = pagedRequest.GetTake();
+
+            var ratings = await services.CoachRatingService.GetPagedRatingsByCoachIdAsync(coachProfile.UserId, skip, take);
+            var totalCount = await services.CoachRatingService.GetRatingCountAsync(coachProfile.UserId);
+
+            var ratingDtos = ratings.ToDtoList();
+            var response = PagedResponse<CoachRatingResponseDto>.Create(pagedRequest, ratingDtos, totalCount);
+
+            return Results.Ok(response);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error getting ratings for coach {CoachProfileId}", coachProfileId);
+            return Results.Problem(
+                detail: "An error occurred while getting ratings",
+                statusCode: 500);
+        }
+    }
+
+    private static async Task<IResult> GetMyRating(
+        [AsParameters] CoachServices services,
+        string id)
+    {
+        var userId = services.IdentityService.UserId!;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+        var coachProfileId = int.Parse(id);
+
+        try
+        {
+            // id is coachProfileId, need to get the UserId
+            var coachProfile = await services.CoachProfileService.GetByIdWithRelated(coachProfileId);
+            if (coachProfile == null || coachProfile.User == null)
+            {
+                return Results.NotFound();
+            }
+
+            var rating = await services.CoachRatingService.GetRatingAsync(userId, coachProfile.UserId);
+            if (rating == null)
+            {
+                return Results.NotFound();
+            }
+
+            var ratingDto = rating.ToDto();
+            return Results.Ok(ratingDto);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error getting rating for coach {CoachProfileId} by user {UserId}", coachProfileId, userId);
+            return Results.Problem(
+                detail: "An error occurred while getting the rating",
+                statusCode: 500);
+        }
+    }
+
+    private static async Task<IResult> GetMyRatings(
+        [AsParameters] CoachServices services)
+    {
+        var userId = services.IdentityService.UserId!;
+        var coachProfile = await services.CoachProfileService.GetByUserId(userId);
+        if (coachProfile == null)
+        {
+            return Results.NotFound();
+        }
+        else if (coachProfile.User?.Id != userId)
+        {
+            return Results.Forbid();
+        }
+
+        var ratings = await services.CoachRatingService.GetPagedRatingsByCoachIdAsync(coachProfile.UserId, 0, 10);
+        var ratingDtos = ratings.ToDtoList();
+
+        return Results.Ok(ratingDtos);
     }
 }
 

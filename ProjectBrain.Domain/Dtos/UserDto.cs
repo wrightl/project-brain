@@ -38,4 +38,6 @@ public record CoachDto : BaseUserDto
     public List<string> Specialisms { get; set; } = new List<string>();
     public List<string> AgeGroups { get; set; } = new List<string>();
     public AvailabilityStatus? AvailabilityStatus { get; set; }
+    public double? AverageRating { get; set; }
+    public int RatingCount { get; set; }
 }

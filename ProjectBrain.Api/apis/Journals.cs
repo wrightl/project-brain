@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Api.Exceptions;
+using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.AI;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;

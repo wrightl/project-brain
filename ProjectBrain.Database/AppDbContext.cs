@@ -314,6 +314,31 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasIndex(jet => new { jet.JournalEntryId, jet.TagId })
             .IsUnique();
 
+        // Configure CoachRating relationships
+        modelBuilder.Entity<CoachRating>()
+            .HasOne(cr => cr.User)
+            .WithMany()
+            .HasForeignKey(cr => cr.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CoachRating>()
+            .HasOne(cr => cr.Coach)
+            .WithMany()
+            .HasForeignKey(cr => cr.CoachId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // Unique constraint to prevent duplicate ratings (one rating per user per coach)
+        modelBuilder.Entity<CoachRating>()
+            .HasIndex(cr => new { cr.UserId, cr.CoachId })
+            .IsUnique();
+
+        // Indexes for efficient queries
+        modelBuilder.Entity<CoachRating>()
+            .HasIndex(cr => cr.CoachId);
+
+        modelBuilder.Entity<CoachRating>()
+            .HasIndex(cr => cr.CreatedAt);
+
         logger.LogInformation("OnModelCreating completed");
     }
 
@@ -347,4 +372,5 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<JournalEntryTag> JournalEntryTags => Set<JournalEntryTag>();
+    public DbSet<CoachRating> CoachRatings => Set<CoachRating>();
 }

@@ -1,6 +1,6 @@
 namespace ProjectBrain.Api.Middlewares;
 
-using ProjectBrain.Api.Exceptions;
+using ProjectBrain.Domain.Exceptions;
 using System.Net;
 using System.Text.Json;
 

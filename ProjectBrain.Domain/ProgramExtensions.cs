@@ -26,6 +26,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICoachProfileRepository, CoachProfileRepository>();
         builder.Services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
         builder.Services.AddScoped<ITagRepository, TagRepository>();
+        builder.Services.AddScoped<ICoachRatingRepository, CoachRatingRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
@@ -52,6 +53,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICoachMessageService, CoachMessageService>();
         builder.Services.AddScoped<IJournalEntryService, JournalEntryService>();
         builder.Services.AddScoped<ITagService, TagService>();
+        builder.Services.AddScoped<ICoachRatingService, CoachRatingService>();
 
         // Register background service for syncing activity data
         builder.Services.AddHostedService<UserActivitySyncService>();

@@ -1,4 +1,4 @@
-namespace ProjectBrain.Api.Exceptions;
+namespace ProjectBrain.Domain.Exceptions;
 
 /// <summary>
 /// Exception thrown when a requested resource is not found

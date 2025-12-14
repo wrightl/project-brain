@@ -1,5 +1,5 @@
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Api.Exceptions;
+using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Shared.Dtos.Tags;

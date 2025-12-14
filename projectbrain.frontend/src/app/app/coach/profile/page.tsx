@@ -5,6 +5,7 @@ import { callBackendApi } from '@/_lib/backend-api';
 import CoachProfileForm from './_components/coach-profile-form';
 import CoachSubscriptionSummary from './_components/subscription-summary';
 import RecentRatings from './_components/recent-ratings';
+import PreferencesSection from './_components/preferences-section';
 
 export const metadata: Metadata = {
     title: 'Profile',
@@ -64,6 +65,7 @@ export default async function CoachProfilePage() {
             <CoachSubscriptionSummary />
             <RecentRatings coachId={coach.coachProfileId.toString()} />
             <CoachProfileForm coach={coach} />
+            <PreferencesSection coach={coach} />
         </div>
     );
 }

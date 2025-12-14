@@ -1,0 +1,115 @@
+/* Dark Theme */
+[data-theme="dark"] {
+  --orange: #ff6b5a;
+  --indigo: #7b75ff;
+  --white: #1a1a1a;
+  --light-aluminium: #2a2e35;
+  --aluminium: #4a5568;
+  --dark-aluminium: #eaecee;
+  --black: #ffffff;
+  --yellow: #f4d03f;
+  --mandarine: #ff8f50;
+  --pink: #ff5ce8;
+  --blue: #5a9fff;
+  --aqua: #5ed4f0;
+  --emerald: #2dd4bf;
+
+  --yellow-mandarine-gradient: linear-gradient(
+    153.07deg,
+    var(--yellow) -2.47%,
+    var(--mandarine) 102.78%
+  );
+
+  --mandarine-orange-gradient: linear-gradient(
+    153.07deg,
+    var(--mandarine) -2.47%,
+    var(--orange) 102.78%
+  );
+
+  --pink-yellow-gradient: linear-gradient(
+    153.07deg,
+    var(--pink) -2.47%,
+    var(--yellow) 102.78%
+  );
+
+  --pink-indigo-gradient: linear-gradient(
+    153.07deg,
+    var(--pink) -2.47%,
+    var(--indigo) 102.78%
+  );
+
+  --indigo-aqua-gradient: linear-gradient(
+    153.07deg,
+    var(--indigo) -2.47%,
+    var(--aqua) 102.78%
+  );
+
+  --blue-aqua-gradient: linear-gradient(
+    153.07deg,
+    var(--blue) -2.47%,
+    var(--aqua) 102.78%
+  );
+
+  --aqua-emerald-gradient: linear-gradient(
+    153.07deg,
+    var(--aqua) -2.47%,
+    var(--emerald) 102.78%
+  );
+
+  --emerald-yellow-gradient: linear-gradient(
+    153.07deg,
+    var(--emerald) -2.47%,
+    var(--yellow) 102.78%
+  );
+}
+
+/* Dark theme background and text colors */
+[data-theme="dark"] body {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .bg-white {
+  background-color: #2a2e35 !important;
+}
+
+[data-theme="dark"] .text-gray-900 {
+  color: #eaecee !important;
+}
+
+[data-theme="dark"] .text-gray-600 {
+  color: #bdc4cf !important;
+}
+
+[data-theme="dark"] .text-gray-700 {
+  color: #eaecee !important;
+}
+
+[data-theme="dark"] .text-gray-500 {
+  color: #bdc4cf !important;
+}
+
+[data-theme="dark"] .border-gray-300 {
+  border-color: #4a5568 !important;
+}
+
+[data-theme="dark"] .bg-gray-50 {
+  background-color: #2a2e35 !important;
+}
+
+[data-theme="dark"] .bg-gray-100 {
+  background-color: #2a2e35 !important;
+}
+
+[data-theme="dark"] .bg-gray-200 {
+  background-color: #4a5568 !important;
+}
+
+[data-theme="dark"] .hover\:bg-gray-50:hover {
+  background-color: #2a2e35 !important;
+}
+
+[data-theme="dark"] .hover\:bg-gray-100:hover {
+  background-color: #2a2e35 !important;
+}
+

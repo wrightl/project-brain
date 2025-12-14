@@ -47,6 +47,10 @@ public static class UserEndpoints
         group.MapPut("/me/{userId}", UpdateUser).WithName("UpdateUser");
         group.MapGet("/roles", GetCurrentUserRoles).WithName("GetCurrentUserRoles");
 
+        // Theme endpoints
+        group.MapGet("/me/theme", GetTheme).WithName("GetTheme");
+        group.MapPut("/me/theme", UpdateTheme).WithName("UpdateTheme");
+
         if (app.Environment.IsDevelopment())
         {
             group.MapGet("/{email}", GetUserByEmail).WithName("GetUserByEmail");
@@ -326,6 +330,150 @@ public static class UserEndpoints
         var result = await services.UserService.GetByEmail(email);
         return result is not null ? Results.Ok(result) : Results.NotFound();
     }
+
+    private static async Task<IResult> GetTheme([AsParameters] UserServices services)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        var user = await services.UserService.GetById(userId);
+        if (user is null)
+        {
+            return Results.NotFound("User not found");
+        }
+
+        // Check if user is a coach
+        var isCoach = user.Roles?.Any(r => string.Equals(r, "coach", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+        // Get user profile to access preferences
+        var userProfile = await services.UserProfileService.GetByUserId(userId);
+        if (userProfile is null)
+        {
+            return Results.Ok(new { theme = "standard" });
+        }
+
+        var preferences = userProfile.Preference?.Preferences;
+        var theme = ParseThemeFromPreferences(preferences);
+
+        return Results.Ok(new { theme });
+    }
+
+    private static async Task<IResult> UpdateTheme([AsParameters] UserServices services, UpdateThemeRequest request)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        // Validate theme value
+        if (string.IsNullOrWhiteSpace(request.Theme))
+        {
+            return Results.BadRequest("Theme is required");
+        }
+
+        var validThemes = new[] { "standard", "dark", "colourful" };
+        if (!validThemes.Contains(request.Theme, StringComparer.OrdinalIgnoreCase))
+        {
+            return Results.BadRequest($"Invalid theme value. Must be one of: {string.Join(", ", validThemes)}");
+        }
+
+        var user = await services.UserService.GetById(userId);
+        if (user is null)
+        {
+            return Results.NotFound("User not found");
+        }
+
+        // Get user profile to access preferences
+        var userProfile = await services.UserProfileService.GetByUserId(userId);
+
+        // Get existing preferences and merge with theme
+        Dictionary<string, object> preferencesObj;
+        if (userProfile?.Preference?.Preferences is not null)
+        {
+            try
+            {
+                // Try to parse as JSON object
+                using var doc = JsonDocument.Parse(userProfile.Preference.Preferences);
+                var root = doc.RootElement;
+                if (root.ValueKind == JsonValueKind.Object)
+                {
+                    preferencesObj = new Dictionary<string, object>();
+                    foreach (var prop in root.EnumerateObject())
+                    {
+                        // Convert JsonElement to appropriate .NET type
+                        object? value = prop.Value.ValueKind switch
+                        {
+                            JsonValueKind.String => prop.Value.GetString(),
+                            JsonValueKind.Number => prop.Value.TryGetInt32(out var intVal) ? intVal : (object)prop.Value.GetDouble(),
+                            JsonValueKind.True => true,
+                            JsonValueKind.False => false,
+                            JsonValueKind.Null => null,
+                            _ => prop.Value.GetRawText()
+                        };
+                        preferencesObj[prop.Name] = value ?? string.Empty;
+                    }
+                }
+                else
+                {
+                    // If not an object, wrap it
+                    preferencesObj = new Dictionary<string, object> { ["other"] = userProfile.Preference.Preferences };
+                }
+            }
+            catch
+            {
+                // If preferences is not JSON, keep it as is in a separate field
+                preferencesObj = new Dictionary<string, object> { ["other"] = userProfile.Preference.Preferences };
+            }
+        }
+        else
+        {
+            preferencesObj = new Dictionary<string, object>();
+        }
+
+        // Update theme in preferences
+        preferencesObj["theme"] = request.Theme.ToLowerInvariant();
+
+        // Serialize the dictionary back to JSON
+        var preferencesString = JsonSerializer.Serialize(preferencesObj);
+
+        // Update user profile with new preferences
+        await services.UserProfileService.CreateOrUpdate(
+            userId,
+            preferences: preferencesString);
+
+        return Results.Ok(new { theme = request.Theme.ToLowerInvariant() });
+    }
+
+    private static string ParseThemeFromPreferences(string? preferences)
+    {
+        if (string.IsNullOrWhiteSpace(preferences))
+        {
+            return "standard";
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(preferences);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("theme", out var themeElement))
+            {
+                var theme = themeElement.GetString()?.ToLowerInvariant();
+                var validThemes = new[] { "standard", "dark", "colourful" };
+                if (theme is not null && validThemes.Contains(theme))
+                {
+                    return theme;
+                }
+            }
+        }
+        catch
+        {
+            // If parsing fails, check if it's a plain string
+            var validThemes = new[] { "standard", "dark", "colourful" };
+            if (validThemes.Contains(preferences.ToLowerInvariant()))
+            {
+                return preferences.ToLowerInvariant();
+            }
+        }
+
+        return "standard";
+    }
 }
 
 public class OnboardUserRequest
@@ -382,4 +530,9 @@ public class Auth0Role
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+}
+
+public class UpdateThemeRequest
+{
+    public required string Theme { get; init; }
 }

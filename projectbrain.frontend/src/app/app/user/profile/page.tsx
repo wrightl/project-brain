@@ -4,6 +4,7 @@ import { callBackendApi } from '@/_lib/backend-api';
 import { User, Coach } from '@/_lib/types';
 import ProfileForm from './_components/profile-form';
 import SubscriptionSummary from './_components/subscription-summary';
+import PreferencesSection from './_components/preferences-section';
 
 export const metadata: Metadata = {
     title: 'Profile',
@@ -47,6 +48,7 @@ export default async function ProfilePage() {
             </div>
             <SubscriptionSummary />
             <ProfileForm user={profileData as User} />
+            <PreferencesSection user={profileData as User} />
         </div>
     );
 }

@@ -29,9 +29,11 @@ export default function UserManagementComponent() {
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
     useEffect(() => {
         loadUsers();
+        loadCurrentUser();
     }, []);
 
     useEffect(() => {
@@ -55,6 +57,18 @@ export default function UserManagementComponent() {
             console.error('Error loading users:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadCurrentUser = async () => {
+        try {
+            const response = await fetchWithAuth('/api/user/me');
+            if (response.ok) {
+                const user = await response.json();
+                setCurrentUserId(user.id);
+            }
+        } catch (err) {
+            console.error('Error loading current user:', err);
         }
     };
 
@@ -337,15 +351,19 @@ export default function UserManagementComponent() {
                                                 >
                                                     <UserCircleIcon className="h-5 w-5" />
                                                 </button>
-                                                <button
-                                                    onClick={() =>
-                                                        handleDeleteClick(user)
-                                                    }
-                                                    className="text-red-600 hover:text-red-900"
-                                                    title="Delete user"
-                                                >
-                                                    <TrashIcon className="h-5 w-5" />
-                                                </button>
+                                                {currentUserId !== user.id && (
+                                                    <button
+                                                        onClick={() =>
+                                                            handleDeleteClick(
+                                                                user
+                                                            )
+                                                        }
+                                                        className="text-red-600 hover:text-red-900"
+                                                        title="Delete user"
+                                                    >
+                                                        <TrashIcon className="h-5 w-5" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

@@ -12,6 +12,7 @@ import { CoachSearchParams } from '@/_lib/types';
 import { Coach } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import AvailabilityBadge from '@/_components/coach/availability-badge';
+import StarRating from '@/_components/coach/star-rating';
 
 interface ConnectionStatus {
     status: 'none' | 'pending' | 'connected';
@@ -467,20 +468,34 @@ export default function FindCoachesPage() {
                                                     .join(', ')}
                                             </p>
                                         )}
-                                        {coach.averageRating !== undefined && coach.averageRating !== null && (
-                                            <div className="mt-2 flex items-center gap-2">
-                                                <StarRating
-                                                    rating={coach.averageRating}
-                                                    size="sm"
-                                                    showValue={true}
-                                                />
-                                                {coach.ratingCount !== undefined && coach.ratingCount > 0 && (
-                                                    <span className="text-xs text-gray-500">
-                                                        ({coach.ratingCount} {coach.ratingCount === 1 ? 'rating' : 'ratings'})
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
+                                        {coach.averageRating !== undefined &&
+                                            coach.averageRating !== null && (
+                                                <div className="mt-2 flex items-center gap-2">
+                                                    <StarRating
+                                                        rating={
+                                                            coach.averageRating
+                                                        }
+                                                        size="sm"
+                                                        showValue={true}
+                                                    />
+                                                    {coach.ratingCount !==
+                                                        undefined &&
+                                                        coach.ratingCount >
+                                                            0 && (
+                                                            <span className="text-xs text-gray-500">
+                                                                (
+                                                                {
+                                                                    coach.ratingCount
+                                                                }{' '}
+                                                                {coach.ratingCount ===
+                                                                1
+                                                                    ? 'rating'
+                                                                    : 'ratings'}
+                                                                )
+                                                            </span>
+                                                        )}
+                                                </div>
+                                            )}
                                     </div>
                                 </div>
 

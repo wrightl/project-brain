@@ -1,4 +1,5 @@
 import { callBackendApi } from '@/_lib/backend-api';
+import { Theme } from '@/_lib/theme-types';
 import { Coach, PagedResponse, User } from '@/_lib/types';
 
 export class UserService {
@@ -56,7 +57,7 @@ export class UserService {
     static async updateUser(id: string, updates: Partial<User>): Promise<User> {
         const response = await callBackendApi(`/usermanagement/${id}`, {
             method: 'PUT',
-            body: JSON.stringify(updates),
+            body: updates,
         });
         if (!response.ok) {
             throw new Error('Failed to update user');
@@ -111,12 +112,37 @@ export class UserService {
     ): Promise<User> {
         const response = await callBackendApi(`/users/me/${userId}`, {
             method: 'PUT',
-            body: JSON.stringify(updates),
+            body: updates,
         });
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.message || 'Failed to update user');
         }
         return response.json();
+    }
+
+    /** Update current user theme */
+    static async updateCurrentUserTheme(
+        theme: Theme
+    ): Promise<{ theme: Theme }> {
+        const response = await callBackendApi(`/users/me/theme`, {
+            method: 'PUT',
+            body: { theme },
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to update user theme');
+        }
+        return response.json() as Promise<{ theme: Theme }>;
+    }
+
+    /** Get current user theme */
+    static async getCurrentUserTheme(): Promise<{ theme: Theme }> {
+        const response = await callBackendApi(`/users/me/theme`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to get user theme');
+        }
+        return response.json() as unknown as { theme: Theme };
     }
 }

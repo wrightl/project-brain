@@ -1,22 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { VoiceNote } from '@/_lib/types';
+import { VoiceNote, PagedResponse } from '@/_lib/types';
 import { apiClient } from '@/_lib/api-client';
 
 export const voicenoteKeys = {
     all: ['voicenotes'] as const,
     lists: () => [...voicenoteKeys.all, 'list'] as const,
-    list: (limit?: number) => [...voicenoteKeys.lists(), limit] as const,
+    list: (page?: number, pageSize?: number) => [...voicenoteKeys.lists(), page, pageSize] as const,
     details: () => [...voicenoteKeys.all, 'detail'] as const,
     detail: (id: string) => [...voicenoteKeys.details(), id] as const,
     statistics: () => [...voicenoteKeys.all, 'statistics'] as const,
 };
 
-export function useVoiceNotes(limit?: number) {
-    return useQuery<VoiceNote[]>({
-        queryKey: voicenoteKeys.list(limit),
+export function useVoiceNotes(options?: {
+    page?: number;
+    pageSize?: number;
+}) {
+    return useQuery<PagedResponse<VoiceNote>>({
+        queryKey: voicenoteKeys.list(options?.page, options?.pageSize),
         queryFn: () => {
-            const queryParam = limit ? `?limit=${limit}` : '';
-            return apiClient<VoiceNote[]>(`/api/user/voicenotes${queryParam}`);
+            const params = new URLSearchParams();
+            if (options?.page) {
+                params.append('page', options.page.toString());
+            }
+            if (options?.pageSize) {
+                params.append('pageSize', options.pageSize.toString());
+            }
+            const queryParam = params.toString() ? `?${params.toString()}` : '';
+            return apiClient<PagedResponse<VoiceNote>>(`/api/user/voicenotes${queryParam}`);
         },
         staleTime: 2 * 60 * 1000, // 2 minutes
     });
@@ -44,18 +54,32 @@ export function useDeleteVoiceNote() {
         onMutate: async (voiceNoteId) => {
             await queryClient.cancelQueries({ queryKey: voicenoteKeys.all });
             
-            const previousVoiceNotes = queryClient.getQueryData<VoiceNote[]>(voicenoteKeys.lists());
+            const previousData = queryClient.getQueriesData<PagedResponse<VoiceNote>>({ queryKey: voicenoteKeys.lists() });
             
-            queryClient.setQueryData<VoiceNote[]>(voicenoteKeys.lists(), (old) => {
-                if (!old) return old;
-                return old.filter((vn) => vn.id !== voiceNoteId);
+            // Update all list queries to remove the deleted voice note
+            previousData.forEach(([queryKey, data]) => {
+                if (data) {
+                    queryClient.setQueryData<PagedResponse<VoiceNote>>(queryKey, (old) => {
+                        if (!old) return old;
+                        return {
+                            ...old,
+                            items: old.items.filter((vn) => vn.id !== voiceNoteId),
+                            totalCount: old.totalCount - 1,
+                        };
+                    });
+                }
             });
             
-            return { previousVoiceNotes };
+            return { previousData };
         },
         onError: (err, voiceNoteId, context) => {
-            if (context?.previousVoiceNotes) {
-                queryClient.setQueryData(voicenoteKeys.lists(), context.previousVoiceNotes);
+            // Restore previous data on error
+            if (context?.previousData) {
+                context.previousData.forEach(([queryKey, data]) => {
+                    if (data) {
+                        queryClient.setQueryData(queryKey, data);
+                    }
+                });
             }
         },
         onSettled: () => {
@@ -89,10 +113,24 @@ export function useUploadVoiceNote() {
             return response.json() as Promise<VoiceNote>;
         },
         onSuccess: (newVoiceNote) => {
-            // Optimistically add the new voice note to the list
-            queryClient.setQueryData<VoiceNote[]>(voicenoteKeys.lists(), (old) => {
-                if (!old) return [newVoiceNote];
-                return [newVoiceNote, ...old];
+            // Optimistically add the new voice note to all list queries
+            queryClient.setQueriesData<PagedResponse<VoiceNote>>({ queryKey: voicenoteKeys.lists() }, (old) => {
+                if (!old) {
+                    return {
+                        items: [newVoiceNote],
+                        page: 1,
+                        pageSize: 20,
+                        totalCount: 1,
+                        totalPages: 1,
+                        hasPreviousPage: false,
+                        hasNextPage: false,
+                    };
+                }
+                return {
+                    ...old,
+                    items: [newVoiceNote, ...old.items],
+                    totalCount: old.totalCount + 1,
+                };
             });
             queryClient.invalidateQueries({ queryKey: voicenoteKeys.all });
         },

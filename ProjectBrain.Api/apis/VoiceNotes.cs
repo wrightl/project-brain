@@ -1,16 +1,23 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Exceptions;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Mappers;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Shared.Dtos.Pagination;
+using ProjectBrain.Shared.Dtos.VoiceNotes;
 
 public class VoiceNoteServices(
     ILogger<VoiceNoteServices> logger,
     IVoiceNoteService voiceNoteService,
+    IVoiceNoteRepository voiceNoteRepository,
     Storage storage,
     IIdentityService identityService,
     IConfiguration configuration)
 {
     public ILogger<VoiceNoteServices> Logger { get; } = logger;
     public IVoiceNoteService VoiceNoteService { get; } = voiceNoteService;
+    public IVoiceNoteRepository VoiceNoteRepository { get; } = voiceNoteRepository;
     public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
     public IConfiguration Configuration { get; } = configuration;
@@ -39,40 +46,37 @@ public static class VoiceNoteEndpoints
         var userId = services.IdentityService.UserId;
         if (string.IsNullOrEmpty(userId))
         {
-            return Results.Unauthorized();
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
 
-        try
+        // Parse pagination parameters
+        var pagedRequest = new PagedRequest();
+        if (request.Query.TryGetValue("page", out var pageValue) &&
+            int.TryParse(pageValue, out var page) && page > 0)
         {
-            // Parse limit query parameter
-            int? limit = null;
-            if (request.Query.TryGetValue("limit", out var limitValue) &&
-                int.TryParse(limitValue, out var parsedLimit) &&
-                parsedLimit > 0)
-            {
-                limit = parsedLimit;
-            }
-
-            var voiceNotes = await services.VoiceNoteService.GetAllForUser(userId, limit);
-            var response = voiceNotes.Select(vn => new
-            {
-                id = vn.Id.ToString(),
-                fileName = vn.FileName,
-                audioUrl = vn.AudioUrl,
-                duration = vn.Duration,
-                fileSize = vn.FileSize,
-                description = vn.Description,
-                createdAt = vn.CreatedAt.ToString("O"),
-                updatedAt = vn.UpdatedAt.ToString("O")
-            });
-
-            return Results.Ok(response);
+            pagedRequest.Page = page;
         }
-        catch (Exception ex)
+
+        if (request.Query.TryGetValue("pageSize", out var pageSizeValue) &&
+            int.TryParse(pageSizeValue, out var pageSize) && pageSize > 0)
         {
-            services.Logger.LogError(ex, "Error retrieving voice notes for user {UserId}", userId);
-            return Results.Problem("An error occurred while retrieving voice notes.");
+            pagedRequest.PageSize = pageSize;
         }
+
+        // Get total count for pagination
+        var totalCount = await services.VoiceNoteRepository.CountAsync(
+            vn => vn.UserId == userId,
+            CancellationToken.None);
+
+        // Get paginated results using efficient database-level pagination
+        var skip = pagedRequest.GetSkip();
+        var take = pagedRequest.GetTake();
+        var paginatedNotes = await services.VoiceNoteRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+
+        var voiceNoteDtos = VoiceNoteMapper.ToDto(paginatedNotes);
+        var response = PagedResponse<VoiceNoteResponseDto>.Create(pagedRequest, voiceNoteDtos, totalCount);
+
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> UploadVoiceNote([AsParameters] VoiceNoteServices services, HttpRequest request)
@@ -80,149 +84,77 @@ public static class VoiceNoteEndpoints
         var userId = services.IdentityService.UserId;
         if (string.IsNullOrEmpty(userId))
         {
-            return Results.Unauthorized();
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
 
-        try
+        var form = await request.ReadFormAsync();
+
+        if (form.Files.Count == 0)
         {
-            var form = await request.ReadFormAsync();
-
-            if (form.Files.Count == 0)
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "MISSING_FILE",
-                        message = "No file provided in upload request"
-                    }
-                });
-            }
-
-            var file = form.Files[0];
-            var description = form["description"].ToString();
-            if (file == null || file.Length == 0)
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "MISSING_FILE",
-                        message = "File is empty"
-                    }
-                });
-            }
-
-            // Validate file size
-            if (file.Length > MaxFileSize)
-            {
-                return Results.Problem(
-                    detail: "File size exceeds maximum limit of 50MB",
-                    statusCode: 413,
-                    title: "Payload Too Large",
-                    extensions: new Dictionary<string, object?>
-                    {
-                        ["error"] = new
-                        {
-                            code = "FILE_TOO_LARGE",
-                            message = $"File size exceeds maximum limit of 50MB",
-                            details = new
-                            {
-                                maxSize = MaxFileSize,
-                                providedSize = file.Length
-                            }
-                        }
-                    });
-            }
-
-            // Validate file type
-            var contentType = file.ContentType;
-            var fileName = file.FileName ?? "voice_note.m4a";
-            var extension = Path.GetExtension(fileName).ToLowerInvariant();
-
-            if (!AllowedExtensions.Contains(extension) && !AllowedMimeTypes.Contains(contentType))
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_FILE_FORMAT",
-                        message = $"File format not supported. Allowed formats: {string.Join(", ", AllowedExtensions)}",
-                        details = new
-                        {
-                            providedMimeType = contentType,
-                            providedExtension = extension
-                        }
-                    }
-                });
-            }
-
-            // Generate unique filename
-            var voiceNoteId = Guid.NewGuid();
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var sanitizedFileName = SanitizeFileName(fileName);
-            var uniqueFileName = $"{voiceNoteId}_{timestamp}{extension}";
-
-            // Upload file to storage
-            // Use voicenotes/{userId}/{voiceNoteId}.{ext} format
-            var storageFileName = $"{voiceNoteId}{extension}";
-            var location = await UploadAudioFile(services, file, userId, storageFileName);
-
-            // Build audio URL
-            var baseUrl = services.Configuration["ApiBaseUrl"] ??
-                         $"{request.Scheme}://{request.Host}";
-            var audioUrl = $"{baseUrl}/voicenotes/{voiceNoteId}/audio";
-
-            // Create voice note record
-            var voiceNote = new VoiceNote
-            {
-                Id = voiceNoteId,
-                UserId = userId,
-                FileName = sanitizedFileName,
-                FilePath = location,
-                AudioUrl = audioUrl,
-                FileSize = file.Length,
-                MimeType = contentType ?? GetMimeTypeFromExtension(extension),
-                Description = string.IsNullOrWhiteSpace(description) ? null : description,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            // TODO: Extract duration from audio file if possible
-            // For now, duration will be null
-
-            var savedVoiceNote = await services.VoiceNoteService.Add(voiceNote);
-
-            var response = new
-            {
-                id = savedVoiceNote.Id.ToString(),
-                fileName = savedVoiceNote.FileName,
-                audioUrl = savedVoiceNote.AudioUrl,
-                duration = savedVoiceNote.Duration,
-                fileSize = savedVoiceNote.FileSize,
-                description = savedVoiceNote.Description,
-                createdAt = savedVoiceNote.CreatedAt.ToString("O"),
-                updatedAt = savedVoiceNote.UpdatedAt.ToString("O")
-            };
-
-            return Results.Created($"/voicenotes/{savedVoiceNote.Id}", response);
+            throw new ValidationException("file", "No file provided in upload request");
         }
-        catch (Exception ex)
+
+        var file = form.Files[0];
+        var description = form["description"].ToString();
+        if (file == null || file.Length == 0)
         {
-            services.Logger.LogError(ex, "Error uploading voice note for user {UserId}", userId);
-            return Results.Problem(
-                detail: "An error occurred while uploading the voice note",
-                statusCode: 500,
-                title: "Upload Failed",
-                extensions: new Dictionary<string, object?>
-                {
-                    ["error"] = new
-                    {
-                        code = "UPLOAD_FAILED",
-                        message = "Failed to upload voice note"
-                    }
-                });
+            throw new ValidationException("file", "File is empty");
         }
+
+        // Validate file size
+        if (file.Length > MaxFileSize)
+        {
+            throw new ValidationException("file", $"File size exceeds maximum limit of 50MB. Provided: {file.Length} bytes, Maximum: {MaxFileSize} bytes");
+        }
+
+        // Validate file type
+        var contentType = file.ContentType;
+        var fileName = file.FileName ?? "voice_note.m4a";
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+
+        if (!AllowedExtensions.Contains(extension) && !AllowedMimeTypes.Contains(contentType))
+        {
+            throw new ValidationException("file", $"File format not supported. Allowed formats: {string.Join(", ", AllowedExtensions)}");
+        }
+
+        // Generate unique filename
+        var voiceNoteId = Guid.NewGuid();
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var sanitizedFileName = SanitizeFileName(fileName);
+        var uniqueFileName = $"{voiceNoteId}_{timestamp}{extension}";
+
+        // Upload file to storage
+        // Use voicenotes/{userId}/{voiceNoteId}.{ext} format
+        var storageFileName = $"{voiceNoteId}{extension}";
+        var location = await UploadAudioFile(services, file, userId, storageFileName);
+
+        // Build audio URL
+        var baseUrl = services.Configuration["ApiBaseUrl"] ??
+                     $"{request.Scheme}://{request.Host}";
+        var audioUrl = $"{baseUrl}/voicenotes/{voiceNoteId}/audio";
+
+        // Create voice note record
+        var voiceNote = new VoiceNote
+        {
+            Id = voiceNoteId,
+            UserId = userId,
+            FileName = sanitizedFileName,
+            FilePath = location,
+            AudioUrl = audioUrl,
+            FileSize = file.Length,
+            MimeType = contentType ?? GetMimeTypeFromExtension(extension),
+            Description = string.IsNullOrWhiteSpace(description) ? null : description,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // TODO: Extract duration from audio file if possible
+        // For now, duration will be null
+
+        var savedVoiceNote = await services.VoiceNoteService.Add(voiceNote);
+        var response = VoiceNoteMapper.ToDto(savedVoiceNote);
+
+        return Results.Created($"/voicenotes/{savedVoiceNote.Id}", response);
     }
 
     private static async Task<IResult> GetVoiceNoteAudio(
@@ -230,88 +162,62 @@ public static class VoiceNoteEndpoints
         string voiceNoteId,
         HttpRequest request)
     {
-        var userId = services.IdentityService.UserId!;
-
-        Console.WriteLine($"Getting voice note audio for user {userId} and voice note {voiceNoteId}");
-        try
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
         {
-            if (!Guid.TryParse(voiceNoteId, out var id))
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_ID",
-                        message = "Invalid voice note ID format"
-                    }
-                });
-            }
-
-            var voiceNote = await services.VoiceNoteService.GetById(id, userId);
-            if (voiceNote == null)
-            {
-                return Results.NotFound(new
-                {
-                    error = new
-                    {
-                        code = "VOICE_NOTE_NOT_FOUND",
-                        message = "The specified voice note does not exist"
-                    }
-                });
-            }
-
-            // Check if user owns this voice note (already checked in GetById, but double-check)
-            if (voiceNote.UserId != userId)
-            {
-                return Results.Forbid();
-            }
-
-            // Get file stream from storage
-            var fileStream = await services.Storage.GetFile(voiceNote.FilePath);
-            if (fileStream == null)
-            {
-                return Results.NotFound(new
-                {
-                    error = new
-                    {
-                        code = "FILE_NOT_FOUND",
-                        message = "Audio file not found in storage"
-                    }
-                });
-            }
-
-            // Support HTTP Range requests for audio streaming
-            var rangeHeader = request.Headers.Range.ToString();
-            if (!string.IsNullOrEmpty(rangeHeader) && fileStream.CanSeek)
-            {
-                // Parse range header (simplified - handles "bytes=start-end" format)
-                var rangeResult = ParseRangeHeader(rangeHeader, voiceNote.FileSize ?? 0);
-                if (rangeResult.HasValue)
-                {
-                    fileStream.Position = rangeResult.Value.Start;
-                    var length = rangeResult.Value.End - rangeResult.Value.Start + 1;
-
-                    return Results.File(
-                        fileStream,
-                        contentType: voiceNote.MimeType,
-                        fileDownloadName: voiceNote.FileName,
-                        enableRangeProcessing: true,
-                        lastModified: voiceNote.UpdatedAt);
-                }
-            }
-
-            return Results.File(
-                fileStream,
-                contentType: voiceNote.MimeType,
-                fileDownloadName: voiceNote.FileName,
-                enableRangeProcessing: true,
-                lastModified: voiceNote.UpdatedAt);
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
-        catch (Exception ex)
+
+        if (!Guid.TryParse(voiceNoteId, out var id))
         {
-            services.Logger.LogError(ex, "Error retrieving voice note audio {VoiceNoteId} for user {UserId}", voiceNoteId, userId);
-            return Results.Problem("An error occurred while retrieving the audio file.");
+            throw new ValidationException("voiceNoteId", "Invalid voice note ID format");
         }
+
+        var voiceNote = await services.VoiceNoteService.GetById(id, userId);
+        if (voiceNote == null)
+        {
+            throw new NotFoundException("Voice note", id);
+        }
+
+        // Check if user owns this voice note (already checked in GetById, but double-check)
+        if (voiceNote.UserId != userId)
+        {
+            throw new AppException("FORBIDDEN", "You do not have access to this voice note", 403);
+        }
+
+        // Get file stream from storage
+        var fileStream = await services.Storage.GetFile(voiceNote.FilePath);
+        if (fileStream == null)
+        {
+            throw new NotFoundException("Audio file");
+        }
+
+        // Support HTTP Range requests for audio streaming
+        var rangeHeader = request.Headers.Range.ToString();
+        if (!string.IsNullOrEmpty(rangeHeader) && fileStream.CanSeek)
+        {
+            // Parse range header (simplified - handles "bytes=start-end" format)
+            var rangeResult = ParseRangeHeader(rangeHeader, voiceNote.FileSize ?? 0);
+            if (rangeResult.HasValue)
+            {
+                fileStream.Position = rangeResult.Value.Start;
+                var length = rangeResult.Value.End - rangeResult.Value.Start + 1;
+
+                return Results.File(
+                    fileStream,
+                    contentType: voiceNote.MimeType,
+                    fileDownloadName: voiceNote.FileName,
+                    enableRangeProcessing: true,
+                    lastModified: voiceNote.UpdatedAt);
+            }
+        }
+
+        return Results.File(
+            fileStream,
+            contentType: voiceNote.MimeType,
+            fileDownloadName: voiceNote.FileName,
+            enableRangeProcessing: true,
+            lastModified: voiceNote.UpdatedAt);
     }
 
     private static async Task<IResult> DeleteVoiceNote(
@@ -321,57 +227,42 @@ public static class VoiceNoteEndpoints
         var userId = services.IdentityService.UserId;
         if (string.IsNullOrEmpty(userId))
         {
-            return Results.Unauthorized();
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
 
+        if (!Guid.TryParse(voiceNoteId, out var id))
+        {
+            throw new ValidationException("voiceNoteId", "Invalid voice note ID format");
+        }
+
+        var voiceNote = await services.VoiceNoteService.GetById(id, userId);
+        if (voiceNote == null)
+        {
+            // Return success for idempotency (already deleted or doesn't exist)
+            return Results.NoContent();
+        }
+
+        // Check ownership
+        if (voiceNote.UserId != userId)
+        {
+            throw new AppException("FORBIDDEN", "You do not have access to this voice note", 403);
+        }
+
+        // Delete file from storage
         try
         {
-            if (!Guid.TryParse(voiceNoteId, out var id))
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_ID",
-                        message = "Invalid voice note ID format"
-                    }
-                });
-            }
-
-            var voiceNote = await services.VoiceNoteService.GetById(id, userId);
-            if (voiceNote == null)
-            {
-                // Return success for idempotency (already deleted or doesn't exist)
-                return Results.NoContent();
-            }
-
-            // Check ownership
-            if (voiceNote.UserId != userId)
-            {
-                return Results.Forbid();
-            }
-
-            // Delete file from storage
-            try
-            {
-                await services.Storage.DeleteFile(voiceNote.FilePath);
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogWarning(ex, "Failed to delete file from storage for voice note {VoiceNoteId}, continuing with database deletion", id);
-                // Continue with database deletion even if file deletion fails
-            }
-
-            // Delete from database
-            await services.VoiceNoteService.Delete(id, userId);
-
-            return Results.NoContent();
+            await services.Storage.DeleteFile(voiceNote.FilePath);
         }
         catch (Exception ex)
         {
-            services.Logger.LogError(ex, "Error deleting voice note {VoiceNoteId} for user {UserId}", voiceNoteId, userId);
-            return Results.Problem("An error occurred while deleting the voice note.");
+            services.Logger.LogWarning(ex, "Failed to delete file from storage for voice note {VoiceNoteId}, continuing with database deletion", id);
+            // Continue with database deletion even if file deletion fails
         }
+
+        // Delete from database
+        await services.VoiceNoteService.Delete(id, userId);
+
+        return Results.NoContent();
     }
 
     private static async Task<string> UploadAudioFile(

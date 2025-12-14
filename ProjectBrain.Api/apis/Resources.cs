@@ -1,9 +1,13 @@
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Exceptions;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Shared.Dtos.Pagination;
 
 public class ResourceServices(ILogger<ResourceServices> logger,
     IConfiguration config,
     IResourceService resourceService,
+    IResourceRepository resourceRepository,
     Storage storage,
     IIdentityService identityService,
     IFeatureGateService featureGateService,
@@ -13,6 +17,7 @@ public class ResourceServices(ILogger<ResourceServices> logger,
     public ILogger<ResourceServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
     public IResourceService ResourceService { get; } = resourceService;
+    public IResourceRepository ResourceRepository { get; } = resourceRepository;
     public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
@@ -46,18 +51,35 @@ public static class ResourceEndpoints
         HttpRequest request)
     {
         var userId = services.IdentityService.UserId;
-
-        // Parse limit query parameter
-        int? limit = null;
-        if (request.Query.TryGetValue("limit", out var limitValue) &&
-            int.TryParse(limitValue, out var parsedLimit) &&
-            parsedLimit > 0)
+        if (string.IsNullOrEmpty(userId))
         {
-            limit = parsedLimit;
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
 
-        var resources = await services.ResourceService.GetAllForUser(userId!, limit);
-        return Results.Ok(resources);
+        // Parse pagination parameters
+        var pagedRequest = new PagedRequest();
+        if (request.Query.TryGetValue("page", out var pageValue) &&
+            int.TryParse(pageValue, out var page) && page > 0)
+        {
+            pagedRequest.Page = page;
+        }
+
+        if (request.Query.TryGetValue("pageSize", out var pageSizeValue) &&
+            int.TryParse(pageSizeValue, out var pageSize) && pageSize > 0)
+        {
+            pagedRequest.PageSize = pageSize;
+        }
+
+        // Get total count for pagination
+        var totalCount = await services.ResourceRepository.CountForUserAsync(userId, CancellationToken.None);
+
+        // Get paginated results using efficient database-level pagination
+        var skip = pagedRequest.GetSkip();
+        var take = pagedRequest.GetTake();
+        var paginatedResources = await services.ResourceRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+
+        var response = PagedResponse<Resource>.Create(pagedRequest, paginatedResources, totalCount);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> GetSharedResources([AsParameters] ResourceServices services)

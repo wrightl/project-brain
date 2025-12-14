@@ -1,13 +1,14 @@
 import { callBackendApi } from '@/_lib/backend-api';
 import { Conversation } from '@/_lib/types';
+import { ConversationService } from './conversation-service';
 
 export class CoachConversationService {
     /**
      * Get all conversations for the current user
      */
     static async getConversations(): Promise<Conversation[]> {
-        const response = await callBackendApi('/conversation');
-        return response.json();
+        const result = await ConversationService.getConversations();
+        return result.items;
     }
 
     /**

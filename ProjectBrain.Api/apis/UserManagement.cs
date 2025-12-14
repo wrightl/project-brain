@@ -5,7 +5,9 @@ using Auth0.AuthenticationApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Exceptions;
 using ProjectBrain.Domain;
+using ProjectBrain.Shared.Dtos.Pagination;
 
 public class UserManagementServices(
     ILogger<UserManagementServices> logger,
@@ -39,15 +41,32 @@ public static class UserManagement
         group.MapDelete("/{id}", DeleteUser).WithName("DeleteUser");
     }
 
-    private static async Task<IResult> GetAllUsers([AsParameters] UserManagementServices services)
+    private static async Task<IResult> GetAllUsers([AsParameters] UserManagementServices services, HttpRequest request)
     {
         if (!services.IdentityService.IsAdmin)
         {
-            return Results.Forbid();
+            throw new AppException("FORBIDDEN", "Admin access required", 403);
         }
 
-        var users = await services.UserManagementService.GetAll();
-        return Results.Ok(users);
+        // Parse pagination parameters
+        var pagedRequest = new PagedRequest();
+        if (request.Query.TryGetValue("page", out var pageValue) &&
+            int.TryParse(pageValue, out var page) && page > 0)
+        {
+            pagedRequest.Page = page;
+        }
+        if (request.Query.TryGetValue("pageSize", out var pageSizeValue) &&
+            int.TryParse(pageSizeValue, out var pageSize) && pageSize > 0)
+        {
+            pagedRequest.PageSize = pageSize;
+        }
+
+        var skip = pagedRequest.GetSkip();
+        var take = pagedRequest.GetTake();
+        var (users, totalCount) = await services.UserManagementService.GetPaged(skip, take);
+
+        var response = PagedResponse<BaseUserDto>.Create(pagedRequest, users, totalCount);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> GetUserById([AsParameters] UserManagementServices services, string id)

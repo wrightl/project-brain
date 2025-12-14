@@ -2,23 +2,40 @@ namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
 using ProjectBrain.Domain.Mappers;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class UserManagementService : IUserManagementService
 {
+    private readonly IUserRepository _repository;
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public UserManagementService(AppDbContext context)
+    public UserManagementService(IUserRepository repository, AppDbContext context, IUnitOfWork unitOfWork)
     {
+        _repository = repository;
         _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<List<BaseUserDto>> GetAll()
     {
-        var users = await _context.Users
+        var users = await _repository.GetAllAsync();
+        // Need to include roles, so we'll use a custom query for now
+        var usersWithRoles = await _context.Users
+            .AsNoTracking()
             .Include(u => u.UserRoles)
             .ToListAsync();
 
-        return users.Select(u => u.ToBaseUserDto()).ToList();
+        return usersWithRoles.Select(u => u.ToBaseUserDto()).ToList();
+    }
+
+    public async Task<(IEnumerable<BaseUserDto> Users, int TotalCount)> GetPaged(int skip, int take)
+    {
+        var users = await _repository.GetPagedWithRolesAsync(skip, take);
+        var totalCount = await _repository.CountAllAsync();
+        var userDtos = users.Select(u => u.ToBaseUserDto());
+        return (userDtos, totalCount);
     }
 
     public async Task<BaseUserDto> UpdateRoles(string userId, List<string> roles)
@@ -45,8 +62,8 @@ public class UserManagementService : IUserManagementService
                    ?? new Role { Name = roleName }
         }).ToList();
 
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
+        _repository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
 
         return user.ToBaseUserDto();
     }
@@ -55,6 +72,7 @@ public class UserManagementService : IUserManagementService
 public interface IUserManagementService
 {
     Task<List<BaseUserDto>> GetAll();
+    Task<(IEnumerable<BaseUserDto> Users, int TotalCount)> GetPaged(int skip, int take);
     Task<BaseUserDto> UpdateRoles(string userId, List<string> roles);
 }
 

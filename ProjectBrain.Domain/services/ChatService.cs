@@ -1,19 +1,23 @@
 namespace ProjectBrain.Domain;
 
+using ProjectBrain.Domain.UnitOfWork;
+
 public class ChatService : IChatService
 {
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ChatService(AppDbContext context)
+    public ChatService(AppDbContext context, IUnitOfWork unitOfWork)
     {
         _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<List<ChatMessage>> AddMany(List<ChatMessage> chatMessages)
     {
         // Store user messages in DB
         _context.ChatMessages.AddRange(chatMessages);
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return chatMessages;
     }
 
@@ -21,7 +25,7 @@ public class ChatService : IChatService
     {
         // Store user messages in DB
         _context.ChatMessages.Add(chatMessage);
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return chatMessage;
     }
 

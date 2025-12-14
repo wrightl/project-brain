@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.UnitOfWork;
 
 namespace ProjectBrain.Database.Tests;
 
@@ -20,7 +21,8 @@ public class ChatServiceTests : IDisposable
 
         var mockLogger = new Mock<ILogger<AppDbContext>>();
         _context = new AppDbContext(options, mockLogger.Object);
-        _chatService = new ChatService(_context);
+        var unitOfWork = new UnitOfWork(_context);
+        _chatService = new ChatService(_context, unitOfWork);
 
         // Create a test conversation
         _testConversationId = Guid.NewGuid();

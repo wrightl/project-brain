@@ -1,4 +1,5 @@
 import { callBackendApi } from '@/_lib/backend-api';
+import { PagedResponse } from '@/_lib/types';
 
 export interface Connection {
     id: string;
@@ -13,10 +14,22 @@ export interface Connection {
 
 export class ConnectionService {
     /**
-     * Get all connections for the current user
+     * Get all connections for the current user (paginated)
      */
-    static async getConnections(): Promise<Connection[]> {
-        const response = await callBackendApi('/connections');
+    static async getConnections(options?: {
+        page?: number;
+        pageSize?: number;
+    }): Promise<PagedResponse<Connection>> {
+        const params = new URLSearchParams();
+        if (options?.page) {
+            params.append('page', options.page.toString());
+        }
+        if (options?.pageSize) {
+            params.append('pageSize', options.pageSize.toString());
+        }
+
+        const queryParam = params.toString() ? `?${params.toString()}` : '';
+        const response = await callBackendApi(`/connections${queryParam}`);
         if (!response.ok) {
             throw new Error('Failed to fetch connections');
         }

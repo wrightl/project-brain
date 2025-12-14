@@ -326,7 +326,7 @@ public static class CoachEndpoints
         string id)
     {
         var coachId = int.Parse(id);
-        var coachProfile = await services.CoachProfileService.GetById(coachId);
+        var coachProfile = await services.CoachProfileService.GetByIdWithRelated(coachId);
 
         if (coachProfile == null || coachProfile.User == null)
         {
@@ -452,7 +452,7 @@ public static class CoachEndpoints
         var userId = services.IdentityService.UserId!;
 
         // Validate coach exists
-        var coachProfile = await services.CoachProfileService.GetById(int.Parse(id));
+        var coachProfile = await services.CoachProfileService.GetByIdWithRelated(int.Parse(id));
         if (coachProfile == null || coachProfile.User == null)
         {
             return Results.NotFound(new ErrorResponse

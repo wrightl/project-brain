@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 namespace ProjectBrain.Database.Tests;
 
@@ -19,7 +21,9 @@ public class UserServiceTests : IDisposable
 
         var mockLogger = new Mock<ILogger<AppDbContext>>();
         _context = new AppDbContext(options, mockLogger.Object);
-        _userService = new UserService(_context);
+        var repository = new UserRepository(_context);
+        var unitOfWork = new UnitOfWork(_context);
+        _userService = new UserService(repository, _context, unitOfWork);
     }
 
     [Fact]

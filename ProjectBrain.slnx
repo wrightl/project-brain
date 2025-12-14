@@ -8,4 +8,5 @@
   <Project Path="ProjectBrain.Database.IntegrationTests/ProjectBrain.Database.IntegrationTests.csproj" />
   <Project Path="ProjectBrain.Domain/ProjectBrain.Domain.csproj" />
   <Project Path="ProjectBrain.ServiceDefaults/ProjectBrain.ServiceDefaults.csproj" />
+  <Project Path="ProjectBrain.Shared.Dtos/ProjectBrain.Shared.Dtos.csproj" />
 </Solution>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import AudioPlayer from './audio-player';
 import VoiceNoteUpload from './voicenote-upload';
-import { VoiceNote } from '@/_lib/types';
+import { VoiceNote, PagedResponse } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 export default function VoiceNotesList() {
@@ -20,8 +20,9 @@ export default function VoiceNotesList() {
             if (!response.ok) {
                 throw new Error('Failed to fetch voice notes');
             }
-            const data = (await response.json()) as VoiceNote[];
-            setVoiceNotes(data);
+            const data = (await response.json()) as PagedResponse<VoiceNote>;
+            // Extract items from paginated response
+            setVoiceNotes(data.items || []);
             setIsLoading(false);
         } catch (err) {
             setError(

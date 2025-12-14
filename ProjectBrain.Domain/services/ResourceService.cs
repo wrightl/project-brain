@@ -1,92 +1,84 @@
 namespace ProjectBrain.Domain;
 
-using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class ResourceService : IResourceService
 {
-    private readonly AppDbContext _context;
+    private readonly IResourceRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ResourceService(AppDbContext context)
+    public ResourceService(IResourceRepository repository, IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _repository = repository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<Resource> Add(Resource resource)
     {
-        _context.Resources.Add(resource);
-        await _context.SaveChangesAsync();
+        _repository.Add(resource);
+        await _unitOfWork.SaveChangesAsync();
         return resource;
     }
 
     public async Task<Resource?> GetForUserById(Guid id, string userId)
     {
-        return await _context.Resources
-            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && c.IsShared == false);
+        return await _repository.GetByIdForUserAsync(id, userId);
     }
 
     public async Task<Resource?> GetForUserByLocation(string location, string userId)
     {
-        return await _context.Resources
-            .FirstOrDefaultAsync(c => c.Location == location && c.UserId == userId && c.IsShared == false);
+        return await _repository.GetByLocationForUserAsync(location, userId);
     }
 
     public async Task<Resource?> GetForUserByFilename(string filename, string userId)
     {
-        return await _context.Resources
-            .FirstOrDefaultAsync(c => c.FileName == filename && c.UserId == userId && c.IsShared == false);
+        return await _repository.GetByFilenameForUserAsync(filename, userId);
     }
 
     public async Task<IEnumerable<Resource>> GetAllForUser(string userId, int? limit = null)
     {
-        IQueryable<Resource> query = _context.Resources
-            .Where(c => c.UserId == userId && c.IsShared == false)
-            .OrderByDescending(c => c.UpdatedAt);
+        var resources = await _repository.GetAllForUserAsync(userId);
 
         if (limit.HasValue && limit.Value > 0)
         {
-            query = query.Take(limit.Value);
+            return resources.Take(limit.Value);
         }
 
-        return await query.ToListAsync();
+        return resources;
     }
 
     public async Task<Resource?> GetSharedById(Guid id)
     {
-        return await _context.Resources
-            .FirstOrDefaultAsync(c => c.Id == id && c.IsShared && (c.UserId == null || c.UserId == string.Empty));
+        return await _repository.GetSharedByIdAsync(id);
     }
 
     public async Task<Resource?> GetSharedByLocation(string location)
     {
-        return await _context.Resources
-            .FirstOrDefaultAsync(c => c.Location == location && c.IsShared && (c.UserId == null || c.UserId == string.Empty));
+        return await _repository.GetSharedByLocationAsync(location);
     }
 
     public async Task<Resource?> GetSharedByFilename(string filename)
     {
-        return await _context.Resources
-            .FirstOrDefaultAsync(c => c.FileName == filename && c.IsShared && (c.UserId == null || c.UserId == string.Empty));
+        return await _repository.GetSharedByFilenameAsync(filename);
     }
 
     public async Task<IEnumerable<Resource>> GetAllShared()
     {
-        return await _context.Resources
-            .Where(c => c.IsShared && (c.UserId == null || c.UserId == string.Empty))
-            .OrderByDescending(c => c.UpdatedAt)
-            .ToListAsync();
+        return await _repository.GetAllSharedAsync();
     }
 
     public async Task<Resource> Update(Resource resource)
     {
-        _context.Resources.Update(resource);
-        await _context.SaveChangesAsync();
+        _repository.Update(resource);
+        await _unitOfWork.SaveChangesAsync();
         return resource;
     }
 
     public async Task<Resource> Remove(Resource resource)
     {
-        _context.Resources.Remove(resource);
-        await _context.SaveChangesAsync();
+        _repository.Remove(resource);
+        await _unitOfWork.SaveChangesAsync();
         return resource;
     }
 }

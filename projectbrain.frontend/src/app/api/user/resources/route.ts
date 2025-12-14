@@ -1,17 +1,31 @@
 import { createApiRoute } from '@/_lib/api-route-handler';
-import { Resource } from '@/_lib/types';
+import { Resource, PagedResponse } from '@/_lib/types';
 import { ResourceService } from '@/_services/resource-service';
 import { NextRequest } from 'next/server';
 
-export const GET = createApiRoute<Resource[]>(async (req: NextRequest) => {
+export const GET = createApiRoute<PagedResponse<Resource>>(async (req: NextRequest) => {
     const { searchParams } = new URL(req.url);
-    const limitParam = searchParams.get('limit');
-    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
     const shared = searchParams.get('shared') === 'true';
 
     if (shared) {
-        return await ResourceService.getSharedResources();
+        // Shared resources don't have pagination yet
+        const resources = await ResourceService.getSharedResources();
+        return {
+            items: resources,
+            page: 1,
+            pageSize: resources.length,
+            totalCount: resources.length,
+            totalPages: 1,
+        } as PagedResponse<Resource>;
     }
 
-    return await ResourceService.getResources(limit);
+    const pageParam = searchParams.get('page');
+    const pageSizeParam = searchParams.get('pageSize');
+
+    const options = {
+        page: pageParam ? parseInt(pageParam, 10) : undefined,
+        pageSize: pageSizeParam ? parseInt(pageSizeParam, 10) : undefined,
+    };
+
+    return await ResourceService.getResources(options);
 });

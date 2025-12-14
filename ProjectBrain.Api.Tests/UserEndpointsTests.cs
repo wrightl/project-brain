@@ -37,6 +37,7 @@ public class UserEndpointsTests
         var mockMemoryCache = new Mock<IMemoryCache>();
         var mockFeatureFlagService = new Mock<FeatureFlagService>();
         var mockConfiguration = new Mock<IConfiguration>();
+        var mockStorage = new Mock<Storage>();
 
         _userServices = new UserServices(
             _mockLogger.Object,
@@ -49,8 +50,8 @@ public class UserEndpointsTests
             _mockCoachProfileService.Object,
             _mockUserProfileService.Object,
             _mockUserActivityService.Object,
-            _mockCoachMessageService.Object
-
+            _mockCoachMessageService.Object,
+            mockStorage.Object
         );
     }
 

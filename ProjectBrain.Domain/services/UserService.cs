@@ -2,14 +2,20 @@ namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
 using ProjectBrain.Domain.Mappers;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class UserService : IUserService
 {
+    private readonly IUserRepository _repository;
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public UserService(AppDbContext context)
+    public UserService(IUserRepository repository, AppDbContext context, IUnitOfWork unitOfWork)
     {
+        _repository = repository;
         _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<BaseUserDto> Create(BaseUserDto userDto)
@@ -24,13 +30,14 @@ public class UserService : IUserService
                    ?? new Role { Name = roleName }
         }).ToList();
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        _repository.Add(user);
+        await _unitOfWork.SaveChangesAsync();
         return userDto;
     }
 
     public async Task<BaseUserDto> Update(BaseUserDto userDto)
     {
+        // Get tracked entity for update (not using AsNoTracking)
         var user = await _context.Users
             .Include(c => c.UserRoles)
             .Where(u => u.Id == userDto.Id)
@@ -61,29 +68,21 @@ public class UserService : IUserService
                    ?? new Role { Name = roleName }
         }).ToList();
 
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
+        _repository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
         return userDto;
     }
 
     public async Task<BaseUserDto?> GetByEmail(string email)
     {
-        var userWithRoles = await _context.Users
-            .Include(c => c.UserRoles)
-            .Where(u => u.Email == email)
-            .FirstOrDefaultAsync();
-
-        Console.WriteLine($"Fetched user: {userWithRoles?.Email}, Roles count: {userWithRoles?.UserRoles.Count}");
-
-        return userWithRoles?.ToBaseUserDto();
+        var user = await _repository.GetByEmailWithRolesAsync(email);
+        Console.WriteLine($"Fetched user: {user?.Email}, Roles count: {user?.UserRoles.Count}");
+        return user?.ToBaseUserDto();
     }
 
     public async Task<BaseUserDto?> GetById(string Id)
     {
-        var user = await _context.Users
-            .Include(c => c.UserRoles)
-            .Where(u => u.Id == Id)
-            .FirstOrDefaultAsync();
+        var user = await _repository.GetByIdWithRolesAsync(Id);
         return user?.ToBaseUserDto();
     }
 
@@ -97,8 +96,8 @@ public class UserService : IUserService
             throw new Exception($"User with ID {Id} not found.");
         }
 
-        _context.Users.Remove(user);
-        await _context.SaveChangesAsync();
+        _repository.Remove(user);
+        await _unitOfWork.SaveChangesAsync();
         return user.ToBaseUserDto();
     }
 }

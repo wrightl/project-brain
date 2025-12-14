@@ -2,60 +2,96 @@ namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Domain.Caching;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class SubscriptionService : ISubscriptionService
 {
+    private readonly IUserSubscriptionRepository _repository;
     private readonly AppDbContext _context;
     private readonly IStripeService _stripeService;
     private readonly ILogger<SubscriptionService> _logger;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ICacheService _cache;
+    private const string TierCacheKeyPrefix = "subscription:tier:";
+    private const string SettingsCacheKey = "subscription:settings";
+    private static readonly TimeSpan TierCacheExpiration = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan SettingsCacheExpiration = TimeSpan.FromMinutes(30);
 
-    public SubscriptionService(AppDbContext context, IStripeService stripeService, ILogger<SubscriptionService> logger)
+    public SubscriptionService(
+        IUserSubscriptionRepository repository,
+        AppDbContext context,
+        IStripeService stripeService,
+        ILogger<SubscriptionService> logger,
+        IUnitOfWork unitOfWork,
+        ICacheService cache)
     {
+        _repository = repository;
         _context = context;
         _stripeService = stripeService;
         _logger = logger;
+        _unitOfWork = unitOfWork;
+        _cache = cache;
     }
 
     public async Task<UserSubscription?> GetUserSubscriptionAsync(string userId, string userType)
     {
-        return await _context.UserSubscriptions
-            .Include(us => us.Tier)
-            .Where(us => us.UserId == userId && us.UserType == userType)
-            .OrderByDescending(us => us.CreatedAt)
-            .FirstOrDefaultAsync();
+        return await _repository.GetLatestForUserAsync(userId, userType);
     }
 
     public async Task<string> GetUserTierAsync(string userId, string userType)
     {
+        // Try cache first
+        var cacheKey = $"{TierCacheKeyPrefix}{userId}:{userType}";
+        var cachedTier = await _cache.GetAsync<string>(cacheKey);
+        if (cachedTier != null)
+        {
+            return cachedTier;
+        }
+
         // Check if user is excluded
         var isExcluded = await _context.SubscriptionExclusions
             .AnyAsync(se => se.UserId == userId && se.UserType == userType);
 
         if (isExcluded)
         {
-            return "Free"; // Excluded users get Free tier access
+            var tier = "Free"; // Excluded users get Free tier access
+            await _cache.SetAsync(cacheKey, tier, TierCacheExpiration);
+            return tier;
         }
 
         // Check if subscription system is enabled for this user type
         var settings = await GetSubscriptionSettingsAsync();
         if (userType == "user" && !settings.EnableUserSubscriptions)
         {
-            return "Free"; // If disabled, everyone gets Free tier
+            var tier = "Free"; // If disabled, everyone gets Free tier
+            await _cache.SetAsync(cacheKey, tier, TierCacheExpiration);
+            return tier;
         }
         if (userType == "coach" && !settings.EnableCoachSubscriptions)
         {
-            return "Free";
+            var tier = "Free";
+            await _cache.SetAsync(cacheKey, tier, TierCacheExpiration);
+            return tier;
         }
 
         // Get active subscription
         var subscription = await GetUserSubscriptionAsync(userId, userType);
 
+        string tierResult;
         if (subscription != null && (subscription.Status == "active" || subscription.Status == "trialing"))
         {
-            return subscription.Tier?.Name ?? "Free";
+            tierResult = subscription.Tier?.Name ?? "Free";
+        }
+        else
+        {
+            tierResult = "Free"; // Default to Free tier
         }
 
-        return "Free"; // Default to Free tier
+        // Cache the result
+        await _cache.SetAsync(cacheKey, tierResult, TierCacheExpiration);
+        return tierResult;
     }
 
     public async Task<string> CreateCheckoutSessionAsync(string userId, string userType, string tier, bool isAnnual)
@@ -78,8 +114,15 @@ public class SubscriptionService : ISubscriptionService
             // Save customer ID to subscription if it exists, or create new subscription record
             if (subscription != null)
             {
-                subscription.StripeCustomerId = customerId;
-                subscription.UpdatedAt = DateTime.UtcNow;
+                // Get tracked entity for update
+                var trackedSubscription = await _context.UserSubscriptions
+                    .FirstOrDefaultAsync(us => us.Id == subscription.Id);
+                if (trackedSubscription != null)
+                {
+                    trackedSubscription.StripeCustomerId = customerId;
+                    trackedSubscription.UpdatedAt = DateTime.UtcNow;
+                    _repository.Update(trackedSubscription);
+                }
             }
             else
             {
@@ -102,10 +145,10 @@ public class SubscriptionService : ISubscriptionService
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };
-                    _context.UserSubscriptions.Add(subscription);
+                    _repository.Add(subscription);
                 }
             }
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
 
         // Create checkout session
@@ -115,13 +158,19 @@ public class SubscriptionService : ISubscriptionService
 
     public async Task UpdateSubscriptionFromStripeAsync(string stripeSubscriptionId)
     {
-        var subscription = await _context.UserSubscriptions
-            .Include(us => us.Tier)
-            .FirstOrDefaultAsync(us => us.StripeSubscriptionId == stripeSubscriptionId);
-
+        var subscription = await _repository.GetByStripeSubscriptionIdAsync(stripeSubscriptionId);
         if (subscription == null)
         {
             _logger.LogWarning("Subscription not found for Stripe subscription ID {StripeSubscriptionId}", stripeSubscriptionId);
+            return;
+        }
+
+        // Get tracked entity for update
+        var trackedSubscription = await _context.UserSubscriptions
+            .FirstOrDefaultAsync(us => us.Id == subscription.Id);
+        if (trackedSubscription == null)
+        {
+            _logger.LogWarning("Tracked subscription not found for ID {SubscriptionId}", subscription.Id);
             return;
         }
 
@@ -129,24 +178,25 @@ public class SubscriptionService : ISubscriptionService
         var stripeSubscription = await _stripeService.GetSubscriptionAsync(stripeSubscriptionId);
 
         // Update subscription status
-        subscription.Status = stripeSubscription.Status switch
+        trackedSubscription.Status = stripeSubscription.Status switch
         {
             "active" => "active",
             "trialing" => "trialing",
             "past_due" => "past_due",
             "canceled" => "canceled",
             "unpaid" => "expired",
-            _ => subscription.Status
+            _ => trackedSubscription.Status
         };
 
-        subscription.TrialEndsAt = stripeSubscription.TrialEnd;
-        subscription.CurrentPeriodStart = stripeSubscription.CurrentPeriodStart;
-        subscription.CurrentPeriodEnd = stripeSubscription.CurrentPeriodEnd;
-        subscription.StripePriceId = stripeSubscription.PriceId;
-        subscription.UpdatedAt = DateTime.UtcNow;
+        trackedSubscription.TrialEndsAt = stripeSubscription.TrialEnd;
+        trackedSubscription.CurrentPeriodStart = stripeSubscription.CurrentPeriodStart;
+        trackedSubscription.CurrentPeriodEnd = stripeSubscription.CurrentPeriodEnd;
+        trackedSubscription.StripePriceId = stripeSubscription.PriceId;
+        trackedSubscription.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("Updated subscription {SubscriptionId} from Stripe", subscription.Id);
+        _repository.Update(trackedSubscription);
+        await _unitOfWork.SaveChangesAsync();
+        _logger.LogInformation("Updated subscription {SubscriptionId} from Stripe", trackedSubscription.Id);
     }
 
     public async Task CancelSubscriptionAsync(string userId, string userType)
@@ -165,11 +215,18 @@ public class SubscriptionService : ISubscriptionService
             await _stripeService.CancelSubscriptionAsync(subscription.StripeSubscriptionId);
         }
 
-        subscription.Status = "canceled";
-        subscription.CanceledAt = DateTime.UtcNow;
-        subscription.UpdatedAt = DateTime.UtcNow;
+        // Get tracked entity for update
+        var trackedSubscription = await _context.UserSubscriptions
+            .FirstOrDefaultAsync(us => us.Id == subscription.Id);
+        if (trackedSubscription != null)
+        {
+            trackedSubscription.Status = "canceled";
+            trackedSubscription.CanceledAt = DateTime.UtcNow;
+            trackedSubscription.UpdatedAt = DateTime.UtcNow;
+            _repository.Update(trackedSubscription);
+        }
 
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         _logger.LogInformation("Subscription {SubscriptionId} canceled for user {UserId}", subscription.Id, userId);
     }
 
@@ -210,8 +267,8 @@ public class SubscriptionService : ISubscriptionService
             UpdatedAt = DateTime.UtcNow
         };
 
-        _context.UserSubscriptions.Add(subscription);
-        await _context.SaveChangesAsync();
+        _repository.Add(subscription);
+        await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Started 7-day trial for user {UserId}, type {UserType}, tier {Tier}", userId, userType, tier);
     }
@@ -287,12 +344,18 @@ public class SubscriptionService : ISubscriptionService
 
     public async Task<bool> IsUserExcludedAsync(string userId, string userType)
     {
-        return await _context.SubscriptionExclusions
-            .AnyAsync(se => se.UserId == userId && se.UserType == userType);
+        return await _repository.IsUserExcludedAsync(userId, userType);
     }
 
     public async Task<SubscriptionSettings> GetSubscriptionSettingsAsync()
     {
+        // Try cache first
+        var cachedSettings = await _cache.GetAsync<SubscriptionSettings>(SettingsCacheKey);
+        if (cachedSettings != null)
+        {
+            return cachedSettings;
+        }
+
         var settings = await _context.SubscriptionSettings.FirstOrDefaultAsync();
 
         if (settings == null)
@@ -310,6 +373,8 @@ public class SubscriptionService : ISubscriptionService
             await _context.SaveChangesAsync();
         }
 
+        // Cache the settings
+        await _cache.SetAsync(SettingsCacheKey, settings, SettingsCacheExpiration);
         return settings;
     }
 
@@ -322,6 +387,10 @@ public class SubscriptionService : ISubscriptionService
         settings.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+        
+        // Invalidate cache
+        await _cache.RemoveAsync(SettingsCacheKey);
+        
         _logger.LogInformation("Subscription settings updated by {UpdatedBy}: Users={EnableUsers}, Coaches={EnableCoaches}",
             updatedBy, enableUsers, enableCoaches);
     }

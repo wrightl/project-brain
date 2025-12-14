@@ -1,12 +1,24 @@
 import { callBackendApi } from '@/_lib/backend-api';
-import { Conversation } from '@/_lib/types';
+import { Conversation, PagedResponse } from '@/_lib/types';
 
 export class ConversationService {
     /**
-     * Get all conversations for the current user
+     * Get all conversations for the current user (paginated)
      */
-    static async getConversations(): Promise<Conversation[]> {
-        const response = await callBackendApi('/conversation');
+    static async getConversations(options?: {
+        page?: number;
+        pageSize?: number;
+    }): Promise<PagedResponse<Conversation>> {
+        const params = new URLSearchParams();
+        if (options?.page) {
+            params.append('page', options.page.toString());
+        }
+        if (options?.pageSize) {
+            params.append('pageSize', options.pageSize.toString());
+        }
+
+        const queryParam = params.toString() ? `?${params.toString()}` : '';
+        const response = await callBackendApi(`/conversation${queryParam}`);
         return response.json();
     }
 

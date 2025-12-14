@@ -35,8 +35,8 @@ export default function QuizManagementComponent() {
             if (!response.ok) {
                 throw new Error('Failed to load quizzes');
             }
-            const allQuizzes = await response.json();
-            setQuizzes(allQuizzes);
+            const data = await response.json();
+            setQuizzes(data.items || []);
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : 'Failed to load quizzes'

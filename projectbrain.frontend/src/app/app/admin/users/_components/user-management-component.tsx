@@ -46,8 +46,8 @@ export default function UserManagementComponent() {
             if (!response.ok) {
                 throw new Error('Failed to load users');
             }
-            const allUsers = await response.json();
-            setUsers(allUsers);
+            const data = await response.json();
+            setUsers(data.items || []);
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : 'Failed to load users'
@@ -118,7 +118,9 @@ export default function UserManagementComponent() {
             toast.success('User deleted successfully');
             await loadUsers();
         } catch (err) {
-            toast.error(err instanceof Error ? err.message : 'Failed to delete user');
+            toast.error(
+                err instanceof Error ? err.message : 'Failed to delete user'
+            );
         } finally {
             setDeleteConfirmOpen(false);
             setUserToDelete(null);

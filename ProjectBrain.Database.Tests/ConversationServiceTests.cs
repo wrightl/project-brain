@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 namespace ProjectBrain.Database.Tests;
 
@@ -21,7 +23,9 @@ public class ConversationServiceTests : IDisposable
 
         var mockLogger = new Mock<ILogger<AppDbContext>>();
         _context = new AppDbContext(options, mockLogger.Object);
-        _conversationService = new ConversationService(_context);
+        var repository = new ConversationRepository(_context);
+        var unitOfWork = new UnitOfWork(_context);
+        _conversationService = new ConversationService(repository, unitOfWork);
     }
 
     [Fact]

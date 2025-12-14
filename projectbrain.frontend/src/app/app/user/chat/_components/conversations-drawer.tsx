@@ -47,7 +47,8 @@ export default function ConversationsDrawer({
                 throw new Error('Failed to load conversations');
             }
             const data = await response.json();
-            setConversations(data);
+            // Handle paginated response
+            setConversations(data.items);
         } catch (error) {
             console.error('Failed to load conversations:', error);
         } finally {

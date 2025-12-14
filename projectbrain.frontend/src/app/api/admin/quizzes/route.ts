@@ -1,25 +1,20 @@
-import { callBackendApi } from '@/_lib/backend-api';
-import { NextRequest, NextResponse } from 'next/server';
+import { createApiRoute } from '@/_lib/api-route-handler';
+import { NextRequest } from 'next/server';
+import { PagedResponse } from '@/_lib/types';
+import { Quiz, QuizService } from '@/_services/quiz-service';
 
-export async function GET() {
-    try {
-        const response = await callBackendApi('/quizes');
-        if (!response.ok) {
-            return NextResponse.json(
-                { error: 'Failed to fetch quizzes' },
-                { status: response.status }
-            );
-        }
-        const quizzes = await response.json();
-        return NextResponse.json(quizzes);
-    } catch (error) {
-        console.error('Error fetching quizzes:', error);
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        );
-    }
-}
+export const GET = createApiRoute<PagedResponse<Quiz>>(async (req: NextRequest) => {
+    const { searchParams } = new URL(req.url);
+    const pageParam = searchParams.get('page');
+    const pageSizeParam = searchParams.get('pageSize');
+
+    const options = {
+        page: pageParam ? parseInt(pageParam, 10) : undefined,
+        pageSize: pageSizeParam ? parseInt(pageSizeParam, 10) : undefined,
+    };
+
+    return await QuizService.getAllQuizzes(options);
+});
 
 export async function POST(request: NextRequest) {
     try {

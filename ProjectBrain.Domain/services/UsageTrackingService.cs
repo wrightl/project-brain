@@ -2,15 +2,18 @@ namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class UsageTrackingService : IUsageTrackingService
 {
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<UsageTrackingService> _logger;
 
-    public UsageTrackingService(AppDbContext context, ILogger<UsageTrackingService> logger)
+    public UsageTrackingService(AppDbContext context, IUnitOfWork unitOfWork, ILogger<UsageTrackingService> logger)
     {
         _context = context;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -34,7 +37,7 @@ public class UsageTrackingService : IUsageTrackingService
     {
         await TrackUsageAsync(userId, "file_upload", "monthly");
 
-        // Update file storage usage
+        // Update file storage usage (get tracked entity for potential update)
         var storageUsage = await _context.FileStorageUsages
             .FirstOrDefaultAsync(fsu => fsu.UserId == userId);
 
@@ -54,7 +57,7 @@ public class UsageTrackingService : IUsageTrackingService
             storageUsage.UpdatedAt = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
     }
 
     public async Task TrackResearchReportAsync(string userId)
@@ -94,7 +97,7 @@ public class UsageTrackingService : IUsageTrackingService
             tracking.UpdatedAt = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
     }
 
     private static DateTime GetPeriodStart(string periodType)
@@ -125,6 +128,7 @@ public class UsageTrackingService : IUsageTrackingService
     public async Task<long> GetFileStorageUsageAsync(string userId)
     {
         var storageUsage = await _context.FileStorageUsages
+            .AsNoTracking()
             .FirstOrDefaultAsync(fsu => fsu.UserId == userId);
 
         return storageUsage?.TotalBytes ?? 0;
@@ -144,6 +148,7 @@ public class UsageTrackingService : IUsageTrackingService
     public async Task<int> GetClientConnectionCountAsync(string coachId)
     {
         return await _context.Connections
+            .AsNoTracking()
             .Where(c => c.CoachId == coachId && c.Status == "accepted")
             .CountAsync();
     }

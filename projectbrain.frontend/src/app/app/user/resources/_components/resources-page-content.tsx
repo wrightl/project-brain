@@ -22,15 +22,17 @@ import { ErrorRetry } from '@/_components/error-retry';
 
 export default function ResourcesPageContent() {
     const {
-        data: resources = [],
+        data: resourcesResponse,
         isLoading: resourcesLoading,
         error: resourcesError,
-    } = useResources(3);
+    } = useResources({ pageSize: 3 });
+    const resources = resourcesResponse?.items || [];
     const {
-        data: voiceNotes = [],
+        data: voiceNotesResponse,
         isLoading: voiceNotesLoading,
         error: voiceNotesError,
-    } = useVoiceNotes(3);
+    } = useVoiceNotes({ pageSize: 3 });
+    const voiceNotes = voiceNotesResponse?.items || [];
     const {
         data: filesCount,
         isLoading: filesCountLoading,

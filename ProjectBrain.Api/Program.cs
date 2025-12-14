@@ -1,8 +1,10 @@
 using System.Threading.RateLimiting;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using ProjectBrain.AI;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Middlewares;
+using ProjectBrain.Api.Validators;
 using Scalar.AspNetCore;
 using TickerQ.Dashboard.DependencyInjection;
 using TickerQ.DependencyInjection;
@@ -72,6 +74,15 @@ builder.Services.AddScoped<IIdentityService, IdentityService>();
 
 builder.AddAuth0ManagementApi();
 
+// Add FluentValidation
+builder.Services.AddValidatorsFromAssemblyContaining<CreateQuizRequestDtoValidator>();
+
+// Configure JSON serialization to handle circular references
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+});
+
 // Add services to the container.
 builder.Services.AddProblemDetails();
 
@@ -115,6 +126,7 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 // TODO - restore this?
 // if (app.Environment.IsDevelopment())

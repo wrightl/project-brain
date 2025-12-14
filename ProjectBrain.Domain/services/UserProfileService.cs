@@ -1,22 +1,46 @@
 namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Domain.Caching;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class UserProfileService : IUserProfileService
 {
+    private readonly IUserProfileRepository _repository;
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ICacheService _cache;
+    private const string ProfileCacheKeyPrefix = "userprofile:";
+    private static readonly TimeSpan ProfileCacheExpiration = TimeSpan.FromMinutes(30);
 
-    public UserProfileService(AppDbContext context)
+    public UserProfileService(IUserProfileRepository repository, AppDbContext context, IUnitOfWork unitOfWork, ICacheService cache)
     {
+        _repository = repository;
         _context = context;
+        _unitOfWork = unitOfWork;
+        _cache = cache;
     }
 
     public async Task<UserProfile?> GetByUserId(string userId)
     {
-        return await _context.UserProfiles
-            .Include(up => up.NeurodiverseTraits)
-            .Include(up => up.Preference)
-            .FirstOrDefaultAsync(up => up.UserId == userId);
+        // Try cache first
+        var cacheKey = $"{ProfileCacheKeyPrefix}{userId}";
+        var cachedProfile = await _cache.GetAsync<UserProfile>(cacheKey);
+        if (cachedProfile != null)
+        {
+            return cachedProfile;
+        }
+
+        var profile = await _repository.GetByUserIdWithRelatedAsync(userId);
+        
+        // Cache the profile if found
+        if (profile != null)
+        {
+            await _cache.SetAsync(cacheKey, profile, ProfileCacheExpiration);
+        }
+
+        return profile;
     }
 
     public async Task<UserProfile> CreateOrUpdate(
@@ -26,7 +50,11 @@ public class UserProfileService : IUserProfileService
         IEnumerable<string>? neurodiverseTraits = null,
         string? preferences = null)
     {
-        var existingProfile = await GetByUserId(userId);
+        // Get tracked entity for potential update (not using AsNoTracking)
+        var existingProfile = await _context.UserProfiles
+            .Include(up => up.NeurodiverseTraits)
+            .Include(up => up.Preference)
+            .FirstOrDefaultAsync(up => up.UserId == userId);
 
         if (existingProfile == null)
         {
@@ -38,8 +66,8 @@ public class UserProfileService : IUserProfileService
                 PreferredPronoun = preferredPronoun
             };
 
-            _context.UserProfiles.Add(newProfile);
-            await _context.SaveChangesAsync();
+            _repository.Add(newProfile);
+            await _unitOfWork.SaveChangesAsync();
 
             // Add neurodiverse traits
             if (neurodiverseTraits != null)
@@ -63,7 +91,7 @@ public class UserProfileService : IUserProfileService
                 };
             }
 
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
             return newProfile;
         }
         else
@@ -122,22 +150,34 @@ public class UserProfileService : IUserProfileService
                 _context.UserPreferences.Remove(existingProfile.Preference);
             }
 
-            _context.UserProfiles.Update(existingProfile);
-            await _context.SaveChangesAsync();
+            _repository.Update(existingProfile);
+            await _unitOfWork.SaveChangesAsync();
+            
+            // Invalidate cache
+            var cacheKey = $"{ProfileCacheKeyPrefix}{userId}";
+            await _cache.RemoveAsync(cacheKey);
+            
             return existingProfile;
         }
     }
 
     public async Task<bool> DeleteByUserId(string userId)
     {
-        var profile = await GetByUserId(userId);
+        // Get tracked entity for deletion (not using AsNoTracking)
+        var profile = await _context.UserProfiles
+            .FirstOrDefaultAsync(up => up.UserId == userId);
         if (profile == null)
         {
             return false;
         }
 
-        _context.UserProfiles.Remove(profile);
-        await _context.SaveChangesAsync();
+        _repository.Remove(profile);
+        await _unitOfWork.SaveChangesAsync();
+        
+        // Invalidate cache
+        var cacheKey = $"{ProfileCacheKeyPrefix}{userId}";
+        await _cache.RemoveAsync(cacheKey);
+        
         return true;
     }
 }

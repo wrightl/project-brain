@@ -7,7 +7,8 @@ export class ChatService {
      * Get current user conversations
      */
     static async getConversations(): Promise<Conversation[]> {
-        return ConversationService.getConversations();
+        const result = await ConversationService.getConversations();
+        return result.items;
     }
 
     /**

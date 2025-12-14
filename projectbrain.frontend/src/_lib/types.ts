@@ -166,6 +166,16 @@ export interface VoiceNote {
     updatedAt: string;
 }
 
+export interface PagedResponse<T> {
+    items: T[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+}
+
 // Connection types
 export interface Connection {
     id: string;

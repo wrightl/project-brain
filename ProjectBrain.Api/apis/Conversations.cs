@@ -1,8 +1,12 @@
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Exceptions;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Shared.Dtos.Pagination;
 
 public class ConversationServices(
     IConversationService conversationService,
+    IConversationRepository conversationRepository,
     IIdentityService identityService,
     ILogger<ConversationServices> logger,
     IConfiguration config)
@@ -10,6 +14,7 @@ public class ConversationServices(
     public ILogger<ConversationServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
     public IConversationService ConversationService { get; } = conversationService;
+    public IConversationRepository ConversationRepository { get; } = conversationRepository;
     public IIdentityService IdentityService { get; } = identityService;
 }
 
@@ -87,13 +92,51 @@ public static class ConversationEndpoints
     }
 
     private static async Task<IResult> GetAllConversationsForUser(
-        [AsParameters] ConversationServices services)
+        [AsParameters] ConversationServices services,
+        HttpRequest request)
     {
-        var userId = services.IdentityService.UserId
-            ?? throw new UnauthorizedAccessException("User is not authenticated");
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
 
-        var conversations = await services.ConversationService.GetAllForUser(userId);
-        return Results.Ok(conversations);
+        // Parse pagination parameters
+        var pagedRequest = new PagedRequest();
+        if (request.Query.TryGetValue("page", out var pageValue) &&
+            int.TryParse(pageValue, out var page) && page > 0)
+        {
+            pagedRequest.Page = page;
+        }
+
+        if (request.Query.TryGetValue("pageSize", out var pageSizeValue) &&
+            int.TryParse(pageSizeValue, out var pageSize) && pageSize > 0)
+        {
+            pagedRequest.PageSize = pageSize;
+        }
+
+        // Get total count for pagination
+        var totalCount = await services.ConversationRepository.CountAsync(
+            c => c.UserId == userId,
+            CancellationToken.None);
+
+        // Get paginated results using efficient database-level pagination
+        var skip = pagedRequest.GetSkip();
+        var take = pagedRequest.GetTake();
+        var paginatedConversations = await services.ConversationRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+
+        // Map to DTOs (using anonymous objects for now, can create ConversationResponseDto later)
+        var conversationDtos = paginatedConversations.Select(c => new
+        {
+            id = c.Id.ToString(),
+            userId = c.UserId,
+            title = c.Title,
+            createdAt = c.CreatedAt.ToString("O"),
+            updatedAt = c.UpdatedAt.ToString("O")
+        });
+
+        var response = PagedResponse<object>.Create(pagedRequest, conversationDtos, totalCount);
+        return Results.Ok(response);
     }
 
     private async static Task<IResult> GetConversationMessages(

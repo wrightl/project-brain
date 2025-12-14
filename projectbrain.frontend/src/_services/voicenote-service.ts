@@ -1,4 +1,5 @@
 import { callBackendApi } from '@/_lib/backend-api';
+import { PagedResponse } from '@/_lib/types';
 
 export interface VoiceNote {
     id: string;
@@ -13,10 +14,21 @@ export interface VoiceNote {
 
 export class VoiceNoteService {
     /**
-     * Get all voice notes for the current user
+     * Get all voice notes for the current user (paginated)
      */
-    static async getAllVoiceNotes(limit?: number): Promise<VoiceNote[]> {
-        const queryParam = limit ? `?limit=${limit}` : '';
+    static async getAllVoiceNotes(options?: {
+        page?: number;
+        pageSize?: number;
+    }): Promise<PagedResponse<VoiceNote>> {
+        const params = new URLSearchParams();
+        if (options?.page) {
+            params.append('page', options.page.toString());
+        }
+        if (options?.pageSize) {
+            params.append('pageSize', options.pageSize.toString());
+        }
+
+        const queryParam = params.toString() ? `?${params.toString()}` : '';
         const response = await callBackendApi(`/voicenotes${queryParam}`, {
             method: 'GET',
         });

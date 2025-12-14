@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public static class ProgramExtensions
 {
@@ -8,6 +10,25 @@ public static class ProgramExtensions
     {
         builder.AddProjectBrainDbContext();
 
+        // Register Unit of Work
+        builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // Register Repositories
+        builder.Services.AddScoped<IVoiceNoteRepository, VoiceNoteRepository>();
+        builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+        builder.Services.AddScoped<IResourceRepository, ResourceRepository>();
+        builder.Services.AddScoped<IConnectionRepository, ConnectionRepository>();
+        builder.Services.AddScoped<IQuizRepository, QuizRepository>();
+        builder.Services.AddScoped<IQuizResponseRepository, QuizResponseRepository>();
+        builder.Services.AddScoped<IUserSubscriptionRepository, UserSubscriptionRepository>();
+        builder.Services.AddScoped<IUserRepository, UserRepository>();
+        builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+        builder.Services.AddScoped<ICoachProfileRepository, CoachProfileRepository>();
+
+        // Register Cache Service
+        builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
+
+        // Register Services
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<IUserManagementService, UserManagementService>();
         builder.Services.AddScoped<IChatService, ChatService>();

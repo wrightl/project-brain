@@ -34,7 +34,13 @@ export default function ResourceList({
                 throw new Error('Failed to load resources');
             }
             const data = await response.json();
-            setResources(data);
+            // Handle paginated response
+            if (data.items) {
+                setResources(data.items);
+            } else {
+                // Fallback for non-paginated responses (e.g., admin/shared resources)
+                setResources(Array.isArray(data) ? data : []);
+            }
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : 'Failed to load resources'

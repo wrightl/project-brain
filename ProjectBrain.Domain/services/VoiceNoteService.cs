@@ -1,47 +1,40 @@
 namespace ProjectBrain.Domain;
 
-using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class VoiceNoteService : IVoiceNoteService
 {
-    private readonly AppDbContext _context;
+    private readonly IVoiceNoteRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public VoiceNoteService(AppDbContext context)
+    public VoiceNoteService(IVoiceNoteRepository repository, IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
     public async Task<VoiceNote> Add(VoiceNote voiceNote)
     {
-        _context.VoiceNotes.Add(voiceNote);
-        await _context.SaveChangesAsync();
+        _repository.Add(voiceNote);
+        await _unitOfWork.SaveChangesAsync();
         return voiceNote;
     }
 
     public async Task<VoiceNote?> GetById(Guid id, string userId)
     {
-        return await _context.VoiceNotes
-            .FirstOrDefaultAsync(vn => vn.Id == id && vn.UserId == userId);
+        return await _repository.GetByIdForUserAsync(id, userId);
     }
 
     public async Task<IEnumerable<VoiceNote>> GetAllForUser(string userId, int? limit = null)
     {
-        IQueryable<VoiceNote> query = _context.VoiceNotes
-            .Where(vn => vn.UserId == userId)
-            .OrderByDescending(vn => vn.CreatedAt);
-
-        if (limit.HasValue && limit.Value > 0)
-        {
-            query = query.Take(limit.Value);
-        }
-
-        return await query.ToListAsync();
+        return await _repository.GetAllForUserAsync(userId, limit);
     }
 
     public async Task<VoiceNote> Update(VoiceNote voiceNote)
     {
-        _context.VoiceNotes.Update(voiceNote);
-        await _context.SaveChangesAsync();
+        _repository.Update(voiceNote);
+        await _unitOfWork.SaveChangesAsync();
         return voiceNote;
     }
 
@@ -53,8 +46,8 @@ public class VoiceNoteService : IVoiceNoteService
             return false;
         }
 
-        _context.VoiceNotes.Remove(voiceNote);
-        await _context.SaveChangesAsync();
+        _repository.Remove(voiceNote);
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 }

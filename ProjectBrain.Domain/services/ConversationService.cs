@@ -1,55 +1,52 @@
 namespace ProjectBrain.Domain;
 
-using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class ConversationService : IConversationService
 {
-    private readonly AppDbContext _context;
+    private readonly IConversationRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ConversationService(AppDbContext context)
+    public ConversationService(IConversationRepository repository, IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
     public async Task<Conversation> Add(Conversation conversation)
     {
-        _context.Conversations.Add(conversation);
-        await _context.SaveChangesAsync();
+        _repository.Add(conversation);
+        await _unitOfWork.SaveChangesAsync();
         return conversation;
     }
 
     public async Task<Conversation?> GetById(Guid id, string userId)
     {
-        return await _context.Conversations
-            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+        return await _repository.GetByIdForUserAsync(id, userId);
     }
 
     public async Task<Conversation?> GetByIdWithMessages(Guid id, string userId)
     {
-        return await _context.Conversations
-            .Include(c => c.Messages)
-            .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+        return await _repository.GetByIdWithMessagesForUserAsync(id, userId);
     }
 
     public async Task<IEnumerable<Conversation>> GetAllForUser(string userId)
     {
-        return await _context.Conversations
-            .Where(c => c.UserId == userId)
-            .OrderByDescending(c => c.UpdatedAt)
-            .ToListAsync();
+        return await _repository.GetAllForUserAsync(userId);
     }
 
     public async Task<Conversation> Update(Conversation conversation)
     {
-        _context.Conversations.Update(conversation);
-        await _context.SaveChangesAsync();
+        _repository.Update(conversation);
+        await _unitOfWork.SaveChangesAsync();
         return conversation;
     }
 
     public async Task<Conversation> Remove(Conversation conversation)
     {
-        _context.Conversations.Remove(conversation);
-        await _context.SaveChangesAsync();
+        _repository.Remove(conversation);
+        await _unitOfWork.SaveChangesAsync();
         return conversation;
     }
 }

@@ -1,4 +1,5 @@
 import { callBackendApi } from '@/_lib/backend-api';
+import { PagedResponse } from '@/_lib/types';
 
 export interface QuizQuestion {
     id?: string;
@@ -46,8 +47,19 @@ export class QuizService {
     /**
      * Get all quizzes
      */
-    static async getAllQuizzes(): Promise<Quiz[]> {
-        const response = await callBackendApi('/quizes');
+    static async getAllQuizzes(options?: {
+        page?: number;
+        pageSize?: number;
+    }): Promise<PagedResponse<Quiz>> {
+        const params = new URLSearchParams();
+        if (options?.page) {
+            params.append('page', options.page.toString());
+        }
+        if (options?.pageSize) {
+            params.append('pageSize', options.pageSize.toString());
+        }
+        const queryParam = params.toString() ? `?${params.toString()}` : '';
+        const response = await callBackendApi(`/quizes${queryParam}`);
         if (!response.ok) {
             throw new Error('Failed to fetch quizzes');
         }

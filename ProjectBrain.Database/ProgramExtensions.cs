@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -12,6 +13,9 @@ public static class ProgramExtensions
 
         // sql
         builder.AddSqlServerDbContext<AppDbContext>(connectionName: "projectbraindb");
+
+        // Register DbContext base type to resolve to AppDbContext for UnitOfWork
+        builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         // builder.Services.AddScoped<IMovieService, MovieService>();
         // builder.Services.AddScoped<IEggService, EggService>();

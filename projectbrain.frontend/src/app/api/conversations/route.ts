@@ -1,6 +1,6 @@
 import { createApiRoute } from '@/_lib/api-route-handler';
 import { ConversationService } from '@/_services/conversation-service';
-import { Conversation } from '@/_lib/types';
+import { Conversation, PagedResponse } from '@/_lib/types';
 import { NextRequest } from 'next/server';
 
 export const POST = createApiRoute<Conversation>(async (req: NextRequest) => {
@@ -15,7 +15,16 @@ export const POST = createApiRoute<Conversation>(async (req: NextRequest) => {
     return conversation;
 });
 
-export const GET = createApiRoute<Conversation[]>(async (req: NextRequest) => {
-    const conversations = await ConversationService.getConversations();
-    return conversations;
+export const GET = createApiRoute<PagedResponse<Conversation>>(async (req: NextRequest) => {
+    const { searchParams } = new URL(req.url);
+    const pageParam = searchParams.get('page');
+    const pageSizeParam = searchParams.get('pageSize');
+
+    const options = {
+        page: pageParam ? parseInt(pageParam, 10) : undefined,
+        pageSize: pageSizeParam ? parseInt(pageSizeParam, 10) : undefined,
+    };
+
+    const result = await ConversationService.getConversations(options);
+    return result;
 });

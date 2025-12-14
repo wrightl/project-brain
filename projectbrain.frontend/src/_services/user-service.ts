@@ -1,5 +1,5 @@
 import { callBackendApi } from '@/_lib/backend-api';
-import { Coach, User } from '@/_lib/types';
+import { Coach, PagedResponse, User } from '@/_lib/types';
 
 export class UserService {
     /**
@@ -17,8 +17,19 @@ export class UserService {
     /**
      * Get all users (admin only)
      */
-    static async getAllUsers(): Promise<User[]> {
-        const response = await callBackendApi('/usermanagement');
+    static async getAllUsers(options?: {
+        page?: number;
+        pageSize?: number;
+    }): Promise<PagedResponse<User>> {
+        const params = new URLSearchParams();
+        if (options?.page) {
+            params.append('page', options.page.toString());
+        }
+        if (options?.pageSize) {
+            params.append('pageSize', options.pageSize.toString());
+        }
+        const queryParam = params.toString() ? `?${params.toString()}` : '';
+        const response = await callBackendApi(`/usermanagement${queryParam}`);
         if (!response.ok) {
             throw new Error('Failed to fetch users');
         }

@@ -41,9 +41,13 @@ public class DatabaseIntegrationTests : IAsyncLifetime
         // Create database schema
         await _context.Database.EnsureCreatedAsync();
 
-        _userService = new UserService(_context);
-        _conversationService = new ConversationService(_context);
-        _chatService = new ChatService(_context);
+        var userRepository = new ProjectBrain.Domain.Repositories.UserRepository(_context);
+        var conversationRepository = new ProjectBrain.Domain.Repositories.ConversationRepository(_context);
+        var unitOfWork = new ProjectBrain.Domain.UnitOfWork.UnitOfWork(_context);
+        
+        _userService = new UserService(userRepository, _context, unitOfWork);
+        _conversationService = new ConversationService(conversationRepository, unitOfWork);
+        _chatService = new ChatService(_context, unitOfWork);
     }
 
     public async Task DisposeAsync()

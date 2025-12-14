@@ -22,9 +22,11 @@ public class ConversationEndpointsTests
         _mockConfig = new Mock<IConfiguration>();
         _mockConversationService = new Mock<IConversationService>();
         _mockIdentityService = new Mock<IIdentityService>();
+        var mockConversationRepository = new Mock<ProjectBrain.Domain.Repositories.IConversationRepository>();
 
         _conversationServices = new ConversationServices(
             _mockConversationService.Object,
+            mockConversationRepository.Object,
             _mockIdentityService.Object,
             _mockLogger.Object,
             _mockConfig.Object

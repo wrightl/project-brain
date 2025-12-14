@@ -1,5 +1,5 @@
 import { callBackendApi } from '@/_lib/backend-api';
-import { ReindexResult, Resource } from '@/_lib/types';
+import { ReindexResult, Resource, PagedResponse } from '@/_lib/types';
 
 export class ResourceService {
     static async getResource(id: string): Promise<Resource> {
@@ -88,10 +88,21 @@ export class ResourceService {
     }
 
     /**
-     * Get all resources for current user
+     * Get all resources for current user (paginated)
      */
-    static async getResources(limit?: number): Promise<Resource[]> {
-        const queryParam = limit ? `?limit=${limit}` : '';
+    static async getResources(options?: {
+        page?: number;
+        pageSize?: number;
+    }): Promise<PagedResponse<Resource>> {
+        const params = new URLSearchParams();
+        if (options?.page) {
+            params.append('page', options.page.toString());
+        }
+        if (options?.pageSize) {
+            params.append('pageSize', options.pageSize.toString());
+        }
+
+        const queryParam = params.toString() ? `?${params.toString()}` : '';
         const response = await callBackendApi(`/resource/user${queryParam}`);
         return response.json();
     }

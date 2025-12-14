@@ -2,17 +2,26 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Exceptions;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Mappers;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Shared.Dtos.Pagination;
+using ProjectBrain.Shared.Dtos.Quizzes;
 
 public class QuizServices(
     ILogger<QuizServices> logger,
     IQuizService quizService,
     IQuizResponseService quizResponseService,
+    IQuizRepository quizRepository,
+    IQuizResponseRepository quizResponseRepository,
     IIdentityService identityService)
 {
     public ILogger<QuizServices> Logger { get; } = logger;
     public IQuizService QuizService { get; } = quizService;
     public IQuizResponseService QuizResponseService { get; } = quizResponseService;
+    public IQuizRepository QuizRepository { get; } = quizRepository;
+    public IQuizResponseRepository QuizResponseRepository { get; } = quizResponseRepository;
     public IIdentityService IdentityService { get; } = identityService;
 }
 
@@ -33,595 +42,392 @@ public static class QuizEndpoints
         group.MapGet("/insights", GetQuizInsights).WithName("GetQuizInsights");
     }
 
-    private static async Task<IResult> GetAllQuizzes([AsParameters] QuizServices services)
+    private static async Task<IResult> GetAllQuizzes([AsParameters] QuizServices services, HttpRequest request)
     {
-        try
+        // Parse pagination parameters
+        var pagedRequest = new PagedRequest();
+        if (request.Query.TryGetValue("page", out var pageValue) &&
+            int.TryParse(pageValue, out var page) && page > 0)
         {
-            var quizzes = await services.QuizService.GetAll();
-            var response = quizzes.Select(q => new
-            {
-                id = q.Id.ToString(),
-                title = q.Title,
-                description = q.Description,
-                createdAt = q.CreatedAt.ToString("O"),
-                updatedAt = q.UpdatedAt.ToString("O")
-            });
+            pagedRequest.Page = page;
+        }
+        if (request.Query.TryGetValue("pageSize", out var pageSizeValue) &&
+            int.TryParse(pageSizeValue, out var pageSize) && pageSize > 0)
+        {
+            pagedRequest.PageSize = pageSize;
+        }
 
-            return Results.Ok(response);
-        }
-        catch (Exception ex)
-        {
-            services.Logger.LogError(ex, "Error retrieving quizzes");
-            return Results.Problem("An error occurred while retrieving quizzes.");
-        }
+        var skip = pagedRequest.GetSkip();
+        var take = pagedRequest.GetTake();
+        var totalCount = await services.QuizRepository.CountAllAsync(CancellationToken.None);
+        var quizzes = await services.QuizRepository.GetPagedOrderedByDateAsync(skip, take, CancellationToken.None);
+        var quizDtos = QuizMapper.ToDto(quizzes, includeQuestions: false);
+        var response = PagedResponse<QuizResponseDto>.Create(pagedRequest, quizDtos, totalCount);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> GetQuizById(
         [AsParameters] QuizServices services,
         string quizId)
     {
-        try
+        if (!Guid.TryParse(quizId, out var id))
         {
-            if (!Guid.TryParse(quizId, out var id))
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_ID",
-                        message = "Invalid quiz ID format: " + quizId
-                    }
-                });
-            }
-
-            var quiz = await services.QuizService.GetById(id);
-            if (quiz == null)
-            {
-                return Results.NotFound(new
-                {
-                    error = new
-                    {
-                        code = "QUIZ_NOT_FOUND",
-                        message = "The specified quiz does not exist"
-                    }
-                });
-            }
-
-            var response = new
-            {
-                id = quiz.Id.ToString(),
-                title = quiz.Title,
-                description = quiz.Description,
-                questions = quiz.Questions.Select(q => new
-                {
-                    id = q.Id.ToString(),
-                    label = q.Label,
-                    inputType = q.InputType,
-                    mandatory = q.Mandatory,
-                    visible = q.Visible,
-                    minValue = q.MinValue,
-                    maxValue = q.MaxValue,
-                    choices = q.Choices,
-                    placeholder = q.Placeholder,
-                    hint = q.Hint
-                }),
-                createdAt = quiz.CreatedAt.ToString("O"),
-                updatedAt = quiz.UpdatedAt.ToString("O")
-            };
-
-            return Results.Ok(response);
+            throw new ValidationException("quizId", $"Invalid quiz ID format: {quizId}");
         }
-        catch (Exception ex)
+
+        var quiz = await services.QuizService.GetById(id);
+        if (quiz == null)
         {
-            services.Logger.LogError(ex, "Error retrieving quiz {QuizId}", quizId);
-            return Results.Problem("An error occurred while retrieving the quiz.");
+            throw new NotFoundException("QUIZ_NOT_FOUND", "The specified quiz does not exist");
         }
+
+        var response = QuizMapper.ToDto(quiz, includeQuestions: true);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> CreateQuiz(
         [AsParameters] QuizServices services,
-        CreateQuizRequest request)
+        CreateQuizRequestDto request)
     {
-        var userId = services.IdentityService.UserId!;
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
 
         // Check admin permissions
         if (!services.IdentityService.IsAdmin)
         {
-            return Results.Forbid();
+            throw new AppException("FORBIDDEN", "Admin access required", 403);
         }
 
-        try
-        {
-            // Validate quiz structure
-            var validationResult = ValidateQuizStructure(request);
-            if (validationResult != null)
-            {
-                return Results.BadRequest(validationResult);
-            }
+        // Validate quiz structure
+        ValidateQuizStructure(request);
 
-            var quiz = new Quiz
+        var quiz = new Quiz
+        {
+            Id = Guid.NewGuid(),
+            Title = request.Title,
+            Description = request.Description,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // Add questions
+        var order = 0;
+        foreach (var questionRequest in request.Questions)
+        {
+            var questionId = !string.IsNullOrEmpty(questionRequest.Id) && Guid.TryParse(questionRequest.Id, out var parsedId)
+                ? parsedId
+                : Guid.NewGuid();
+
+            var question = new QuizQuestion
             {
-                Id = Guid.NewGuid(),
-                Title = request.Title,
-                Description = request.Description,
+                Id = questionId,
+                QuizId = quiz.Id,
+                Label = questionRequest.Label,
+                InputType = questionRequest.InputType,
+                Mandatory = questionRequest.Mandatory,
+                Visible = questionRequest.Visible,
+                MinValue = questionRequest.MinValue,
+                MaxValue = questionRequest.MaxValue,
+                Choices = questionRequest.Choices,
+                Placeholder = questionRequest.Placeholder,
+                Hint = questionRequest.Hint,
+                QuestionOrder = order++,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
-            // Add questions
-            var order = 0;
-            foreach (var questionRequest in request.Questions)
-            {
-                var question = new QuizQuestion
-                {
-                    Id = questionRequest.Id.HasValue ? questionRequest.Id.Value : Guid.NewGuid(),
-                    QuizId = quiz.Id,
-                    Label = questionRequest.Label,
-                    InputType = questionRequest.InputType,
-                    Mandatory = questionRequest.Mandatory,
-                    Visible = questionRequest.Visible,
-                    MinValue = questionRequest.MinValue,
-                    MaxValue = questionRequest.MaxValue,
-                    Choices = questionRequest.Choices,
-                    Placeholder = questionRequest.Placeholder,
-                    Hint = questionRequest.Hint,
-                    QuestionOrder = order++,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                quiz.Questions.Add(question);
-            }
-
-            var savedQuiz = await services.QuizService.Add(quiz);
-
-            var response = new
-            {
-                id = savedQuiz.Id.ToString(),
-                title = savedQuiz.Title,
-                description = savedQuiz.Description,
-                questions = savedQuiz.Questions.Select(q => new
-                {
-                    id = q.Id.ToString(),
-                    label = q.Label,
-                    inputType = q.InputType,
-                    mandatory = q.Mandatory,
-                    visible = q.Visible,
-                    minValue = q.MinValue,
-                    maxValue = q.MaxValue,
-                    choices = q.Choices,
-                    placeholder = q.Placeholder,
-                    hint = q.Hint
-                }),
-                createdAt = savedQuiz.CreatedAt.ToString("O"),
-                updatedAt = savedQuiz.UpdatedAt.ToString("O")
-            };
-
-            return Results.Created($"/quizes/{savedQuiz.Id}", response);
+            quiz.Questions.Add(question);
         }
-        catch (Exception ex)
-        {
-            services.Logger.LogError(ex, "Error creating quiz for user {UserId}", userId);
-            return Results.Problem("An error occurred while creating the quiz.");
-        }
+
+        var savedQuiz = await services.QuizService.Add(quiz);
+        var response = QuizMapper.ToDto(savedQuiz, includeQuestions: true);
+
+        return Results.Created($"/quizes/{savedQuiz.Id}", response);
     }
 
     private static async Task<IResult> UpdateQuiz(
         [AsParameters] QuizServices services,
         string quizId,
-        CreateQuizRequest request)
+        CreateQuizRequestDto request)
     {
-        var userId = services.IdentityService.UserId!;
-
-        try
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
         {
-            if (!Guid.TryParse(quizId, out var id))
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
+
+        if (!Guid.TryParse(quizId, out var id))
+        {
+            throw new ValidationException("quizId", "Invalid quiz ID format");
+        }
+
+        var existingQuiz = await services.QuizService.GetById(id);
+        if (existingQuiz == null)
+        {
+            throw new NotFoundException("QUIZ_NOT_FOUND", "The specified quiz does not exist");
+        }
+
+        // Validate quiz structure
+        ValidateQuizStructure(request);
+
+        // Store existing question creation dates before clearing
+        var existingQuestionDates = existingQuiz.Questions.ToDictionary(q => q.Id, q => q.CreatedAt);
+
+        // Update quiz basic info
+        existingQuiz.Title = request.Title;
+        existingQuiz.Description = request.Description;
+        existingQuiz.UpdatedAt = DateTime.UtcNow;
+
+        // Remove all existing questions
+        existingQuiz.Questions.Clear();
+
+        // Add updated questions
+        var order = 0;
+        foreach (var questionRequest in request.Questions)
+        {
+            var questionId = !string.IsNullOrEmpty(questionRequest.Id) && Guid.TryParse(questionRequest.Id, out var parsedId)
+                ? parsedId
+                : Guid.NewGuid();
+
+            var question = new QuizQuestion
             {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_ID",
-                        message = "Invalid quiz ID format"
-                    }
-                });
-            }
-
-            var existingQuiz = await services.QuizService.GetById(id);
-            if (existingQuiz == null)
-            {
-                return Results.NotFound(new
-                {
-                    error = new
-                    {
-                        code = "QUIZ_NOT_FOUND",
-                        message = "The specified quiz does not exist"
-                    }
-                });
-            }
-
-            // Validate quiz structure
-            var validationResult = ValidateQuizStructure(request);
-            if (validationResult != null)
-            {
-                return Results.BadRequest(validationResult);
-            }
-
-            // Store existing question creation dates before clearing
-            var existingQuestionDates = existingQuiz.Questions.ToDictionary(q => q.Id, q => q.CreatedAt);
-
-            // Update quiz basic info
-            existingQuiz.Title = request.Title;
-            existingQuiz.Description = request.Description;
-            existingQuiz.UpdatedAt = DateTime.UtcNow;
-
-            // Remove all existing questions
-            existingQuiz.Questions.Clear();
-
-            // Add updated questions
-            var order = 0;
-            foreach (var questionRequest in request.Questions)
-            {
-                var questionId = questionRequest.Id.HasValue ? questionRequest.Id.Value : Guid.NewGuid();
-                var question = new QuizQuestion
-                {
-                    Id = questionId,
-                    QuizId = existingQuiz.Id,
-                    Label = questionRequest.Label,
-                    InputType = questionRequest.InputType,
-                    Mandatory = questionRequest.Mandatory,
-                    Visible = questionRequest.Visible,
-                    MinValue = questionRequest.MinValue,
-                    MaxValue = questionRequest.MaxValue,
-                    Choices = questionRequest.Choices,
-                    Placeholder = questionRequest.Placeholder,
-                    Hint = questionRequest.Hint,
-                    QuestionOrder = order++,
-                    CreatedAt = existingQuestionDates.TryGetValue(questionId, out var createdDate)
-                        ? createdDate
-                        : DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                existingQuiz.Questions.Add(question);
-            }
-
-            var updatedQuiz = await services.QuizService.Update(existingQuiz);
-
-            // Reload to get properly ordered questions
-            var reloadedQuiz = await services.QuizService.GetById(id);
-
-            var response = new
-            {
-                id = reloadedQuiz!.Id.ToString(),
-                title = reloadedQuiz.Title,
-                description = reloadedQuiz.Description,
-                questions = reloadedQuiz.Questions.Select(q => new
-                {
-                    id = q.Id.ToString(),
-                    label = q.Label,
-                    inputType = q.InputType,
-                    mandatory = q.Mandatory,
-                    visible = q.Visible,
-                    minValue = q.MinValue,
-                    maxValue = q.MaxValue,
-                    choices = q.Choices,
-                    placeholder = q.Placeholder,
-                    hint = q.Hint
-                }),
-                createdAt = reloadedQuiz.CreatedAt.ToString("O"),
-                updatedAt = reloadedQuiz.UpdatedAt.ToString("O")
+                Id = questionId,
+                QuizId = existingQuiz.Id,
+                Label = questionRequest.Label,
+                InputType = questionRequest.InputType,
+                Mandatory = questionRequest.Mandatory,
+                Visible = questionRequest.Visible,
+                MinValue = questionRequest.MinValue,
+                MaxValue = questionRequest.MaxValue,
+                Choices = questionRequest.Choices,
+                Placeholder = questionRequest.Placeholder,
+                Hint = questionRequest.Hint,
+                QuestionOrder = order++,
+                CreatedAt = existingQuestionDates.TryGetValue(questionId, out var createdDate)
+                    ? createdDate
+                    : DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
-            return Results.Ok(response);
+            existingQuiz.Questions.Add(question);
         }
-        catch (Exception ex)
+
+        await services.QuizService.Update(existingQuiz);
+
+        // Reload to get properly ordered questions
+        var reloadedQuiz = await services.QuizService.GetById(id);
+        if (reloadedQuiz == null)
         {
-            services.Logger.LogError(ex, "Error updating quiz {QuizId} for user {UserId}", quizId, userId);
-            return Results.Problem("An error occurred while updating the quiz.");
+            throw new NotFoundException("QUIZ_NOT_FOUND", "Quiz was not found after update");
         }
+
+        var response = QuizMapper.ToDto(reloadedQuiz, includeQuestions: true);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> DeleteQuiz(
         [AsParameters] QuizServices services,
         string quizId)
     {
-        var userId = services.IdentityService.UserId!;
-
-        try
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
         {
-            if (!Guid.TryParse(quizId, out var id))
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_ID",
-                        message = "Invalid quiz ID format"
-                    }
-                });
-            }
-
-            var quiz = await services.QuizService.GetById(id);
-            if (quiz == null)
-            {
-                return Results.NotFound(new
-                {
-                    error = new
-                    {
-                        code = "QUIZ_NOT_FOUND",
-                        message = "The specified quiz does not exist"
-                    }
-                });
-            }
-
-            // Check if quiz has responses (optional: prevent deletion)
-            var hasResponses = await services.QuizService.HasResponses(id);
-            if (hasResponses)
-            {
-                // For now, we'll allow deletion but log a warning
-                services.Logger.LogWarning("Deleting quiz {QuizId} that has existing responses", id);
-            }
-
-            await services.QuizService.Delete(id);
-
-            return Results.NoContent();
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
-        catch (Exception ex)
+
+        if (!Guid.TryParse(quizId, out var id))
         {
-            services.Logger.LogError(ex, "Error deleting quiz {QuizId} for user {UserId}", quizId, userId);
-            return Results.Problem("An error occurred while deleting the quiz.");
+            throw new ValidationException("quizId", "Invalid quiz ID format");
         }
+
+        var quiz = await services.QuizService.GetById(id);
+        if (quiz == null)
+        {
+            throw new NotFoundException("QUIZ_NOT_FOUND", "The specified quiz does not exist");
+        }
+
+        // Check if quiz has responses (optional: prevent deletion)
+        var hasResponses = await services.QuizService.HasResponses(id);
+        if (hasResponses)
+        {
+            // For now, we'll allow deletion but log a warning
+            services.Logger.LogWarning("Deleting quiz {QuizId} that has existing responses", id);
+        }
+
+        await services.QuizService.Delete(id);
+
+        return Results.NoContent();
     }
 
     private static async Task<IResult> SubmitQuizResponse(
         [AsParameters] QuizServices services,
         string quizId,
-        SubmitQuizResponseRequest request)
+        SubmitQuizResponseRequestDto request)
     {
-        var userId = services.IdentityService.UserId!;
-
-        try
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
         {
-            if (!Guid.TryParse(quizId, out var id))
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_ID",
-                        message = "Invalid quiz ID format"
-                    }
-                });
-            }
-
-            var quiz = await services.QuizService.GetById(id);
-            if (quiz == null)
-            {
-                return Results.NotFound(new
-                {
-                    error = new
-                    {
-                        code = "QUIZ_NOT_FOUND",
-                        message = "The specified quiz does not exist"
-                    }
-                });
-            }
-
-            // Convert JsonElement values to proper types based on question input types
-            var convertedAnswers = ConvertAnswersFromJsonElements(quiz, request.Answers);
-
-            // Validate answers
-            var validationResult = await ValidateAnswers(services, quiz, convertedAnswers);
-            if (validationResult != null)
-            {
-                services.Logger.LogError("Validation result: {ValidationResult}", JsonSerializer.Serialize(validationResult));
-                return Results.BadRequest(validationResult);
-            }
-
-            // Note: We allow multiple responses per user per quiz
-            // If you want to restrict to one response, uncomment the following:
-            // var existingResponse = await services.QuizResponseService.GetByQuizAndUser(id, userId);
-            // if (existingResponse != null)
-            // {
-            //     return Results.Conflict(new
-            //     {
-            //         error = new
-            //         {
-            //             code = "DUPLICATE_RESPONSE",
-            //             message = "A response for this quiz already exists"
-            //         }
-            //     });
-            // }
-
-            // Calculate score if applicable (simple implementation)
-            var score = CalculateScore(quiz, convertedAnswers);
-
-            var completedAt = request.CompletedAt ?? DateTime.UtcNow;
-
-            var response = new QuizResponse
-            {
-                Id = Guid.NewGuid(),
-                QuizId = id,
-                UserId = userId,
-                AnswersJson = JsonSerializer.Serialize(convertedAnswers),
-                Answers = convertedAnswers,
-                Score = score,
-                CompletedAt = completedAt,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var savedResponse = await services.QuizResponseService.Add(response);
-
-            var responseObj = new
-            {
-                id = savedResponse.Id.ToString(),
-                quizId = savedResponse.QuizId.ToString(),
-                userId = savedResponse.UserId,
-                answers = savedResponse.Answers,
-                score = savedResponse.Score,
-                completedAt = savedResponse.CompletedAt.ToString("O"),
-                createdAt = savedResponse.CreatedAt.ToString("O")
-            };
-
-            return Results.Created($"/quizes/{id}/responses/{savedResponse.Id}", responseObj);
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
-        catch (Exception ex)
+
+        if (!Guid.TryParse(quizId, out var id))
         {
-            services.Logger.LogError(ex, "Error submitting quiz response for quiz {QuizId} and user {UserId}", quizId, userId);
-            return Results.Problem("An error occurred while submitting the quiz response.");
+            throw new ValidationException("quizId", "Invalid quiz ID format");
         }
+
+        var quiz = await services.QuizService.GetById(id);
+        if (quiz == null)
+        {
+            throw new NotFoundException("QUIZ_NOT_FOUND", "The specified quiz does not exist");
+        }
+
+        // Convert JsonElement values to proper types based on question input types
+        var convertedAnswers = ConvertAnswersFromJsonElements(quiz, request.Answers);
+
+        // Validate answers
+        await ValidateAnswers(services, quiz, convertedAnswers);
+
+        // Note: We allow multiple responses per user per quiz
+        // If you want to restrict to one response, uncomment the following:
+        // var existingResponse = await services.QuizResponseService.GetByQuizAndUser(id, userId);
+        // if (existingResponse != null)
+        // {
+        //     throw new AppException("DUPLICATE_RESPONSE", "A response for this quiz already exists", 409);
+        // }
+
+        // Calculate score if applicable (simple implementation)
+        var score = CalculateScore(quiz, convertedAnswers);
+
+        var completedAt = request.CompletedAt ?? DateTime.UtcNow;
+
+        var response = new QuizResponse
+        {
+            Id = Guid.NewGuid(),
+            QuizId = id,
+            UserId = userId,
+            AnswersJson = JsonSerializer.Serialize(convertedAnswers),
+            Answers = convertedAnswers,
+            Score = score,
+            CompletedAt = completedAt,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var savedResponse = await services.QuizResponseService.Add(response);
+        var responseDto = QuizResponseMapper.ToDto(savedResponse);
+
+        return Results.Created($"/quizes/{id}/responses/{savedResponse.Id}", responseDto);
     }
 
     private static async Task<IResult> GetQuizResponses(
         [AsParameters] QuizServices services,
         string quizId)
     {
-        var userId = services.IdentityService.UserId!;
-
-        try
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
         {
-            if (!Guid.TryParse(quizId, out var id))
-            {
-                return Results.BadRequest(new
-                {
-                    error = new
-                    {
-                        code = "INVALID_ID",
-                        message = "Invalid quiz ID format"
-                    }
-                });
-            }
-
-            var responses = await services.QuizResponseService.GetByQuizForUser(id, userId);
-            var response = responses.Select(r => new
-            {
-                id = r.Id.ToString(),
-                quizId = r.QuizId.ToString(),
-                quizTitle = r.Quiz?.Title,
-                completedAt = r.CompletedAt.ToString("O"),
-                score = r.Score
-            });
-
-            return Results.Ok(response);
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
-        catch (Exception ex)
+
+        if (!Guid.TryParse(quizId, out var id))
         {
-            services.Logger.LogError(ex, "Error retrieving quiz responses for quiz {QuizId} and user {UserId}", quizId, userId);
-            return Results.Problem("An error occurred while retrieving quiz responses.");
+            throw new ValidationException("quizId", "Invalid quiz ID format");
         }
+
+        var responses = await services.QuizResponseService.GetByQuizForUser(id, userId);
+        var response = QuizResponseMapper.ToDto(responses);
+
+        return Results.Ok(response);
     }
 
-    private static async Task<IResult> GetAllQuizResponsesForUser([AsParameters] QuizServices services)
+    private static async Task<IResult> GetAllQuizResponsesForUser([AsParameters] QuizServices services, HttpRequest request)
     {
-        var userId = services.IdentityService.UserId!;
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
 
-        try
+        // Parse pagination parameters
+        var pagedRequest = new PagedRequest();
+        if (request.Query.TryGetValue("page", out var pageValue) &&
+            int.TryParse(pageValue, out var page) && page > 0)
         {
-            var responses = await services.QuizResponseService.GetAllForUser(userId);
-            var response = responses.Select(r => new
-            {
-                id = r.Id.ToString(),
-                quizId = r.QuizId.ToString(),
-                quizTitle = r.Quiz?.Title,
-                completedAt = r.CompletedAt.ToString("O"),
-                score = r.Score
-            });
-            return Results.Ok(response);
+            pagedRequest.Page = page;
         }
-        catch (Exception ex)
+        if (request.Query.TryGetValue("pageSize", out var pageSizeValue) &&
+            int.TryParse(pageSizeValue, out var pageSize) && pageSize > 0)
         {
-            services.Logger.LogError(ex, "Error retrieving all quiz responses for user {UserId}", userId);
-            return Results.Problem("An error occurred while retrieving all quiz responses.");
+            pagedRequest.PageSize = pageSize;
         }
+
+        var skip = pagedRequest.GetSkip();
+        var take = pagedRequest.GetTake();
+        var totalCount = await services.QuizResponseService.CountForUser(userId);
+        var responses = await services.QuizResponseRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+        var responseDtos = QuizResponseMapper.ToDto(responses);
+        var response = PagedResponse<QuizResponseResponseDto>.Create(pagedRequest, responseDtos, totalCount);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> GetQuizInsights([AsParameters] QuizServices services)
     {
-        var userId = services.IdentityService.UserId!;
-
-        try
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
         {
-            var responses = await services.QuizResponseService.GetAllForUser(userId);
-            var responsesList = responses.ToList();
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
 
-            if (!responsesList.Any())
+        var responses = await services.QuizResponseService.GetAllForUser(userId);
+        var responsesList = responses.ToList();
+
+        if (!responsesList.Any())
+        {
+            return Results.Ok(new
             {
-                return Results.Ok(new
-                {
-                    summary = "You haven't completed any quizzes yet. Complete quizzes to receive personalized insights.",
-                    keyInsights = Array.Empty<string>(),
-                    lastUpdated = DateTime.UtcNow.ToString("O")
-                });
-            }
-
-            // Generate insights based on responses
-            var insights = GenerateInsights(responsesList);
-
-            return Results.Ok(insights);
+                summary = "You haven't completed any quizzes yet. Complete quizzes to receive personalized insights.",
+                keyInsights = Array.Empty<string>(),
+                lastUpdated = DateTime.UtcNow.ToString("O")
+            });
         }
-        catch (Exception ex)
-        {
-            services.Logger.LogError(ex, "Error retrieving quiz insights for user {UserId}", userId);
-            return Results.Problem("An error occurred while retrieving quiz insights.");
-        }
+
+        // Generate insights based on responses
+        var insights = GenerateInsights(responsesList);
+
+        return Results.Ok(insights);
     }
 
     // Validation methods
-    private static object? ValidateQuizStructure(CreateQuizRequest request)
+    private static void ValidateQuizStructure(CreateQuizRequestDto request)
     {
+        var errors = new Dictionary<string, string[]>();
+
         if (string.IsNullOrWhiteSpace(request.Title))
         {
-            return new
-            {
-                error = new
-                {
-                    code = "INVALID_QUIZ_DATA",
-                    message = "Quiz title is required"
-                }
-            };
+            errors.Add("title", new[] { "Quiz title is required" });
         }
 
         if (request.Questions == null || request.Questions.Count == 0)
         {
-            return new
-            {
-                error = new
-                {
-                    code = "INVALID_QUIZ_DATA",
-                    message = "Quiz must have at least one question"
-                }
-            };
+            errors.Add("questions", new[] { "Quiz must have at least one question" });
         }
 
         var validInputTypes = new[] { "text", "number", "email", "date", "choice", "multipleChoice", "scale", "textarea", "tel", "url" };
         var questionOrder = 0;
 
-        foreach (var question in request.Questions)
+        foreach (var question in request.Questions ?? new List<CreateQuestionRequestDto>())
         {
             if (string.IsNullOrWhiteSpace(question.Label))
             {
-                return new
-                {
-                    error = new
-                    {
-                        code = "INVALID_QUESTION_DATA",
-                        message = $"Question {questionOrder + 1} must have a label"
-                    }
-                };
+                errors.Add($"questions[{questionOrder}].label", new[] { $"Question {questionOrder + 1} must have a label" });
             }
 
             if (string.IsNullOrWhiteSpace(question.InputType) || !validInputTypes.Contains(question.InputType))
             {
-                return new
-                {
-                    error = new
-                    {
-                        code = "INVALID_QUESTION_DATA",
-                        message = $"Question {questionOrder + 1} has invalid input type. Valid types: {string.Join(", ", validInputTypes)}"
-                    }
-                };
+                errors.Add($"questions[{questionOrder}].inputType", new[] { $"Question {questionOrder + 1} has invalid input type. Valid types: {string.Join(", ", validInputTypes)}" });
             }
 
             // Validate choices for choice/multipleChoice types
@@ -629,14 +435,7 @@ public static class QuizEndpoints
             {
                 if (question.Choices == null || question.Choices.Count == 0)
                 {
-                    return new
-                    {
-                        error = new
-                        {
-                            code = "INVALID_QUESTION_DATA",
-                            message = $"Question {questionOrder + 1} of type {question.InputType} must have choices"
-                        }
-                    };
+                    errors.Add($"questions[{questionOrder}].choices", new[] { $"Question {questionOrder + 1} of type {question.InputType} must have choices" });
                 }
             }
 
@@ -645,28 +444,25 @@ public static class QuizEndpoints
             {
                 if (question.MinValue.HasValue && question.MaxValue.HasValue && question.MinValue > question.MaxValue)
                 {
-                    return new
-                    {
-                        error = new
-                        {
-                            code = "INVALID_QUESTION_DATA",
-                            message = $"Question {questionOrder + 1} has invalid min/max values"
-                        }
-                    };
+                    errors.Add($"questions[{questionOrder}].minValue", new[] { $"Question {questionOrder + 1} has invalid min/max values" });
                 }
             }
 
             questionOrder++;
         }
 
-        return null;
+        if (errors.Count > 0)
+        {
+            throw new ValidationException(errors);
+        }
     }
 
-    private static async Task<object?> ValidateAnswers(
+    private static async Task ValidateAnswers(
         QuizServices services,
         Quiz quiz,
         Dictionary<string, object> answers)
     {
+        var errors = new Dictionary<string, string[]>();
         var questions = quiz.Questions.Where(q => q.Visible).OrderBy(q => q.QuestionOrder).ToList();
 
         // Check mandatory questions
@@ -675,19 +471,7 @@ public static class QuizEndpoints
             if (!answers.ContainsKey(question.Id.ToString()) || IsAnswerEmpty(answers[question.Id.ToString()]))
             {
                 services.Logger.LogError("Missing mandatory answer for question {QuestionId}", question.Id.ToString());
-                return new
-                {
-                    error = new
-                    {
-                        code = "MISSING_MANDATORY_ANSWER",
-                        message = "Required questions must be answered",
-                        details = new
-                        {
-                            questionId = question.Id.ToString(),
-                            reason = "This question is mandatory"
-                        }
-                    }
-                };
+                errors.Add($"answers[{question.Id}]", new[] { "This question is mandatory and must be answered" });
             }
         }
 
@@ -703,33 +487,30 @@ public static class QuizEndpoints
             if (question == null)
             {
                 services.Logger.LogError("Question not found: {QuestionId}", questionId.ToString());
-                return new
-                {
-                    error = new
-                    {
-                        code = "QUESTION_NOT_FOUND",
-                        message = "Referenced question doesn't exist in quiz",
-                        details = new
-                        {
-                            questionId = answer.Key
-                        }
-                    }
-                };
+                errors.Add($"answers[{answer.Key}]", new[] { "Referenced question doesn't exist in quiz" });
+                continue;
             }
 
-            var validationError = ValidateAnswer(question, answer.Value);
-            if (validationError != null)
+            var validationErrors = ValidateAnswer(question, answer.Value);
+            if (validationErrors != null && validationErrors.Count > 0)
             {
-                services.Logger.LogError("Validation error: {ValidationError}", JsonSerializer.Serialize(validationError));
-                return validationError;
+                foreach (var error in validationErrors)
+                {
+                    errors.Add($"answers[{answer.Key}]", new[] { error });
+                }
             }
         }
 
-        return null;
+        if (errors.Count > 0)
+        {
+            throw new ValidationException(errors);
+        }
     }
 
-    private static object? ValidateAnswer(QuizQuestion question, object answer)
+    private static List<string>? ValidateAnswer(QuizQuestion question, object answer)
     {
+        var errors = new List<string>();
+
         // Check answer type matches input type
         switch (question.InputType)
         {
@@ -740,53 +521,20 @@ public static class QuizEndpoints
             case "url":
                 if (answer is not string)
                 {
-                    return new
-                    {
-                        error = new
-                        {
-                            code = "INVALID_ANSWER_TYPE",
-                            message = "Answer type does not match question input type",
-                            details = new
-                            {
-                                questionId = question.Id.ToString(),
-                                expectedType = "string",
-                                providedType = answer.GetType().Name
-                            }
-                        }
-                    };
+                    errors.Add($"Answer type does not match question input type. Expected: string, Provided: {answer.GetType().Name}");
                 }
-
-                // Validate format
-                if (question.InputType == "email" && !IsValidEmail(answer.ToString()!))
+                else
                 {
-                    return new
+                    // Validate format
+                    if (question.InputType == "email" && !IsValidEmail(answer.ToString()!))
                     {
-                        error = new
-                        {
-                            code = "INVALID_ANSWER_FORMAT",
-                            message = "Invalid email format",
-                            details = new
-                            {
-                                questionId = question.Id.ToString()
-                            }
-                        }
-                    };
-                }
+                        errors.Add("Invalid email format");
+                    }
 
-                if (question.InputType == "url" && !IsValidUrl(answer.ToString()!))
-                {
-                    return new
+                    if (question.InputType == "url" && !IsValidUrl(answer.ToString()!))
                     {
-                        error = new
-                        {
-                            code = "INVALID_ANSWER_FORMAT",
-                            message = "Invalid URL format",
-                            details = new
-                            {
-                                questionId = question.Id.ToString()
-                            }
-                        }
-                    };
+                        errors.Add("Invalid URL format");
+                    }
                 }
                 break;
 
@@ -794,114 +542,38 @@ public static class QuizEndpoints
             case "scale":
                 if (!IsNumeric(answer))
                 {
-                    return new
-                    {
-                        error = new
-                        {
-                            code = "INVALID_ANSWER_TYPE",
-                            message = "Answer type does not match question input type",
-                            details = new
-                            {
-                                questionId = question.Id.ToString(),
-                                expectedType = "number",
-                                providedType = answer.GetType().Name
-                            }
-                        }
-                    };
+                    errors.Add($"Answer type does not match question input type. Expected: number, Provided: {answer.GetType().Name}");
                 }
-
-                var numValue = Convert.ToDecimal(answer);
-                if (question.MinValue.HasValue && numValue < question.MinValue.Value)
+                else
                 {
-                    return new
+                    var numValue = Convert.ToDecimal(answer);
+                    if (question.MinValue.HasValue && numValue < question.MinValue.Value)
                     {
-                        error = new
-                        {
-                            code = "VALUE_OUT_OF_RANGE",
-                            message = "Answer value is below minimum",
-                            details = new
-                            {
-                                questionId = question.Id.ToString(),
-                                minValue = question.MinValue.Value,
-                                providedValue = numValue
-                            }
-                        }
-                    };
-                }
+                        errors.Add($"Answer value ({numValue}) is below minimum ({question.MinValue.Value})");
+                    }
 
-                if (question.MaxValue.HasValue && numValue > question.MaxValue.Value)
-                {
-                    return new
+                    if (question.MaxValue.HasValue && numValue > question.MaxValue.Value)
                     {
-                        error = new
-                        {
-                            code = "VALUE_OUT_OF_RANGE",
-                            message = "Answer value is above maximum",
-                            details = new
-                            {
-                                questionId = question.Id.ToString(),
-                                maxValue = question.MaxValue.Value,
-                                providedValue = numValue
-                            }
-                        }
-                    };
+                        errors.Add($"Answer value ({numValue}) is above maximum ({question.MaxValue.Value})");
+                    }
                 }
                 break;
 
             case "date":
                 if (answer is not string dateStr || !IsValidDate(dateStr))
                 {
-                    return new
-                    {
-                        error = new
-                        {
-                            code = "INVALID_ANSWER_TYPE",
-                            message = "Answer type does not match question input type",
-                            details = new
-                            {
-                                questionId = question.Id.ToString(),
-                                expectedType = "date (YYYY-MM-DD)",
-                                providedType = answer.GetType().Name
-                            }
-                        }
-                    };
+                    errors.Add($"Answer type does not match question input type. Expected: date (YYYY-MM-DD), Provided: {answer.GetType().Name}");
                 }
                 break;
 
             case "choice":
                 if (answer is not string choiceValue)
                 {
-                    return new
-                    {
-                        error = new
-                        {
-                            code = "INVALID_ANSWER_TYPE",
-                            message = "Answer type does not match question input type",
-                            details = new
-                            {
-                                questionId = question.Id.ToString(),
-                                expectedType = "string",
-                                providedType = answer.GetType().Name
-                            }
-                        }
-                    };
+                    errors.Add($"Answer type does not match question input type. Expected: string, Provided: {answer.GetType().Name}");
                 }
-
-                if (question.Choices == null || !question.Choices.Contains(choiceValue))
+                else if (question.Choices == null || !question.Choices.Contains(choiceValue))
                 {
-                    return new
-                    {
-                        error = new
-                        {
-                            code = "INVALID_CHOICE",
-                            message = "Selected choice is not in the allowed choices list",
-                            details = new
-                            {
-                                questionId = question.Id.ToString(),
-                                providedChoice = choiceValue
-                            }
-                        }
-                    };
+                    errors.Add($"Selected choice '{choiceValue}' is not in the allowed choices list");
                 }
                 break;
 
@@ -911,82 +583,49 @@ public static class QuizEndpoints
                     // Try to parse as array
                     if (answer is not List<object> && answer is not string[])
                     {
-                        return new
-                        {
-                            error = new
-                            {
-                                code = "INVALID_ANSWER_TYPE",
-                                message = "Answer type does not match question input type",
-                                details = new
-                                {
-                                    questionId = question.Id.ToString(),
-                                    expectedType = "array",
-                                    providedType = answer.GetType().Name
-                                }
-                            }
-                        };
+                        errors.Add($"Answer type does not match question input type. Expected: array, Provided: {answer.GetType().Name}");
                     }
                 }
 
-                var choices = new List<string>();
-                if (answer is JsonElement je && je.ValueKind == JsonValueKind.Array)
+                if (errors.Count == 0)
                 {
-                    choices = je.EnumerateArray().Select(e => e.GetString()!).ToList();
-                }
-                else if (answer is List<object> list)
-                {
-                    choices = list.Select(o => o.ToString()!).ToList();
-                }
-                else if (answer is string[] arr)
-                {
-                    choices = arr.ToList();
-                }
-
-                if (question.Choices == null)
-                {
-                    return new
+                    var choices = new List<string>();
+                    if (answer is JsonElement je && je.ValueKind == JsonValueKind.Array)
                     {
-                        error = new
-                        {
-                            code = "INVALID_QUESTION_DATA",
-                            message = "Question does not have choices defined"
-                        }
-                    };
-                }
-
-                foreach (var choice in choices)
-                {
-                    if (!question.Choices.Contains(choice))
+                        choices = je.EnumerateArray().Select(e => e.GetString()!).ToList();
+                    }
+                    else if (answer is List<object> list)
                     {
-                        return new
+                        choices = list.Select(o => o.ToString()!).ToList();
+                    }
+                    else if (answer is string[] arr)
+                    {
+                        choices = arr.ToList();
+                    }
+
+                    if (question.Choices == null)
+                    {
+                        errors.Add("Question does not have choices defined");
+                    }
+                    else
+                    {
+                        foreach (var choice in choices)
                         {
-                            error = new
+                            if (!question.Choices.Contains(choice))
                             {
-                                code = "INVALID_CHOICE",
-                                message = "Selected choice is not in the allowed choices list",
-                                details = new
-                                {
-                                    questionId = question.Id.ToString(),
-                                    providedChoice = choice
-                                }
+                                errors.Add($"Selected choice '{choice}' is not in the allowed choices list");
                             }
-                        };
+                        }
                     }
                 }
                 break;
 
             default:
-                return new
-                {
-                    error = new
-                    {
-                        code = "INVALID_INPUT_TYPE",
-                        message = $"Unsupported input type: {question.InputType}"
-                    }
-                };
+                errors.Add($"Unsupported input type: {question.InputType}");
+                break;
         }
 
-        return null;
+        return errors.Count > 0 ? errors : null;
     }
 
     // Helper methods
@@ -1228,31 +867,4 @@ public static class QuizEndpoints
     }
 }
 
-// Request/Response DTOs
-public class CreateQuizRequest
-{
-    public required string Title { get; init; }
-    public string? Description { get; init; }
-    public required List<CreateQuestionRequest> Questions { get; init; }
-}
-
-public class CreateQuestionRequest
-{
-    public Guid? Id { get; init; }
-    public required string Label { get; init; }
-    public required string InputType { get; init; }
-    public bool Mandatory { get; init; } = false;
-    public bool Visible { get; init; } = true;
-    public decimal? MinValue { get; init; }
-    public decimal? MaxValue { get; init; }
-    public List<string>? Choices { get; init; }
-    public string? Placeholder { get; init; }
-    public string? Hint { get; init; }
-}
-
-public class SubmitQuizResponseRequest
-{
-    public required Dictionary<string, object> Answers { get; init; }
-    public DateTime? CompletedAt { get; init; }
-}
 

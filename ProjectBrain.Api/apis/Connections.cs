@@ -1,15 +1,20 @@
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Exceptions;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Shared.Dtos.Pagination;
 
 public class ConnectionServices(
     ILogger<ConnectionServices> logger,
     IConnectionService connectionService,
+    IConnectionRepository connectionRepository,
     IIdentityService identityService,
     IUserProfileService userProfileService,
     ICoachProfileService coachProfileService)
 {
     public ILogger<ConnectionServices> Logger { get; } = logger;
     public IConnectionService ConnectionService { get; } = connectionService;
+    public IConnectionRepository ConnectionRepository { get; } = connectionRepository;
     public IIdentityService IdentityService { get; } = identityService;
     public IUserProfileService UserProfileService { get; } = userProfileService;
     public ICoachProfileService CoachProfileService { get; } = coachProfileService;
@@ -69,14 +74,44 @@ public static class ConnectionEndpoints
     }
 
     private static async Task<IResult> GetAllConnections(
-        [AsParameters] ConnectionServices services)
+        [AsParameters] ConnectionServices services,
+        HttpRequest request)
     {
-        var currentUserId = services.IdentityService.UserId!;
+        var currentUserId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
+
         var isCoach = services.IdentityService.IsCoach;
 
-        var connections = await services.ConnectionService.GetConnectionsAsync(currentUserId, isCoach);
+        // Parse pagination parameters
+        var pagedRequest = new PagedRequest();
+        if (request.Query.TryGetValue("page", out var pageValue) &&
+            int.TryParse(pageValue, out var page) && page > 0)
+        {
+            pagedRequest.Page = page;
+        }
 
-        return Results.Ok(connections);
+        if (request.Query.TryGetValue("pageSize", out var pageSizeValue) &&
+            int.TryParse(pageSizeValue, out var pageSize) && pageSize > 0)
+        {
+            pagedRequest.PageSize = pageSize;
+        }
+
+        // Get total count for pagination
+        var totalCount = await services.ConnectionRepository.CountConnectionsAsync(currentUserId, isCoach, CancellationToken.None);
+
+        // Get paginated results using efficient database-level pagination
+        var skip = pagedRequest.GetSkip();
+        var take = pagedRequest.GetTake();
+        var paginatedConnections = await services.ConnectionRepository.GetPagedConnectionsAsync(currentUserId, isCoach, skip, take, CancellationToken.None);
+
+        // Map to ConnectionWithStatus using the service method
+        var connectionWithStatus = paginatedConnections.Select(c => ConnectionWithStatus.FromConnection(c));
+
+        var response = PagedResponse<ConnectionWithStatus>.Create(pagedRequest, connectionWithStatus, totalCount);
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> DeleteConnection(

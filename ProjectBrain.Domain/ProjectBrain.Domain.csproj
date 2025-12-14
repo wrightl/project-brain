@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../ProjectBrain.Database/ProjectBrain.Database.csproj" />
+    <ProjectReference Include="../ProjectBrain.Shared.Dtos/ProjectBrain.Shared.Dtos.csproj" />
   </ItemGroup>
 
   <ItemGroup>

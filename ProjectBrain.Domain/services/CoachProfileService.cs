@@ -2,35 +2,35 @@ namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
 using ProjectBrain.Database.Models;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class CoachProfileService : ICoachProfileService
 {
+    private readonly ICoachProfileRepository _repository;
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public CoachProfileService(AppDbContext context)
+    public CoachProfileService(ICoachProfileRepository repository, AppDbContext context, IUnitOfWork unitOfWork)
     {
+        _repository = repository;
         _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<CoachProfile?> GetById(int id)
     {
-        return await _context.CoachProfiles
-            .Include(cp => cp.Qualifications)
-            .Include(cp => cp.Specialisms)
-            .Include(cp => cp.AgeGroups)
-            .Include(cp => cp.User!)
-            .FirstOrDefaultAsync(cp => cp.Id == id);
+        return await _repository.GetByIdAsync(id);
+    }
+
+    public async Task<CoachProfile?> GetByIdWithRelated(int id)
+    {
+        return await _repository.GetByIdWithRelatedAsync(id);
     }
 
     public async Task<CoachProfile?> GetByUserId(string userId)
     {
-        return await _context.CoachProfiles
-            .Include(cp => cp.Qualifications)
-            .Include(cp => cp.Specialisms)
-            .Include(cp => cp.AgeGroups)
-            .Include(cp => cp.User!)
-                .ThenInclude(u => u!.UserRoles)
-            .FirstOrDefaultAsync(cp => cp.UserId == userId);
+        return await _repository.GetByUserIdWithRelatedAsync(userId);
     }
 
     public async Task<CoachProfile> CreateOrUpdate(
@@ -49,44 +49,53 @@ public class CoachProfileService : ICoachProfileService
                 UserId = userId
             };
 
-            _context.CoachProfiles.Add(newProfile);
-            await _context.SaveChangesAsync();
+            _repository.Add(newProfile);
+            await _unitOfWork.SaveChangesAsync();
 
-            // Add related entities
-            if (qualifications != null)
+            // Get tracked entity to add related entities
+            var trackedProfile = await _context.CoachProfiles
+                .FirstOrDefaultAsync(cp => cp.Id == newProfile.Id);
+
+            if (trackedProfile != null)
             {
-                newProfile.Qualifications = qualifications
-                    .Select(q => new CoachQualification
-                    {
-                        CoachProfileId = newProfile.Id,
-                        Qualification = q
-                    })
-                    .ToList();
+                // Add related entities
+                if (qualifications != null)
+                {
+                    trackedProfile.Qualifications = qualifications
+                        .Select(q => new CoachQualification
+                        {
+                            CoachProfileId = trackedProfile.Id,
+                            Qualification = q
+                        })
+                        .ToList();
+                }
+
+                if (specialisms != null)
+                {
+                    trackedProfile.Specialisms = specialisms
+                        .Select(s => new CoachSpecialism
+                        {
+                            CoachProfileId = trackedProfile.Id,
+                            Specialism = s
+                        })
+                        .ToList();
+                }
+
+                if (ageGroups != null)
+                {
+                    trackedProfile.AgeGroups = ageGroups
+                        .Select(ag => new CoachAgeGroup
+                        {
+                            CoachProfileId = trackedProfile.Id,
+                            AgeGroup = ag
+                        })
+                        .ToList();
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                return trackedProfile;
             }
 
-            if (specialisms != null)
-            {
-                newProfile.Specialisms = specialisms
-                    .Select(s => new CoachSpecialism
-                    {
-                        CoachProfileId = newProfile.Id,
-                        Specialism = s
-                    })
-                    .ToList();
-            }
-
-            if (ageGroups != null)
-            {
-                newProfile.AgeGroups = ageGroups
-                    .Select(ag => new CoachAgeGroup
-                    {
-                        CoachProfileId = newProfile.Id,
-                        AgeGroup = ag
-                    })
-                    .ToList();
-            }
-
-            await _context.SaveChangesAsync();
             return newProfile;
         }
         else
@@ -143,8 +152,29 @@ public class CoachProfileService : ICoachProfileService
                 existingProfile.AgeGroups = new List<CoachAgeGroup>();
             }
 
-            _context.CoachProfiles.Update(existingProfile);
-            await _context.SaveChangesAsync();
+            // Get tracked entity for update
+            var trackedProfile = await _context.CoachProfiles
+                .Include(cp => cp.Qualifications)
+                .Include(cp => cp.Specialisms)
+                .Include(cp => cp.AgeGroups)
+                .FirstOrDefaultAsync(cp => cp.Id == existingProfile.Id);
+
+            if (trackedProfile != null)
+            {
+                // Remove existing related entities
+                _context.CoachQualifications.RemoveRange(trackedProfile.Qualifications);
+                _context.CoachSpecialisms.RemoveRange(trackedProfile.Specialisms);
+                _context.CoachAgeGroups.RemoveRange(trackedProfile.AgeGroups);
+
+                // Set new related entities
+                trackedProfile.Qualifications = existingProfile.Qualifications;
+                trackedProfile.Specialisms = existingProfile.Specialisms;
+                trackedProfile.AgeGroups = existingProfile.AgeGroups;
+
+                _repository.Update(trackedProfile);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
             return existingProfile;
         }
     }
@@ -157,9 +187,16 @@ public class CoachProfileService : ICoachProfileService
             return false;
         }
 
-        coachProfile.AvailabilityStatus = status;
-        _context.CoachProfiles.Update(coachProfile);
-        await _context.SaveChangesAsync();
+        // Get tracked entity for update
+        var trackedProfile = await _context.CoachProfiles
+            .FirstOrDefaultAsync(cp => cp.Id == coachProfile.Id);
+        if (trackedProfile != null)
+        {
+            trackedProfile.AvailabilityStatus = status;
+            _repository.Update(trackedProfile);
+        }
+
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 
@@ -171,9 +208,18 @@ public class CoachProfileService : ICoachProfileService
             return false;
         }
 
-        _context.CoachProfiles.Remove(profile);
-        await _context.SaveChangesAsync();
-        return true;
+        // Get tracked entity for deletion
+        var trackedProfile = await _context.CoachProfiles
+            .FirstOrDefaultAsync(cp => cp.Id == profile.Id);
+
+        if (trackedProfile != null)
+        {
+            _repository.Remove(trackedProfile);
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        }
+
+        return false;
     }
 
     public async Task<List<CoachProfile>> Search(
@@ -183,54 +229,15 @@ public class CoachProfileService : ICoachProfileService
         IEnumerable<string>? ageGroups = null,
         IEnumerable<string>? specialisms = null)
     {
-        var query = _context.CoachProfiles
-            .Include(cp => cp.Qualifications)
-            .Include(cp => cp.Specialisms)
-            .Include(cp => cp.AgeGroups)
-            .Include(cp => cp.User!)
-                .ThenInclude(u => u!.UserRoles)
-            .AsQueryable();
-
-        // Filter by location
-        if (!string.IsNullOrWhiteSpace(city))
-        {
-            query = query.Where(cp => cp.User != null && cp.User.City != null && cp.User.City.Contains(city));
-        }
-
-        if (!string.IsNullOrWhiteSpace(stateProvince))
-        {
-            query = query.Where(cp => cp.User != null && cp.User.StateProvince != null && cp.User.StateProvince.Contains(stateProvince));
-        }
-
-        if (!string.IsNullOrWhiteSpace(country))
-        {
-            query = query.Where(cp => cp.User != null && cp.User.Country != null && cp.User.Country.Contains(country));
-        }
-
-        // Filter by age groups
-        if (ageGroups != null && ageGroups.Any())
-        {
-            var ageGroupList = ageGroups.ToList();
-            query = query.Where(cp => cp.AgeGroups == null || cp.AgeGroups.Count == 0 || cp.AgeGroups.Any(ag => ageGroupList.Contains(ag.AgeGroup)));
-        }
-
-        // Filter by specialisms
-        if (specialisms != null && specialisms.Any())
-        {
-            var specialismList = specialisms.ToList();
-            query = query.Where(cp => cp.Specialisms == null || cp.Specialisms.Count == 0 || cp.Specialisms.Any(s => specialismList.Contains(s.Specialism)));
-        }
-
-        // Only return coaches that are onboarded
-        query = query.Where(cp => cp.User != null && cp.User.IsOnboarded);
-
-        return await query.ToListAsync();
+        var results = await _repository.SearchAsync(city, stateProvince, country, ageGroups, specialisms);
+        return results.ToList();
     }
 }
 
 public interface ICoachProfileService
 {
     Task<CoachProfile?> GetById(int id);
+    Task<CoachProfile?> GetByIdWithRelated(int id);
     Task<CoachProfile?> GetByUserId(string userId);
     Task<CoachProfile> CreateOrUpdate(
         string userId,

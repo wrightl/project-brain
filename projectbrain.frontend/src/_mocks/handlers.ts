@@ -33,9 +33,9 @@ export const handlers = [
         });
     }),
 
-    // Resource endpoints
+    // Resource endpoints (returns paginated response)
     http.get(`${API_BASE}/user/resources`, () => {
-        return HttpResponse.json([
+        const items = [
             {
                 id: 'res_1',
                 fileName: 'test.pdf',
@@ -44,12 +44,21 @@ export const handlers = [
                 createdAt: '2024-01-01T00:00:00Z',
                 updatedAt: '2024-01-01T00:00:00Z',
             },
-        ]);
+        ];
+        return HttpResponse.json({
+            items,
+            page: 1,
+            pageSize: 20,
+            totalCount: items.length,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+        });
     }),
 
-    // Voice note endpoints
+    // Voice note endpoints (returns paginated response)
     http.get(`${API_BASE}/user/voicenotes`, () => {
-        return HttpResponse.json([
+        const items = [
             {
                 id: 'vn_1',
                 fileName: 'note.m4a',
@@ -60,12 +69,21 @@ export const handlers = [
                 createdAt: '2024-01-01T00:00:00Z',
                 updatedAt: '2024-01-01T00:00:00Z',
             },
-        ]);
+        ];
+        return HttpResponse.json({
+            items,
+            page: 1,
+            pageSize: 20,
+            totalCount: items.length,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+        });
     }),
 
-    // Connection endpoints
+    // Connection endpoints (returns paginated response)
     http.get(`${API_BASE}/connections`, () => {
-        return HttpResponse.json([
+        const items = [
             {
                 id: 'conn_1',
                 userId: 'user_1',
@@ -76,7 +94,16 @@ export const handlers = [
                 requestedAt: '2024-01-01T00:00:00Z',
                 respondedAt: '2024-01-01T01:00:00Z',
             },
-        ]);
+        ];
+        return HttpResponse.json({
+            items,
+            page: 1,
+            pageSize: 20,
+            totalCount: items.length,
+            totalPages: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+        });
     }),
 ];
 

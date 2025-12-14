@@ -16,7 +16,8 @@ import { SkeletonCard, SkeletonList } from '@/_components/ui/skeleton';
 
 export default function ConnectionsPageContent() {
     const router = useRouter();
-    const { data: connections = [], isLoading: connectionsLoading, error: connectionsError } = useConnections();
+    const { data: connectionsResponse, isLoading: connectionsLoading, error: connectionsError } = useConnections();
+    const connections = connectionsResponse?.items || [];
     const { data: conversations = [], isLoading: conversationsLoading, error: conversationsError } = useConversations();
     const deleteConnection = useDeleteConnection();
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());

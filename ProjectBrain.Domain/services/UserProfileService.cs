@@ -1,5 +1,6 @@
 namespace ProjectBrain.Domain;
 
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ProjectBrain.Domain.Caching;
 using ProjectBrain.Domain.Repositories;
@@ -33,7 +34,7 @@ public class UserProfileService : IUserProfileService
         }
 
         var profile = await _repository.GetByUserIdWithRelatedAsync(userId);
-        
+
         // Cache the profile if found
         if (profile != null)
         {
@@ -48,7 +49,7 @@ public class UserProfileService : IUserProfileService
         DateOnly? doB = null,
         string? preferredPronoun = null,
         IEnumerable<string>? neurodiverseTraits = null,
-        string? preferences = null)
+        Dictionary<string, object>? preferences = null)
     {
         // Get tracked entity for potential update (not using AsNoTracking)
         var existingProfile = await _context.UserProfiles
@@ -87,7 +88,7 @@ public class UserProfileService : IUserProfileService
                 newProfile.Preference = new UserPreference
                 {
                     UserProfileId = newProfile.Id,
-                    Preferences = preferences
+                    Preferences = JsonSerializer.Serialize(preferences)
                 };
             }
 
@@ -136,12 +137,12 @@ public class UserProfileService : IUserProfileService
                     existingProfile.Preference = new UserPreference
                     {
                         UserProfileId = existingProfile.Id,
-                        Preferences = preferences
+                        Preferences = JsonSerializer.Serialize(preferences)
                     };
                 }
                 else
                 {
-                    existingProfile.Preference.Preferences = preferences;
+                    existingProfile.Preference.Preferences = JsonSerializer.Serialize(preferences);
                 }
             }
             else if (existingProfile.Preference != null)
@@ -152,11 +153,11 @@ public class UserProfileService : IUserProfileService
 
             _repository.Update(existingProfile);
             await _unitOfWork.SaveChangesAsync();
-            
+
             // Invalidate cache
             var cacheKey = $"{ProfileCacheKeyPrefix}{userId}";
             await _cache.RemoveAsync(cacheKey);
-            
+
             return existingProfile;
         }
     }
@@ -173,11 +174,11 @@ public class UserProfileService : IUserProfileService
 
         _repository.Remove(profile);
         await _unitOfWork.SaveChangesAsync();
-        
+
         // Invalidate cache
         var cacheKey = $"{ProfileCacheKeyPrefix}{userId}";
         await _cache.RemoveAsync(cacheKey);
-        
+
         return true;
     }
 }
@@ -190,7 +191,7 @@ public interface IUserProfileService
         DateOnly? doB = null,
         string? preferredPronoun = null,
         IEnumerable<string>? neurodiverseTraits = null,
-        string? preferences = null);
+        Dictionary<string, object>? preferences = null);
     Task<bool> DeleteByUserId(string userId);
 }
 

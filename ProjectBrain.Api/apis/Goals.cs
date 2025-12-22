@@ -123,6 +123,8 @@ public static class GoalEndpoints
                 });
             }
 
+            services.Logger.LogInformation("Completing goal for user {UserId} at index {Index} with completed status {Completed}", currentUserId, index, request.Completed);
+
             var goals = await services.GoalService.CompleteGoalAsync(
                 currentUserId,
                 index,

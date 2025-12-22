@@ -32,7 +32,7 @@ export default function EggsDashboardWidget() {
     if (totalGoals === 0) {
         return (
             <Link
-                href="/app/eggs"
+                href="/app/user/eggs"
                 className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow block"
             >
                 <div className="p-5">
@@ -61,7 +61,7 @@ export default function EggsDashboardWidget() {
 
     return (
         <Link
-            href="/app/eggs"
+            href="/app/user/eggs"
             className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow block"
         >
             <div className="p-5">

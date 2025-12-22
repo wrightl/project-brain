@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Subscription, Usage } from '@/_lib/types';
 import { apiClient } from '@/_lib/api-client';
 
@@ -79,21 +78,13 @@ export default function SubscriptionSummary() {
 
     return (
         <div className="bg-white shadow rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-                <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                        Subscription
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600">
-                        Current plan and usage
-                    </p>
-                </div>
-                <Link
-                    href="/app/user/subscription"
-                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                >
-                    Manage →
-                </Link>
+            <div className="mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">
+                    Subscription Summary
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                    Current plan and usage
+                </p>
             </div>
 
             <div className="space-y-4">

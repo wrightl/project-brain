@@ -96,13 +96,26 @@ public static class UserEndpoints
         // Update auth0
         await services.RoleManagementService.UpdateUserRoles(userId, user.Roles);
 
-        // Create or update user profile
+        // Create or update user FIRST (before UserProfile to satisfy foreign key constraint)
+        BaseUserDto result;
+        if (existingUser is not null)
+        {
+            // Update existing user
+            result = await services.UserService.Update(user);
+        }
+        else
+        {
+            // Create new user
+            result = await services.UserService.Create(user);
+        }
+
+        // Create or update user profile (now that User exists)
         var userProfile = await services.UserProfileService.CreateOrUpdate(
             userId,
             doB: request.DoB,
             preferredPronoun: request.PreferredPronoun,
             neurodiverseTraits: request.NeurodiverseTraits,
-            preferences: request.Preferences);
+            preferences: GetPreferencesObject(request.Preferences));
 
         // Convert onboarding data to JSON and store in blob storage
         var createdUser = await services.UserService.GetById(userId) as UserDto;
@@ -129,18 +142,7 @@ public static class UserEndpoints
             services.Logger.LogError(ex, "Failed to upload onboarding data to blob storage for user {UserId}", userId);
         }
 
-        if (existingUser is not null)
-        {
-            // Update existing user
-            var result = await services.UserService.Update(user);
-            return Results.Ok(result);
-        }
-        else
-        {
-            // Create new user
-            var result = await services.UserService.Create(user);
-            return Results.Ok(result);
-        }
+        return Results.Ok(result);
     }
 
     public static object CreateOnboardingData(UserProfile userProfile, UserDto createdUser)
@@ -310,7 +312,7 @@ public static class UserEndpoints
                 doB: request.DoB,
                 preferredPronoun: request.PreferredPronoun,
                 neurodiverseTraits: request.NeurodiverseTraits,
-                preferences: request.Preferences);
+                preferences: GetPreferencesObject(request.Preferences));
         }
 
         // Return the updated user
@@ -383,13 +385,28 @@ public static class UserEndpoints
         var userProfile = await services.UserProfileService.GetByUserId(userId);
 
         // Get existing preferences and merge with theme
+        var preferencesObj = GetPreferencesObject(userProfile?.Preference?.Preferences);
+
+        // Update theme in preferences
+        preferencesObj["theme"] = request.Theme.ToLowerInvariant();
+
+        // Update user profile with new preferences
+        await services.UserProfileService.CreateOrUpdate(
+            userId,
+            preferences: preferencesObj);
+
+        return Results.Ok(new { theme = request.Theme.ToLowerInvariant() });
+    }
+
+    private static Dictionary<string, object> GetPreferencesObject(string? preferences)
+    {
         Dictionary<string, object> preferencesObj;
-        if (userProfile?.Preference?.Preferences is not null)
+        if (preferences is not null)
         {
             try
             {
                 // Try to parse as JSON object
-                using var doc = JsonDocument.Parse(userProfile.Preference.Preferences);
+                using var doc = JsonDocument.Parse(preferences);
                 var root = doc.RootElement;
                 if (root.ValueKind == JsonValueKind.Object)
                 {
@@ -412,13 +429,13 @@ public static class UserEndpoints
                 else
                 {
                     // If not an object, wrap it
-                    preferencesObj = new Dictionary<string, object> { ["other"] = userProfile.Preference.Preferences };
+                    preferencesObj = new Dictionary<string, object> { ["other"] = preferences };
                 }
             }
             catch
             {
                 // If preferences is not JSON, keep it as is in a separate field
-                preferencesObj = new Dictionary<string, object> { ["other"] = userProfile.Preference.Preferences };
+                preferencesObj = new Dictionary<string, object> { ["other"] = preferences };
             }
         }
         else
@@ -426,18 +443,7 @@ public static class UserEndpoints
             preferencesObj = new Dictionary<string, object>();
         }
 
-        // Update theme in preferences
-        preferencesObj["theme"] = request.Theme.ToLowerInvariant();
-
-        // Serialize the dictionary back to JSON
-        var preferencesString = JsonSerializer.Serialize(preferencesObj);
-
-        // Update user profile with new preferences
-        await services.UserProfileService.CreateOrUpdate(
-            userId,
-            preferences: preferencesString);
-
-        return Results.Ok(new { theme = request.Theme.ToLowerInvariant() });
+        return preferencesObj;
     }
 
     private static string ParseThemeFromPreferences(string? preferences)

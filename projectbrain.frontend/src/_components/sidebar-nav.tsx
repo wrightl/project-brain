@@ -22,7 +22,7 @@ export default function SidebarNav() {
         },
         {
             name: 'Eggs',
-            path: '/app/eggs',
+            path: '/app/user/eggs',
             icon: AcademicCapIcon,
         },
         {

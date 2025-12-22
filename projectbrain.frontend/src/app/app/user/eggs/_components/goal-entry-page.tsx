@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useCreateOrUpdateGoals } from '@/_hooks/queries/use-goals';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Input } from '@headlessui/react';
 
@@ -14,6 +15,7 @@ export default function GoalEntryPage({
     initialGoals = [],
     onGoalsSaved,
 }: GoalEntryPageProps) {
+    const router = useRouter();
     // Pre-populate with initial goals, pad to 3 with empty strings
     const [goals, setGoals] = useState<string[]>(() => {
         const padded = [...initialGoals];
@@ -60,8 +62,12 @@ export default function GoalEntryPage({
         try {
             await createOrUpdateMutation.mutateAsync(nonEmptyGoals);
             toast.success('Goals saved successfully!');
-            // Call the callback to update parent state and show the goals list
-            onGoalsSaved?.();
+            // Call the callback if provided, otherwise navigate to main page
+            if (onGoalsSaved) {
+                onGoalsSaved();
+            } else {
+                router.push('/app/user/eggs');
+            }
         } catch (error) {
             toast.error(
                 error instanceof Error ? error.message : 'Failed to save goals'

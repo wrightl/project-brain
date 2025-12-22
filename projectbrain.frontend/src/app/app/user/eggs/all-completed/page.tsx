@@ -9,7 +9,7 @@ export default function AllGoalsCompletedPage() {
     const { data: goals } = useTodaysGoals();
 
     const handleGoBack = () => {
-        router.push('/app/eggs');
+        router.push('/app/user/eggs');
     };
 
     return (

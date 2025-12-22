@@ -1,14 +1,14 @@
 'use client';
 
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
 
-interface OnboardingPageProps {
-    onContinue: () => void;
-}
+export default function EggsOnboardingPage() {
+    const router = useRouter();
 
-export default function EggsOnboardingPage({
-    onContinue,
-}: OnboardingPageProps) {
+    const handleContinue = () => {
+        router.push('/app/user/eggs/edit');
+    };
     return (
         <div className="bg-white rounded-lg shadow-sm p-8 max-w-2xl mx-auto">
             <div className="text-center mb-8">
@@ -67,7 +67,7 @@ export default function EggsOnboardingPage({
 
             <div className="text-center">
                 <button
-                    onClick={onContinue}
+                    onClick={handleContinue}
                     className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                     Get Started

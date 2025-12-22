@@ -1,17 +1,15 @@
 import { Metadata } from 'next';
 import { UserService } from '@/_services/user-service';
 import { User } from '@/_lib/types';
-import ProfileForm from './_components/profile-form';
+import PreferencesSection from '../profile/_components/preferences-section';
 
 export const metadata: Metadata = {
-    title: 'Profile',
-    description: 'View and edit your profile',
+    title: 'Preferences',
+    description: 'Manage your preferences and settings',
 };
 
-export default async function ProfilePage() {
+export default async function PreferencesPage() {
     const user = await UserService.getCurrentUser();
-
-    console.log('user', user);
 
     if (!user) {
         return (
@@ -24,12 +22,13 @@ export default async function ProfilePage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
+                <h1 className="text-3xl font-bold text-gray-900">Preferences</h1>
                 <p className="mt-2 text-sm text-gray-600">
-                    View and manage your profile information
+                    Customize your app experience and settings
                 </p>
             </div>
-            <ProfileForm user={user as User} />
+            <PreferencesSection user={user as User} />
         </div>
     );
 }
+

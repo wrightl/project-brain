@@ -1,5 +1,5 @@
 import { callBackendApi } from '@/_lib/backend-api';
-import { PagedResponse } from '@/_lib/types';
+import type { PagedResponse } from '@/_lib/types';
 
 export interface JournalEntry {
     id: string;
@@ -162,5 +162,3 @@ export class JournalService {
         }
     }
 }
-
-export { PagedResponse };

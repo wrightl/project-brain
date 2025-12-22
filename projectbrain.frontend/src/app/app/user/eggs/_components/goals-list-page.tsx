@@ -1,26 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useTodaysGoals, useCompleteGoal } from '@/_hooks/queries/use-goals';
 import { useRouter } from 'next/navigation';
 import { PencilIcon } from '@heroicons/react/24/outline';
 import ProgressIndicator from './progress-indicator';
 import StreakDisplay from './streak-display';
 import CompletionOverlay from './completion-overlay';
-import { Goal } from '@/_services/goal-service';
 
-interface GoalsListPageProps {
-    onEdit?: () => void;
-}
-
-export default function GoalsListPage({ onEdit }: GoalsListPageProps) {
+export default function GoalsListPage() {
     const { data: goals, isLoading } = useTodaysGoals();
     const completeGoalMutation = useCompleteGoal();
     const router = useRouter();
     const [showCompletionOverlay, setShowCompletionOverlay] = useState(false);
     const [completedGoalMessage, setCompletedGoalMessage] =
         useState<string>('');
-    const [allCompletedShown, setAllCompletedShown] = useState(false);
 
     // Check if all goals are completed
     const completedCount =
@@ -28,18 +22,6 @@ export default function GoalsListPage({ onEdit }: GoalsListPageProps) {
             .length ?? 0;
     const totalGoals =
         goals?.filter((g) => g.message.trim().length > 0).length ?? 0;
-    const allCompleted = totalGoals > 0 && completedCount === totalGoals;
-
-    // Navigate to all-completed page when all goals are done
-    useEffect(() => {
-        if (allCompleted && !allCompletedShown && goals) {
-            setAllCompletedShown(true);
-            // Small delay to show completion overlay first
-            setTimeout(() => {
-                router.push('/app/user/eggs/all-completed');
-            }, 2000);
-        }
-    }, [allCompleted, allCompletedShown, goals, router]);
 
     const handleToggleComplete = async (
         index: number,
@@ -48,15 +30,35 @@ export default function GoalsListPage({ onEdit }: GoalsListPageProps) {
     ) => {
         try {
             const newCompleted = !currentCompleted;
-            await completeGoalMutation.mutateAsync({
+
+            if (newCompleted) {
+                // Show completed message overlay immediately
+                setCompletedGoalMessage(goalMessage);
+                setShowCompletionOverlay(true);
+            }
+
+            const updatedGoals = await completeGoalMutation.mutateAsync({
                 index,
                 completed: newCompleted,
             });
 
             // Show completion overlay if goal was just completed
             if (newCompleted && goalMessage.trim().length > 0) {
-                setCompletedGoalMessage(goalMessage);
-                setShowCompletionOverlay(true);
+                // Check if all goals are now completed
+                const activeGoals = updatedGoals.filter(
+                    (g) => g.message.trim().length > 0
+                );
+                const allCompleted =
+                    activeGoals.length > 0 &&
+                    activeGoals.every((g) => g.completed);
+
+                // Navigate to all-completed page only if user just completed a goal and all are now done
+                if (allCompleted) {
+                    // Small delay to show completion overlay first
+                    setTimeout(() => {
+                        router.push('/app/user/eggs/all-completed');
+                    }, 2000);
+                }
             }
         } catch (error) {
             console.error('Failed to update goal:', error);
@@ -96,15 +98,13 @@ export default function GoalsListPage({ onEdit }: GoalsListPageProps) {
                         finish them.
                     </p>
                 </div>
-                {onEdit && (
-                    <button
-                        onClick={onEdit}
-                        className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                        <PencilIcon className="h-4 w-4 mr-2" />
-                        Edit Goals
-                    </button>
-                )}
+                <button
+                    onClick={() => router.push('/app/user/eggs/edit')}
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    <PencilIcon className="h-4 w-4 mr-2" />
+                    Edit Goals
+                </button>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm p-6">

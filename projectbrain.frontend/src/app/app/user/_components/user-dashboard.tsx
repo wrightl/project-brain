@@ -44,7 +44,7 @@ export default async function UserDashboard() {
         {
             title: 'Daily Eggs',
             description: 'Set and track your daily goals',
-            href: '/app/eggs',
+            href: '/app/user/eggs',
             icon: AcademicCapIcon,
             color: 'bg-yellow-500',
         },

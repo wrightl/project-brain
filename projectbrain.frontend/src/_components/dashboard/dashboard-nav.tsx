@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 import { User, UserRole } from '@/_lib/types';
 import {
     HomeIcon,
@@ -9,12 +10,15 @@ import {
     SparklesIcon,
     UsersIcon,
     CloudArrowUpIcon,
-    Cog6ToothIcon,
     ArrowRightStartOnRectangleIcon,
     UserIcon,
     DocumentTextIcon,
-    MusicalNoteIcon,
     AcademicCapIcon,
+    ChevronDownIcon,
+    CogIcon,
+    CreditCardIcon,
+    Bars3Icon,
+    XMarkIcon,
 } from '@heroicons/react/24/outline';
 import AvailabilityStatusDropdown from './availability-status-dropdown';
 import { useUnreadMessagesCount } from '@/_hooks/use-unread-messages-count';
@@ -24,9 +28,113 @@ interface DashboardNavProps {
     role: UserRole | null;
 }
 
+function UserProfileDropdown({ user }: { user: User | null }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                dropdownRef.current &&
+                !dropdownRef.current.contains(event.target as Node)
+            ) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const menuItems = [
+        {
+            href: '/app/user/profile',
+            label: 'Profile',
+            icon: UserIcon,
+        },
+        {
+            href: '/app/user/resources',
+            label: 'Resources',
+            icon: CloudArrowUpIcon,
+        },
+        {
+            href: '/app/user/subscription',
+            label: 'Subscription',
+            icon: CreditCardIcon,
+        },
+        {
+            href: '/app/user/preferences',
+            label: 'Preferences',
+            icon: CogIcon,
+        },
+        {
+            href: '/auth/logout',
+            label: 'Logout',
+            icon: ArrowRightStartOnRectangleIcon,
+        },
+    ];
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
+            >
+                <UserIcon className="h-5 w-5 mr-2" />
+                {user?.firstName || 'User'}
+                <ChevronDownIcon className="h-4 w-4 ml-2" />
+            </button>
+
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                    <div className="py-1">
+                        {menuItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    onClick={() => setIsOpen(false)}
+                                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                >
+                                    <Icon className="h-5 w-5 mr-3" />
+                                    {item.label}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function DashboardNav({ user, role }: DashboardNavProps) {
     const pathname = usePathname();
     const { unreadCount } = useUnreadMessagesCount();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                mobileMenuRef.current &&
+                !mobileMenuRef.current.contains(event.target as Node)
+            ) {
+                setMobileMenuOpen(false);
+            }
+        };
+
+        if (mobileMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [mobileMenuOpen]);
 
     const adminLinks = [
         { href: '/app/admin', label: 'Dashboard', icon: HomeIcon },
@@ -45,7 +153,7 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
 
     const coachLinks = [
         { href: '/app/coach', label: 'Dashboard', icon: HomeIcon },
-        { href: '/app/coach/clients', label: 'My Clients', icon: UsersIcon },
+        { href: '/app/coach/clients', label: 'Clients', icon: UsersIcon },
         { href: '/app/coach/search', label: 'Find Users', icon: UsersIcon },
         {
             href: '/app/coach/messages',
@@ -56,7 +164,6 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
     ];
 
     const userLinks = [
-        { href: '/app/user', label: 'Dashboard', icon: HomeIcon },
         {
             href: '/app/user/chat',
             label: 'Chat',
@@ -69,13 +176,8 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
         },
         {
             href: '/app/user/connections',
-            label: 'My Network',
+            label: 'Network',
             icon: UsersIcon,
-        },
-        {
-            href: '/app/user/resources',
-            label: 'My Resources',
-            icon: CloudArrowUpIcon,
         },
     ];
 
@@ -86,15 +188,53 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             ? coachLinks
             : userLinks;
 
+    const userMenuItems = [
+        {
+            href: '/app/user/profile',
+            label: 'Profile',
+            icon: UserIcon,
+        },
+        {
+            href: '/app/user/resources',
+            label: 'Resources',
+            icon: CloudArrowUpIcon,
+        },
+        {
+            href: '/app/user/subscription',
+            label: 'Subscription',
+            icon: CreditCardIcon,
+        },
+        {
+            href: '/app/user/preferences',
+            label: 'Preferences',
+            icon: CogIcon,
+        },
+        {
+            href: '/auth/logout',
+            label: 'Logout',
+            icon: ArrowRightStartOnRectangleIcon,
+        },
+    ];
+
     return (
         <nav className="bg-white shadow-sm border-b border-gray-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-16">
                     <div className="flex space-x-8">
                         <div className="flex items-center">
-                            <span className="text-xl font-bold text-indigo-600">
-                                ProjectBrain
-                            </span>
+                            {role === 'user' ? (
+                                <Link
+                                    href="/app/user"
+                                    className="flex items-center text-xl font-bold text-indigo-600 hover:text-indigo-700"
+                                >
+                                    <HomeIcon className="h-5 w-5 mr-2" />
+                                    ProjectBrain
+                                </Link>
+                            ) : (
+                                <span className="text-xl font-bold text-indigo-600">
+                                    ProjectBrain
+                                </span>
+                            )}
                         </div>
                         <div className="hidden sm:flex sm:space-x-4">
                             {links.map((link) => {
@@ -128,34 +268,123 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                         </div>
                     </div>
                     <div className="flex items-center space-x-4">
-                        {role === 'coach' && <AvailabilityStatusDropdown />}
-                        {role === 'admin' && (
-                            <span className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md">
-                                <UserIcon className="h-5 w-5 mr-2" />
-                                {user?.fullName || 'User'}
-                            </span>
-                        )}
-                        {role !== 'admin' && (
-                            <Link
-                                href={
-                                    role === 'coach'
-                                        ? '/app/coach/profile'
-                                        : '/app/user/profile'
-                                }
-                                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
+                        {/* Mobile menu button - only show for users */}
+                        {role === 'user' && (
+                            <div
+                                className="sm:hidden relative"
+                                ref={mobileMenuRef}
                             >
-                                <UserIcon className="h-5 w-5 mr-2" />
-                                {user?.fullName || 'User'}
-                            </Link>
+                                <button
+                                    onClick={() =>
+                                        setMobileMenuOpen(!mobileMenuOpen)
+                                    }
+                                    className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+                                    aria-expanded="false"
+                                >
+                                    <span className="sr-only">
+                                        Open main menu
+                                    </span>
+                                    {mobileMenuOpen ? (
+                                        <XMarkIcon className="block h-6 w-6" />
+                                    ) : (
+                                        <Bars3Icon className="block h-6 w-6" />
+                                    )}
+                                </button>
+
+                                {mobileMenuOpen && (
+                                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                                        <div className="py-1">
+                                            {/* Navigation Links */}
+                                            <div className="px-4 py-2 border-b border-gray-200">
+                                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                    Navigation
+                                                </p>
+                                            </div>
+                                            {userLinks.map((link) => {
+                                                const Icon = link.icon;
+                                                const isActive =
+                                                    pathname === link.href;
+                                                return (
+                                                    <Link
+                                                        key={link.href}
+                                                        href={link.href}
+                                                        onClick={() =>
+                                                            setMobileMenuOpen(
+                                                                false
+                                                            )
+                                                        }
+                                                        className={`flex items-center px-4 py-2 text-sm ${
+                                                            isActive
+                                                                ? 'bg-indigo-50 text-indigo-700'
+                                                                : 'text-gray-700 hover:bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        <Icon className="h-5 w-5 mr-3" />
+                                                        {link.label}
+                                                    </Link>
+                                                );
+                                            })}
+                                            {/* User Menu Items */}
+                                            <div className="px-4 py-2 border-t border-gray-200 mt-1">
+                                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                    Account
+                                                </p>
+                                            </div>
+                                            {userMenuItems.map((item) => {
+                                                const Icon = item.icon;
+                                                return (
+                                                    <Link
+                                                        key={item.href}
+                                                        href={item.href}
+                                                        onClick={() =>
+                                                            setMobileMenuOpen(
+                                                                false
+                                                            )
+                                                        }
+                                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                    >
+                                                        <Icon className="h-5 w-5 mr-3" />
+                                                        {item.label}
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         )}
 
-                        <a
-                            href="/auth/logout"
-                            className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
-                        >
-                            <ArrowRightStartOnRectangleIcon className="h-5 w-5 mr-2" />
-                            Logout
-                        </a>
+                        {/* Desktop view */}
+                        <div className="hidden sm:flex items-center space-x-4">
+                            {role === 'coach' && <AvailabilityStatusDropdown />}
+                            {role === 'admin' && (
+                                <span className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 rounded-md">
+                                    <UserIcon className="h-5 w-5 mr-2" />
+                                    {user?.fullName || 'User'}
+                                </span>
+                            )}
+                            {role === 'coach' && (
+                                <Link
+                                    href="/app/coach/profile"
+                                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
+                                >
+                                    <UserIcon className="h-5 w-5 mr-2" />
+                                    {user?.fullName || 'User'}
+                                </Link>
+                            )}
+                            {role === 'user' && (
+                                <UserProfileDropdown user={user} />
+                            )}
+                            {role !== 'user' && (
+                                <a
+                                    href="/auth/logout"
+                                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
+                                >
+                                    <ArrowRightStartOnRectangleIcon className="h-5 w-5 mr-2" />
+                                    Logout
+                                </a>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

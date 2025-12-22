@@ -6,12 +6,16 @@ interface UseCoachMessagesSignalRProps {
     connectionId: string;
     onNewMessage: (message: CoachMessage) => void;
     onTypingIndicator: (senderId: string, typing: boolean) => void;
+    onMessageDelivered?: (message: CoachMessage) => void;
+    onMessageRead?: (message: CoachMessage) => void;
 }
 
 export function useCoachMessagesSignalR({
     connectionId,
     onNewMessage,
     onTypingIndicator,
+    onMessageDelivered,
+    onMessageRead,
 }: UseCoachMessagesSignalRProps) {
     const [connection, setConnection] = useState<signalR.HubConnection | null>(
         null
@@ -22,12 +26,16 @@ export function useCoachMessagesSignalR({
     // Use refs to store callbacks to avoid dependency issues
     const onNewMessageRef = useRef(onNewMessage);
     const onTypingIndicatorRef = useRef(onTypingIndicator);
+    const onMessageDeliveredRef = useRef(onMessageDelivered);
+    const onMessageReadRef = useRef(onMessageRead);
 
     // Update refs when callbacks change
     useEffect(() => {
         onNewMessageRef.current = onNewMessage;
         onTypingIndicatorRef.current = onTypingIndicator;
-    }, [onNewMessage, onTypingIndicator]);
+        onMessageDeliveredRef.current = onMessageDelivered;
+        onMessageReadRef.current = onMessageRead;
+    }, [onNewMessage, onTypingIndicator, onMessageDelivered, onMessageRead]);
 
     useEffect(() => {
         let isMounted = true;
@@ -87,6 +95,14 @@ export function useCoachMessagesSignalR({
                 onTypingIndicatorRef.current(senderId, typing);
             }
         );
+
+        newConnection.on('MessageDelivered', (message: CoachMessage) => {
+            onMessageDeliveredRef.current?.(message);
+        });
+
+        newConnection.on('MessageRead', (message: CoachMessage) => {
+            onMessageReadRef.current?.(message);
+        });
 
         newConnection.onreconnecting(() => {
             if (isMounted) {

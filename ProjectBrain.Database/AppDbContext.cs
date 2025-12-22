@@ -339,6 +339,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         modelBuilder.Entity<CoachRating>()
             .HasIndex(cr => cr.CreatedAt);
 
+        // Configure Goal relationships
+        modelBuilder.Entity<Goal>()
+            .HasIndex(g => new { g.UserId, g.Date });
+
+        modelBuilder.Entity<Goal>()
+            .HasIndex(g => g.UserId);
+
+        // Unique constraint: one goal per user/date/index combination
+        modelBuilder.Entity<Goal>()
+            .HasIndex(g => new { g.UserId, g.Date, g.Index })
+            .IsUnique();
+
+        // Check constraint for Index (0-2)
+        modelBuilder.Entity<Goal>()
+            .HasCheckConstraint("CK_Goal_Index", "[Index] >= 0 AND [Index] <= 2");
+
+        // Check constraint for Message length (max 500)
+        modelBuilder.Entity<Goal>()
+            .HasCheckConstraint("CK_Goal_MessageLength", "LEN([Message]) <= 500");
+
         logger.LogInformation("OnModelCreating completed");
     }
 
@@ -373,4 +393,5 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<JournalEntryTag> JournalEntryTags => Set<JournalEntryTag>();
     public DbSet<CoachRating> CoachRatings => Set<CoachRating>();
+    public DbSet<Goal> Goals => Set<Goal>();
 }

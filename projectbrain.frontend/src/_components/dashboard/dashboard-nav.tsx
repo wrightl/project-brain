@@ -14,6 +14,7 @@ import {
     UserIcon,
     DocumentTextIcon,
     MusicalNoteIcon,
+    AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import AvailabilityStatusDropdown from './availability-status-dropdown';
 import { useUnreadMessagesCount } from '@/_hooks/use-unread-messages-count';
@@ -46,7 +47,12 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
         { href: '/app/coach', label: 'Dashboard', icon: HomeIcon },
         { href: '/app/coach/clients', label: 'My Clients', icon: UsersIcon },
         { href: '/app/coach/search', label: 'Find Users', icon: UsersIcon },
-        { href: '/app/coach/messages', label: 'Messaging', icon: ChatBubbleLeftRightIcon, showUnreadBadge: true },
+        {
+            href: '/app/coach/messages',
+            label: 'Messaging',
+            icon: ChatBubbleLeftRightIcon,
+            showUnreadBadge: true,
+        },
     ];
 
     const userLinks = [
@@ -55,6 +61,11 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             href: '/app/user/chat',
             label: 'Chat',
             icon: SparklesIcon,
+        },
+        {
+            href: '/app/user/eggs',
+            label: 'Eggs',
+            icon: AcademicCapIcon,
         },
         {
             href: '/app/user/connections',
@@ -89,7 +100,9 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                             {links.map((link) => {
                                 const Icon = link.icon;
                                 const isActive = pathname === link.href;
-                                const showBadge = (link as any).showUnreadBadge && unreadCount > 0;
+                                const showBadge =
+                                    (link as any).showUnreadBadge &&
+                                    unreadCount > 0;
                                 return (
                                     <Link
                                         key={link.href}
@@ -104,7 +117,9 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                         {link.label}
                                         {showBadge && (
                                             <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-600 text-white">
-                                                {unreadCount > 99 ? '99+' : unreadCount}
+                                                {unreadCount > 99
+                                                    ? '99+'
+                                                    : unreadCount}
                                             </span>
                                         )}
                                     </Link>

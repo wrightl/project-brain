@@ -49,34 +49,57 @@ export default function MessageInterface({
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Handle new message from SignalR
-    const handleNewMessage = useCallback(
-        (message: CoachMessage) => {
-            setMessages((prev) => {
-                // Avoid duplicates
-                if (prev.some((m) => m.id === message.id)) {
-                    return prev;
-                }
-                return [message, ...prev].sort(
-                    (a, b) =>
-                        new Date(a.createdAt).getTime() -
-                        new Date(b.createdAt).getTime()
-                );
-            });
-            // Mark as delivered if we're the recipient
-            if (message.senderId !== currentUserId) {
-                fetchWithAuth(`/api/coach-messages/${message.id}/delivered`, {
-                    method: 'PUT',
-                }).catch(console.error);
+    const handleNewMessage = useCallback((message: CoachMessage) => {
+        setMessages((prev) => {
+            // Avoid duplicates
+            if (prev.some((m) => m.id === message.id)) {
+                return prev;
             }
-        },
-        [currentUserId]
-    );
+            return [message, ...prev].sort(
+                (a, b) =>
+                    new Date(a.createdAt).getTime() -
+                    new Date(b.createdAt).getTime()
+            );
+        });
+    }, []);
+
+    // Handle message delivered status update from SignalR
+    const handleMessageDelivered = useCallback((message: CoachMessage) => {
+        setMessages((prev) =>
+            prev.map((m) =>
+                m.id === message.id
+                    ? {
+                          ...m,
+                          status: message.status,
+                          deliveredAt: message.deliveredAt,
+                      }
+                    : m
+            )
+        );
+    }, []);
+
+    // Handle message read status update from SignalR
+    const handleMessageRead = useCallback((message: CoachMessage) => {
+        setMessages((prev) =>
+            prev.map((m) =>
+                m.id === message.id
+                    ? {
+                          ...m,
+                          status: message.status,
+                          readAt: message.readAt,
+                          deliveredAt: message.deliveredAt,
+                      }
+                    : m
+            )
+        );
+    }, []);
 
     // Handle typing indicator from SignalR
     const handleTypingIndicator = useCallback(
         (senderId: string, typing: boolean) => {
             if (senderId !== currentUserId) {
-                setOtherUserTyping(typing);
+                console.log('handleTypingIndicator', senderId, typing),
+                    setOtherUserTyping(typing);
             }
         },
         [currentUserId]
@@ -180,6 +203,8 @@ export default function MessageInterface({
         connectionId: connectionId || '',
         onNewMessage: handleNewMessage,
         onTypingIndicator: handleTypingIndicator,
+        onMessageDelivered: handleMessageDelivered,
+        onMessageRead: handleMessageRead,
     });
 
     // Load initial messages - only after connection details are loaded
@@ -212,6 +237,17 @@ export default function MessageInterface({
             }).catch(console.error);
         }
     }, [connectionId, messages.length]);
+
+    // Cleanup typing indicator on unmount
+    useEffect(() => {
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            // Stop typing indicator when component unmounts
+            sendTypingIndicator(false);
+        };
+    }, [sendTypingIndicator]);
 
     const loadMessages = async (beforeDate?: Date) => {
         try {
@@ -291,8 +327,20 @@ export default function MessageInterface({
         }
     }, [handleScroll]);
 
+    const stopTypingIndicator = useCallback(() => {
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
+        }
+        console.log('stopTypingIndicator');
+        sendTypingIndicator(false);
+    }, [sendTypingIndicator]);
+
     const sendMessage = async () => {
         if (!input.trim() || isSending) return;
+
+        // Stop typing indicator when sending message
+        stopTypingIndicator();
 
         setIsSending(true);
         try {
@@ -327,6 +375,9 @@ export default function MessageInterface({
     const handleVoiceRecording = async (audioBlob: Blob) => {
         if (isSending) return;
 
+        // Stop typing indicator when sending voice message
+        stopTypingIndicator();
+
         setIsSending(true);
         try {
             const formData = new FormData();
@@ -352,20 +403,26 @@ export default function MessageInterface({
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setInput(e.target.value);
+        const value = e.target.value;
+        setInput(value);
 
-        // Send typing indicator
-        sendTypingIndicator(true);
+        // Send typing indicator only if there's text
+        if (value.trim()) {
+            sendTypingIndicator(true);
 
-        // Clear existing timeout
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
+            // Clear existing timeout
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            // // Set timeout to stop typing indicator after 2 seconds of inactivity
+            // typingTimeoutRef.current = setTimeout(() => {
+            //     stopTypingIndicator();
+            // }, 2000);
+        } else {
+            // Stop typing indicator immediately if input is empty
+            stopTypingIndicator();
         }
-
-        // Set timeout to stop typing indicator
-        typingTimeoutRef.current = setTimeout(() => {
-            sendTypingIndicator(false);
-        }, 1000);
     };
 
     const handleSearch = async (term: string) => {

@@ -3,11 +3,13 @@ import {
     ChatBubbleLeftRightIcon,
     DocumentArrowUpIcon,
     UserGroupIcon,
+    AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import { ChatService } from '@/_services/chat-service';
 import { ResourceService } from '@/_services/resource-service';
 import { StatisticsService } from '@/_services/statistics-service';
 import { ConversationListItem } from './conversation-list-item';
+import EggsDashboardWidget from './eggs-dashboard-widget';
 
 export default async function UserDashboard() {
     const conversations = await ChatService.getConversations();
@@ -40,6 +42,13 @@ export default async function UserDashboard() {
             color: 'bg-indigo-500',
         },
         {
+            title: 'Daily Eggs',
+            description: 'Set and track your daily goals',
+            href: '/app/eggs',
+            icon: AcademicCapIcon,
+            color: 'bg-yellow-500',
+        },
+        {
             title: 'Find Coaches',
             description:
                 'Search for coaches by location, age groups, and specialisms',
@@ -69,7 +78,7 @@ export default async function UserDashboard() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {stats.map((stat) => {
                     const Icon = stat.icon;
                     return (
@@ -100,6 +109,8 @@ export default async function UserDashboard() {
                         </div>
                     );
                 })}
+                {/* Daily Eggs Widget */}
+                <EggsDashboardWidget />
             </div>
 
             {/* Quick Actions */}

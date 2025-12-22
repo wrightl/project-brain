@@ -65,10 +65,16 @@ public static class AuthenticationExtensions
                     {
                         policy.RequireClaim("https://projectbrain.app/roles", "coach");
                     });
-                // options.AddPolicy("UserOnly", policy =>
-                //     {
-                //         policy.RequireClaim("https://projectbrain.app/roles", "user");
-                //     });
+                options.AddPolicy("UserOnly", policy =>
+                    {
+                        policy.RequireClaim("https://projectbrain.app/roles", "user");
+
+                        // Make sure the user is not a coach
+                        policy.RequireAssertion(context =>
+                            {
+                                return !context.User.HasClaim(c => c.Type == "https://projectbrain.app/roles" && c.Value == "coach");
+                            });
+                    });
             });
     }
 

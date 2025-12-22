@@ -36,11 +36,6 @@ export default function CoachMessageComponent({
 
     const isOwnMessage = message.senderId === currentUserId;
 
-    console.log('CoachMessageComponent', message);
-    console.log('currentUserId', currentUserId);
-    console.log('isOwnMessage', isOwnMessage);
-    console.log('message.senderId', message.senderId);
-
     // Load audio for voice messages
     useEffect(() => {
         if (message.messageType !== 'voice' || !message.voiceNoteUrl) {
@@ -164,23 +159,22 @@ export default function CoachMessageComponent({
         try {
             const date = new Date(dateString);
             const now = new Date();
-            const diffMs = now.getTime() - date.getTime();
-            const diffMins = Math.floor(diffMs / 60000);
-            const diffHours = Math.floor(diffMs / 3600000);
-            const diffDays = Math.floor(diffMs / 86400000);
+            const isSameYear = date.getFullYear() === now.getFullYear();
 
-            if (diffMins < 1) return 'Just now';
-            if (diffMins < 60) return `${diffMins}m ago`;
-            if (diffHours < 24) return `${diffHours}h ago`;
-            if (diffDays < 7) return `${diffDays}d ago`;
+            // const diffMins = Math.floor(diffMs / 60000);
+            // const diffHours = Math.floor(diffMs / 3600000);
+            // const diffDays = Math.floor(diffMs / 86400000);
+            // if (diffMins < 1) return 'Just now';
+            // if (diffMins < 60) return `${diffMins}m ago`;
+            // if (diffHours < 24) return `${diffHours}h ago`;
+            // if (diffDays < 7) return `${diffDays}d ago`;
 
-            return date.toLocaleDateString('en-US', {
+            return date.toLocaleString(undefined, {
                 month: 'short',
                 day: 'numeric',
-                year:
-                    date.getFullYear() !== now.getFullYear()
-                        ? 'numeric'
-                        : undefined,
+                year: isSameYear ? undefined : 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
             });
         } catch {
             return '';

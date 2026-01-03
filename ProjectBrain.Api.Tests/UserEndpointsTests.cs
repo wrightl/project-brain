@@ -24,6 +24,7 @@ public class UserEndpointsTests
     private readonly UserServices _userServices;
     private readonly Mock<IUserActivityService> _mockUserActivityService;
     private readonly Mock<ICoachMessageService> _mockCoachMessageService;
+    private readonly Mock<IOnboardingDataService> _mockOnboardingDataService;
     public UserEndpointsTests()
     {
         _mockLogger = new Mock<ILogger<UserServices>>();
@@ -34,8 +35,9 @@ public class UserEndpointsTests
         _mockUserProfileService = new Mock<IUserProfileService>();
         _mockUserActivityService = new Mock<IUserActivityService>();
         _mockCoachMessageService = new Mock<ICoachMessageService>();
+        _mockOnboardingDataService = new Mock<IOnboardingDataService>();
         var mockMemoryCache = new Mock<IMemoryCache>();
-        var mockFeatureFlagService = new Mock<FeatureFlagService>();
+        var mockFeatureFlagService = new Mock<IFeatureFlagService>();
         var mockConfiguration = new Mock<IConfiguration>();
         var mockStorage = new Mock<Storage>();
 
@@ -51,6 +53,7 @@ public class UserEndpointsTests
             _mockUserProfileService.Object,
             _mockUserActivityService.Object,
             _mockCoachMessageService.Object,
+            _mockOnboardingDataService.Object,
             mockStorage.Object
         );
     }

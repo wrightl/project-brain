@@ -359,6 +359,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         modelBuilder.Entity<Goal>()
             .HasCheckConstraint("CK_Goal_MessageLength", "LEN([Message]) <= 500");
 
+        // Configure OnboardingData relationships
+        modelBuilder.Entity<OnboardingData>()
+            .HasOne(od => od.User)
+            .WithMany()
+            .HasForeignKey(od => od.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<OnboardingData>()
+            .HasIndex(od => od.UserId)
+            .IsUnique();
+
         logger.LogInformation("OnModelCreating completed");
     }
 
@@ -394,4 +405,5 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<JournalEntryTag> JournalEntryTags => Set<JournalEntryTag>();
     public DbSet<CoachRating> CoachRatings => Set<CoachRating>();
     public DbSet<Goal> Goals => Set<Goal>();
+    public DbSet<OnboardingData> OnboardingData => Set<OnboardingData>();
 }

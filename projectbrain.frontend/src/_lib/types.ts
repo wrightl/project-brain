@@ -60,11 +60,122 @@ export interface CoachOnboardingData extends OnboardingData {
     ageGroups?: string[];
 }
 
+export interface WelcomeSection {
+    preferredName?: string;
+    inspiration?: string;
+    currentFeeling?: string;
+}
+
+export interface AboutYouSection {
+    selfDescription?: string[];
+    businessType?: string;
+    proudMoment?: string;
+    challenge?: string[];
+}
+
+export interface PreferencesSection {
+    learningStyle?: string;
+    informationDepth?: string;
+    celebrationStyle?: string;
+}
+
+export interface ProfileSection {
+    strengths?: string[];
+    supportAreas?: string[];
+    motivationStyle?: string;
+    neurodivergentUnderstanding?: string;
+    biggestGoal?: string;
+}
+
+export interface CoachingBuddySection {
+    tasks?: string[];
+    communicationStyle?: string;
+    toolsIntegration?: string;
+    workingStyle?: string;
+    additionalInfo?: string;
+}
+
+export interface ClosingSection {
+    safeSpace?: string;
+    tipsOptIn?: boolean;
+}
+
+export interface FollowOnQuestions {
+    strengths?: {
+        howUseStrengths?: string;
+        tapIntoStrengths?: string;
+        buildOnStrengths?: string;
+    };
+    challenges?: {
+        hardestToManage?: string;
+        toolsThatHelp?: string;
+        suggestions?: boolean;
+        recharge?: string;
+    };
+    learning?: {
+        learningExample?: string;
+        preferredFormat?: boolean;
+        breakTasks?: string;
+    };
+    motivation?: {
+        whatMotivates?: string;
+        goalSetting?: string;
+        reminders?: string;
+        celebrateProgress?: string;
+    };
+    coping?: {
+        sensoryFriendly?: string;
+        timeManagement?: string;
+        overwhelmed?: string;
+        exploreStrategies?: boolean;
+    };
+    support?: {
+        biggestDifference?: string;
+        supportSystem?: string;
+        specificSkills?: string;
+        selfCareBalance?: string;
+    };
+    coachingBuddy?: {
+        taskToTakeOff?: string;
+        helpWith?: string;
+        adaptCommunication?: string;
+        specificReminders?: string;
+    };
+    emotional?: {
+        feelGrounded?: string;
+        processChallenges?: string;
+        buildCalm?: string;
+        feelSupported?: string;
+    };
+    celebrating?: {
+        recentWin?: string;
+        acknowledgeProgress?: string;
+        celebrationIdeas?: boolean;
+        helpRecognize?: string;
+    };
+    customization?: {
+        specificTools?: string;
+        customizeCommunication?: string;
+        tailoredNeeds?: string;
+    };
+}
+
 export interface UserOnboardingData extends OnboardingData {
     doB: string;
     preferredPronoun: string;
     neurodiverseTraits?: string[];
     preferences?: string;
+    // New structured onboarding fields
+    onboarding?: {
+        locale?: string;
+        welcome?: WelcomeSection;
+        aboutYou?: AboutYouSection;
+        preferences?: PreferencesSection;
+        profile?: ProfileSection;
+        coachingBuddy?: CoachingBuddySection;
+        closing?: ClosingSection;
+        followOnQuestions?: FollowOnQuestions;
+    };
 }
 
 export interface Citation {

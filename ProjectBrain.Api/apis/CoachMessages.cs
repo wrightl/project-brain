@@ -132,13 +132,14 @@ public static class CoachMessageEndpoints
                 pageSize,
                 beforeDate);
 
+            // TODO: Remove the userId, coachId, senderId, and sender properties from the response
             var response = messages.Select(m => new
             {
                 id = m.Id.ToString(),
-                userId = m.UserId,
-                coachId = m.CoachId,
+                // userId = m.UserId,
+                // coachId = m.CoachId,
                 connectionId = m.ConnectionId.ToString(),
-                senderId = m.SenderId,
+                // senderId = m.SenderId,
                 messageType = m.MessageType,
                 content = m.Content,
                 voiceNoteUrl = m.VoiceNoteUrl,
@@ -149,7 +150,7 @@ public static class CoachMessageEndpoints
                 createdAt = m.CreatedAt.ToString("O"),
                 sender = m.Sender != null ? new
                 {
-                    id = m.Sender.Id,
+                    // id = m.Sender.Id,
                     fullName = m.Sender.FullName,
                     email = m.Sender.Email
                 } : null
@@ -234,6 +235,10 @@ public static class CoachMessageEndpoints
                     email = messageWithSender.Sender.Email
                 } : null
             };
+
+            // Notify other party via SignalR
+            var recipientId = currentUserId == connection.UserId ? connection.CoachId : connection.UserId;
+            await services.HubContext.Clients.Group($"user_{recipientId}").SendAsync("NewMessage", response);
 
             return Results.Created($"/coach-messages/{savedMessage.Id}", response);
         }
@@ -463,6 +468,46 @@ public static class CoachMessageEndpoints
                 });
             }
 
+            // Fetch updated message with sender information
+            var updatedMessage = await services.CoachMessageService.GetById(messageId);
+            if (updatedMessage != null)
+            {
+                // Format message object for SignalR
+                var messageUpdate = new
+                {
+                    id = updatedMessage.Id.ToString(),
+                    userId = updatedMessage.UserId,
+                    coachId = updatedMessage.CoachId,
+                    connectionId = updatedMessage.ConnectionId.ToString(),
+                    senderId = updatedMessage.SenderId,
+                    messageType = updatedMessage.MessageType,
+                    content = updatedMessage.Content,
+                    voiceNoteUrl = updatedMessage.VoiceNoteUrl,
+                    voiceNoteFileName = updatedMessage.VoiceNoteFileName,
+                    status = updatedMessage.Status,
+                    deliveredAt = updatedMessage.DeliveredAt?.ToString("O"),
+                    readAt = updatedMessage.ReadAt?.ToString("O"),
+                    createdAt = updatedMessage.CreatedAt.ToString("O"),
+                    sender = updatedMessage.Sender != null ? new
+                    {
+                        id = updatedMessage.Sender.Id,
+                        fullName = updatedMessage.Sender.FullName,
+                        email = updatedMessage.Sender.Email
+                    } : null
+                };
+
+                // Notify sender via SignalR
+                try
+                {
+                    await services.HubContext.Clients.Group($"user_{message.SenderId}").SendAsync("MessageDelivered", messageUpdate);
+                }
+                catch (Exception signalrEx)
+                {
+                    services.Logger.LogError(signalrEx, "Error sending SignalR notification for message delivery");
+                    // Continue even if SignalR fails - don't fail the API request
+                }
+            }
+
             return Results.Ok(new { success = true });
         }
         catch (Exception ex)
@@ -517,6 +562,46 @@ public static class CoachMessageEndpoints
                         message = "Failed to update message status"
                     }
                 });
+            }
+
+            // Fetch updated message with sender information
+            var updatedMessage = await services.CoachMessageService.GetById(messageId);
+            if (updatedMessage != null)
+            {
+                // Format message object for SignalR
+                var messageUpdate = new
+                {
+                    id = updatedMessage.Id.ToString(),
+                    userId = updatedMessage.UserId,
+                    coachId = updatedMessage.CoachId,
+                    connectionId = updatedMessage.ConnectionId.ToString(),
+                    senderId = updatedMessage.SenderId,
+                    messageType = updatedMessage.MessageType,
+                    content = updatedMessage.Content,
+                    voiceNoteUrl = updatedMessage.VoiceNoteUrl,
+                    voiceNoteFileName = updatedMessage.VoiceNoteFileName,
+                    status = updatedMessage.Status,
+                    deliveredAt = updatedMessage.DeliveredAt?.ToString("O"),
+                    readAt = updatedMessage.ReadAt?.ToString("O"),
+                    createdAt = updatedMessage.CreatedAt.ToString("O"),
+                    sender = updatedMessage.Sender != null ? new
+                    {
+                        id = updatedMessage.Sender.Id,
+                        fullName = updatedMessage.Sender.FullName,
+                        email = updatedMessage.Sender.Email
+                    } : null
+                };
+
+                // Notify sender via SignalR
+                try
+                {
+                    await services.HubContext.Clients.Group($"user_{message.SenderId}").SendAsync("MessageRead", messageUpdate);
+                }
+                catch (Exception signalrEx)
+                {
+                    services.Logger.LogError(signalrEx, "Error sending SignalR notification for message read");
+                    // Continue even if SignalR fails - don't fail the API request
+                }
             }
 
             return Results.Ok(new { success = true });

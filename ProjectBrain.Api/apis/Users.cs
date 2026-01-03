@@ -5,6 +5,7 @@ using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 public class UserServices(
     ILogger<UserServices> logger,
@@ -12,12 +13,13 @@ public class UserServices(
     IUserService userService,
     IRoleManagement roleManagementService,
     IMemoryCache memoryCache,
-    FeatureFlagService featureFlagService,
+    IFeatureFlagService featureFlagService,
     IConfiguration configuration,
     ICoachProfileService coachProfileService,
     IUserProfileService userProfileService,
     IUserActivityService userActivityService,
     ICoachMessageService coachMessageService,
+    IOnboardingDataService onboardingDataService,
     Storage storage)
 {
     public ILogger<UserServices> Logger { get; } = logger;
@@ -26,11 +28,12 @@ public class UserServices(
     public IRoleManagement RoleManagementService { get; } = roleManagementService;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
-    public FeatureFlagService FeatureFlagService { get; } = featureFlagService;
+    public IFeatureFlagService FeatureFlagService { get; } = featureFlagService;
     public ICoachProfileService CoachProfileService { get; } = coachProfileService;
     public IUserProfileService UserProfileService { get; } = userProfileService;
     public IUserActivityService UserActivityService { get; } = userActivityService;
     public ICoachMessageService CoachMessageService { get; } = coachMessageService;
+    public IOnboardingDataService OnboardingDataService { get; } = onboardingDataService;
     public Storage Storage { get; } = storage;
 }
 
@@ -117,7 +120,22 @@ public static class UserEndpoints
             neurodiverseTraits: request.NeurodiverseTraits,
             preferences: GetPreferencesObject(request.Preferences));
 
-        // Convert onboarding data to JSON and store in blob storage
+        // Save onboarding data to database if provided
+        if (request.Onboarding != null)
+        {
+            try
+            {
+                await services.OnboardingDataService.CreateOrUpdate(userId, request.Onboarding);
+                services.Logger.LogInformation("Successfully saved onboarding data to database for user {UserId}", userId);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the onboarding process if database save fails
+                services.Logger.LogError(ex, "Failed to save onboarding data to database for user {UserId}", userId);
+            }
+        }
+
+        // Convert onboarding data to JSON and store in blob storage (for backward compatibility)
         var createdUser = await services.UserService.GetById(userId) as UserDto;
         try
         {
@@ -134,7 +152,7 @@ public static class UserEndpoints
             {
                 await services.Storage.UploadFile(stream, filename, userId, skipIndexing: true);
             }
-            services.Logger.LogInformation("Successfully uploaded onboarding data for user {UserId}", userId);
+            services.Logger.LogInformation("Successfully uploaded onboarding data to blob storage for user {UserId}", userId);
         }
         catch (Exception ex)
         {
@@ -504,6 +522,9 @@ public class CreateUserRequest : OnboardUserRequest
     public string? PreferredPronoun { get; init; }
     public IEnumerable<string>? NeurodiverseTraits { get; init; }
     public string? Preferences { get; init; }
+
+    [JsonPropertyName("onboarding")]
+    public object? Onboarding { get; init; }
 }
 
 public class CreateCoachRequest : OnboardUserRequest

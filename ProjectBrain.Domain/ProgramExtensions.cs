@@ -1,4 +1,7 @@
+using System.Net.Http.Headers;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Repositories;
@@ -28,6 +31,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ITagRepository, TagRepository>();
         builder.Services.AddScoped<ICoachRatingRepository, CoachRatingRepository>();
         builder.Services.AddScoped<IGoalRepository, GoalRepository>();
+        builder.Services.AddScoped<IOnboardingDataRepository, OnboardingDataRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
@@ -56,6 +60,10 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ITagService, TagService>();
         builder.Services.AddScoped<ICoachRatingService, CoachRatingService>();
         builder.Services.AddScoped<IGoalService, GoalService>();
+        builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
+
+        // Register mail provider
+        builder.Services.AddScoped<IEmailService, MailgunEmailService>();
 
         // Register background service for syncing activity data
         builder.Services.AddHostedService<UserActivitySyncService>();

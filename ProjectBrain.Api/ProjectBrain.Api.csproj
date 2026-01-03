@@ -17,6 +17,7 @@
     <PackageReference Include="Aspire.Azure.AI.OpenAI" Version="9.5.2-preview.1.25522.3" />
     <PackageReference Include="Aspire.Azure.Search.Documents" Version="13.1.0" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.1.0" />
+    <PackageReference Include="Aspire.Microsoft.Extensions.Configuration.AzureAppConfiguration" Version="13.1.0" />
     <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.1.0" />
     <PackageReference Include="Auth0.AuthenticationApi" Version="7.43.0" />
     <PackageReference Include="Auth0.ManagementApi" Version="7.43.0" />

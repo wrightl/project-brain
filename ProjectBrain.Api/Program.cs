@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+using System.Text;
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -23,6 +25,22 @@ builder.AddServiceDefaults();
 
 // Add Redis distributed cache
 builder.AddRedisDistributedCache("cache");
+
+// Register keyed HttpClient for EmailService
+builder.Services.AddHttpClient("Mailgun", (serviceProvider, client) =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var apiKey = configuration["Mailgun:ApiKey"]
+        ?? throw new InvalidOperationException("Mailgun:ApiKey is not configured");
+    var domain = configuration["Mailgun:Domain"]
+        ?? throw new InvalidOperationException("Mailgun:Domain is not configured");
+
+    client.BaseAddress = new Uri($"https://api.eu.mailgun.net/v3/{domain}/");
+
+    // Set up Basic Authentication
+    var authValue = Convert.ToBase64String(Encoding.ASCII.GetBytes($"api:{apiKey}"));
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authValue);
+}).AddAsKeyed();
 
 builder.AddProjectBrainDomain();
 
@@ -120,7 +138,7 @@ builder.Services.AddProblemDetails();
 //     }
 // });
 
-builder.Services.AddFeatureFlags();
+builder.AddFeatureFlags();
 
 var app = builder.Build();
 
@@ -165,11 +183,13 @@ app.MapQuizEndpoints();
 app.MapStatisticsEndpoints();
 app.MapSubscriptionEndpoints();
 app.MapStripeWebhookEndpoints();
+app.MapAuth0WebhookEndpoints();
 app.MapSubscriptionManagementEndpoints();
 app.MapSubscriptionAnalyticsEndpoints();
 app.MapJournalEndpoints();
 app.MapTagEndpoints();
 app.MapGoalEndpoints();
+app.MapFeatureFlagEndpoints();
 
 // Map SignalR hub
 app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").RequireAuthorization();

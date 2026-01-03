@@ -4,13 +4,9 @@ import {
     CalendarIcon,
     ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
-import { getFlags } from '@/_lib/flags';
 import { StatisticsService } from '@/_services/statistics-service';
 
 export default async function CoachDashboard() {
-    // We added your flag key. The React SDK uses camelCase for flag keys automatically
-    // useFlags is a custom hook which returns all feature flags
-    const enableCoachSection = (await getFlags())['enable-coach-section'];
     const [
         coachClientsCount,
         pendingClientsCount,

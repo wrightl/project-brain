@@ -1,4 +1,5 @@
 using Aspire.Hosting.Pipelines;
+using Azure.Provisioning.AppConfiguration;
 using Azure.Provisioning.Search;
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -44,6 +45,8 @@ var auth0ManagementApiClientId = builder.AddParameter("auth0-managementapiclient
 var auth0ClientId = builder.AddParameter("auth0-clientid", secret: true);
 var auth0Domain = builder.AddParameter("auth0-domain", secret: true);
 var launchDarklySdkKey = builder.AddParameter("launchdarkly-sdk-key", secret: true);
+var mailgunApiKey = builder.AddParameter("mailgun-api-key", secret: true);
+var mailgunDomain = builder.AddParameter("mailgun-domain", secret: true);
 
 // custom domain and certificate for container app - these are only needed for the deployment to azure
 var certificateNameApiFromConfig = builder.Configuration["CERTIFICATE_NAME_API"] ?? "";
@@ -105,6 +108,29 @@ openai.AddDeployment(
 
 builder.AddAzureContainerAppEnvironment($"{appName}-environment");
 
+// azure app config
+var appConfig = builder.AddAzureAppConfiguration("config");
+if (!builder.ExecutionContext.IsPublishMode)
+{
+    appConfig.RunAsEmulator(emulator =>
+    {
+        emulator.WithDataVolume();
+        emulator.WithHostPort(54607);
+    });
+}
+else
+{
+    appConfig.ConfigureInfrastructure(infra =>
+    {
+        var appConfigStore = infra.GetProvisionableResources()
+                                  .OfType<AppConfigurationStore>()
+                                  .Single();
+
+        appConfigStore.SkuName = "Free";
+        appConfigStore.EnablePurgeProtection = true;
+    });
+}
+
 var cache = builder.AddRedis(cacheName)
         .WithRedisInsight()
         .PublishAsAzureContainerApp((module, app) =>
@@ -119,6 +145,7 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithReference(search)
                         .WithReference(openai)
                         .WithReference(cache)
+                        .WithReference(appConfig)
                         // .WithEnvironment("ConnectionStrings__speech", speechConnectionString)
                         .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
                         .WithEnvironment("Auth0__ManagementApiClientId", auth0ManagementApiClientId)
@@ -126,6 +153,8 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("Auth0__Domain", auth0Domain)
                         .WithEnvironment("LaunchDarkly__SdkKey", launchDarklySdkKey)
                         .WithEnvironment("AI__UseNewSearchService", useNewSearchService.ToString())
+                        .WithEnvironment("Mailgun__ApiKey", mailgunApiKey)
+                        .WithEnvironment("Mailgun__Domain", mailgunDomain)
                         .WithHttpHealthCheck("/health")
                         .PublishAsAzureContainerApp((module, app) =>
                         {
@@ -153,8 +182,6 @@ else
     apiService.WithReference(blobs);
 }
 
-
-
 if (builder.ExecutionContext.IsPublishMode)
 {
     // sql azure
@@ -164,23 +191,9 @@ if (builder.ExecutionContext.IsPublishMode)
 
     apiService.WithReference(azureDb)
               .WaitFor(azureDb);
-}
-else
-{
-    // sql server
-    var sql = builder.AddSqlServer(sqlServerName, password: sqlPassword, port: 49976)
-        .WithLifetime(ContainerLifetime.Persistent)
-        .WithDataVolume();
 
-    var db = sql.AddDatabase(sqlDbName);
 
-    apiService.WithReference(db)
-              .WaitFor(db);
-}
-
-if (builder.ExecutionContext.IsPublishMode)
-{
-    // Use Docker container for production
+    // Use Docker container for production frontend
     var frontend = builder.AddDockerfile(frontendName, $"../{appName}.{frontendName}")
         .WaitFor(apiService)
         .WithReference(apiService)
@@ -197,7 +210,23 @@ if (builder.ExecutionContext.IsPublishMode)
 }
 else
 {
-    // Use npm for development
+    // Create a devtunnel
+    builder.AddDevTunnel("tunnel")
+       .WithReference(apiService)
+       .WithAnonymousAccess();
+
+    // sql server
+    var sql = builder.AddSqlServer(sqlServerName, password: sqlPassword, port: 49976)
+        .WithLifetime(ContainerLifetime.Persistent)
+        .WithDataVolume();
+
+    var db = sql.AddDatabase(sqlDbName);
+
+    apiService.WithReference(db)
+              .WaitFor(db);
+
+
+    // Use npm for frontend development
     var frontend = builder.AddNpmApp(frontendName, $"../{appName}.{frontendName}", "dev")
         .WaitFor(apiService)
         .WithReference(apiService)

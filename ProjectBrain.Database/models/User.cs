@@ -38,6 +38,12 @@ public class User
     [StringLength(100)]
     public string? Country { get; set; }
 
+    // Auth0 account information
+    [StringLength(100)]
+    public string? Connection { get; set; } // e.g., "Username-Password-Authentication", "google-oauth2", "windowslive", etc.
+
+    public bool EmailVerified { get; set; } = false;
+
     // Navigation property for roles
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }

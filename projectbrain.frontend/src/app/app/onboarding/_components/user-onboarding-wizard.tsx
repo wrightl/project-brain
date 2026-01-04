@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import { UserOnboardingData } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { useLocale, type SupportedLocale } from '@/_lib/locale';
@@ -16,6 +16,7 @@ import ProfileStep from './user-wizard-steps/profile-step';
 import CoachingBuddyStep from './user-wizard-steps/coaching-buddy-step';
 import ClosingStep from './user-wizard-steps/closing-step';
 import FollowOnQuestionsStep from './user-wizard-steps/follow-on-questions-step';
+import { auth0 } from '@/_lib/auth';
 
 interface UserOnboardingWizardProps {
     userEmail: string;
@@ -227,7 +228,8 @@ export default function UserOnboardingWizard({
                 );
             }
 
-            router.push('/app');
+            // Redirect to the login url to force a refresh of the user's token so it picks up the users' role
+            router.push('/auth/login?returnTo=/app');
             router.refresh();
         } catch (err) {
             setError(

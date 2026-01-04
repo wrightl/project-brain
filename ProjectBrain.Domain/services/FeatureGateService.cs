@@ -28,13 +28,13 @@ public class FeatureGateService : IFeatureGateService
         _logger = logger;
     }
 
-    public async Task<bool> CanUseFeatureAsync(string userId, string userType, string feature)
+    public async Task<bool> CanUseFeatureAsync(string userId, UserType userType, string feature)
     {
         var (allowed, _) = await CheckFeatureAccessAsync(userId, userType, feature);
         return allowed;
     }
 
-    public async Task<(bool Allowed, string? ErrorMessage)> CheckFeatureAccessAsync(string userId, string userType, string feature)
+    public async Task<(bool Allowed, string? ErrorMessage)> CheckFeatureAccessAsync(string userId, UserType userType, string feature)
     {
         var tier = await _subscriptionService.GetUserTierAsync(userId, userType);
         var tierLimits = GetTierLimits(userType, tier);
@@ -62,7 +62,7 @@ public class FeatureGateService : IFeatureGateService
         return (false, "Speech input is only available in Pro and Ultimate tiers. Please upgrade to use this feature.");
     }
 
-    private async Task<(bool Allowed, string? ErrorMessage)> CheckCoachConnectionsAsync(string userId, string userType, dynamic tierLimits)
+    private async Task<(bool Allowed, string? ErrorMessage)> CheckCoachConnectionsAsync(string userId, UserType userType, dynamic tierLimits)
     {
         var maxConnections = (int)tierLimits.MaxCoachConnections;
         if (maxConnections < 0) // Unlimited
@@ -81,7 +81,7 @@ public class FeatureGateService : IFeatureGateService
         return (true, null);
     }
 
-    private async Task<(bool Allowed, string? ErrorMessage)> CheckCoachMessagesAsync(string userId, string userType, dynamic tierLimits)
+    private async Task<(bool Allowed, string? ErrorMessage)> CheckCoachMessagesAsync(string userId, UserType userType, dynamic tierLimits)
     {
         var monthlyLimit = (int)tierLimits.MonthlyCoachMessages;
         if (monthlyLimit < 0) // Unlimited
@@ -97,7 +97,7 @@ public class FeatureGateService : IFeatureGateService
         return (true, null);
     }
 
-    private async Task<(bool Allowed, string? ErrorMessage)> CheckFileUploadAsync(string userId, string userType, dynamic tierLimits)
+    private async Task<(bool Allowed, string? ErrorMessage)> CheckFileUploadAsync(string userId, UserType userType, dynamic tierLimits)
     {
         var maxFiles = (int)tierLimits.MaxFiles;
         var maxStorageMB = (int)tierLimits.MaxFileStorageMB;
@@ -134,7 +134,7 @@ public class FeatureGateService : IFeatureGateService
         return (false, "External integrations are only available in the Ultimate tier. Please upgrade to use this feature.");
     }
 
-    private async Task<(bool Allowed, string? ErrorMessage)> CheckResearchReportsAsync(string userId, string userType, dynamic tierLimits)
+    private async Task<(bool Allowed, string? ErrorMessage)> CheckResearchReportsAsync(string userId, UserType userType, dynamic tierLimits)
     {
         var monthlyLimit = (int)tierLimits.MonthlyResearchReports;
         if (monthlyLimit < 0) // Unlimited
@@ -150,7 +150,7 @@ public class FeatureGateService : IFeatureGateService
         return (true, null);
     }
 
-    private async Task<(bool Allowed, string? ErrorMessage)> CheckClientConnectionsAsync(string userId, string userType, dynamic tierLimits)
+    private async Task<(bool Allowed, string? ErrorMessage)> CheckClientConnectionsAsync(string userId, UserType userType, dynamic tierLimits)
     {
         var maxConnections = (int)tierLimits.MaxClientConnections;
         if (maxConnections < 0) // Unlimited
@@ -166,7 +166,7 @@ public class FeatureGateService : IFeatureGateService
         return (true, null);
     }
 
-    private async Task<(bool Allowed, string? ErrorMessage)> CheckClientMessagesAsync(string userId, string userType, dynamic tierLimits)
+    private async Task<(bool Allowed, string? ErrorMessage)> CheckClientMessagesAsync(string userId, UserType userType, dynamic tierLimits)
     {
         var monthlyLimit = (int)tierLimits.MonthlyClientMessages;
         if (monthlyLimit < 0) // Unlimited
@@ -182,9 +182,9 @@ public class FeatureGateService : IFeatureGateService
         return (true, null);
     }
 
-    private dynamic GetTierLimits(string userType, string tier)
+    private dynamic GetTierLimits(UserType userType, string tier)
     {
-        var configPath = $"TierLimits:{userType}:{tier}";
+        var configPath = $"TierLimits:{userType.ToString()}:{tier}";
 
         // Return a dynamic object with tier limits from configuration
         // This is a simplified approach - in production, you might want a more structured approach
@@ -207,6 +207,6 @@ public class FeatureGateService : IFeatureGateService
 
 public interface IFeatureGateService
 {
-    Task<bool> CanUseFeatureAsync(string userId, string userType, string feature);
-    Task<(bool Allowed, string? ErrorMessage)> CheckFeatureAccessAsync(string userId, string userType, string feature);
+    Task<bool> CanUseFeatureAsync(string userId, UserType userType, string feature);
+    Task<(bool Allowed, string? ErrorMessage)> CheckFeatureAccessAsync(string userId, UserType userType, string feature);
 }

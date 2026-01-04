@@ -5,6 +5,7 @@ public static class FeatureFlags
 {
     public const string EnableCoachSection = "CoachFeatureEnabled";
     public const string EmailsEnabled = "EmailFeatureEnabled";
+    public const string AgentFeatureEnabled = "AgentFeatureEnabled";
 }
 
 public interface IFeatureFlagService

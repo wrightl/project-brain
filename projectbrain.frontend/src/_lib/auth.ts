@@ -34,6 +34,7 @@ export async function getUserRoles(): Promise<UserRole[] | null> {
     if (!accessToken) return null;
 
     const decoded = jwt.decode(accessToken) as JwtPayload;
+    console.log('decoded', decoded);
     return decoded['https://projectbrain.app/roles'] || null;
 }
 

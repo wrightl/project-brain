@@ -11,12 +11,12 @@ public class UserSubscriptionRepository : Repository<UserSubscription, Guid>, IU
     {
     }
 
-    public async Task<UserSubscription?> GetLatestForUserAsync(string userId, string userType, CancellationToken cancellationToken = default)
+    public async Task<UserSubscription?> GetLatestForUserAsync(string userId, UserType userType, CancellationToken cancellationToken = default)
     {
         return await _dbSet
             .AsNoTracking()
             .Include(us => us.Tier)
-            .Where(us => us.UserId == userId && us.UserType == userType)
+            .Where(us => us.UserId == userId && us.UserType == userType.ToString())
             .OrderByDescending(us => us.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -29,11 +29,11 @@ public class UserSubscriptionRepository : Repository<UserSubscription, Guid>, IU
             .FirstOrDefaultAsync(us => us.StripeSubscriptionId == stripeSubscriptionId, cancellationToken);
     }
 
-    public async Task<bool> IsUserExcludedAsync(string userId, string userType, CancellationToken cancellationToken = default)
+    public async Task<bool> IsUserExcludedAsync(string userId, UserType userType, CancellationToken cancellationToken = default)
     {
         return await _context.SubscriptionExclusions
             .AsNoTracking()
-            .AnyAsync(se => se.UserId == userId && se.UserType == userType, cancellationToken);
+            .AnyAsync(se => se.UserId == userId && se.UserType == userType.ToString(), cancellationToken);
     }
 }
 

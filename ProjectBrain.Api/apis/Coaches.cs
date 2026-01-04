@@ -542,7 +542,7 @@ public static class CoachEndpoints
         var userId = services.IdentityService.UserId!;
         var user = await services.IdentityService.GetUserAsync();
         var isCoach = user?.Roles?.Any(r => r.ToLower() == "coach") ?? false;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         // Validate user cannot connect to themselves
         if (string.Equals(userId, coachId, StringComparison.OrdinalIgnoreCase))
@@ -558,7 +558,7 @@ public static class CoachEndpoints
         }
 
         // Check connection limits based on user type
-        if (userType == "user")
+        if (userType == UserType.User)
         {
             // Check coach connection limit for users
             var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "coach_connections");
@@ -574,7 +574,7 @@ public static class CoachEndpoints
                 });
             }
         }
-        else if (userType == "coach")
+        else if (userType == UserType.Coach)
         {
             // Check client connection limit for coaches
             var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "client_connections");
@@ -631,7 +631,7 @@ public static class CoachEndpoints
             var connection = await services.ConnectionService.CreateConnectionRequestAsync(
                 userId,
                 coachId,
-                "user",
+                UserType.User.ToString(),
                 request?.Message);
 
             var response = new ConnectionResponse
@@ -672,7 +672,7 @@ public static class CoachEndpoints
 
         // Authorization: Only the user who created the request can cancel it
         // OR if connected, either party can disconnect
-        if (connection.Status == "pending" && connection.RequestedBy != "user")
+        if (connection.Status == "pending" && !connection.RequestedBy.Equals(UserType.User.ToString(), StringComparison.OrdinalIgnoreCase))
         {
             // If pending and requested by coach, user cannot cancel
             return Results.Forbid();

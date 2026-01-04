@@ -38,6 +38,7 @@ export function useVoiceRecording(options: VoiceRecordingOptions = {}) {
     const chunksRef = useRef<Blob[]>([]);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const mimeTypeRef = useRef<string>('audio/webm;codecs=opus');
 
     const startRecording = useCallback(async () => {
         if (!state.isSupported) {
@@ -60,8 +61,29 @@ export function useVoiceRecording(options: VoiceRecordingOptions = {}) {
             streamRef.current = stream;
             chunksRef.current = [];
 
+            // Try to find a supported format that's compatible with the backend
+            // Backend accepts: audio/m4a, audio/mpeg, audio/aac, audio/wav, audio/x-m4a, audio/mp4
+            // Try WAV first (well-supported), then WebM (fallback)
+            const supportedMimeTypes = [
+                'audio/wav',
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4',
+                'audio/mpeg',
+            ];
+
+            let selectedMimeType = 'audio/webm;codecs=opus'; // Default fallback
+            for (const mimeType of supportedMimeTypes) {
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    selectedMimeType = mimeType;
+                    break;
+                }
+            }
+
+            mimeTypeRef.current = selectedMimeType;
+
             const mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'audio/webm;codecs=opus',
+                mimeType: selectedMimeType,
             });
 
             mediaRecorderRef.current = mediaRecorder;
@@ -73,8 +95,9 @@ export function useVoiceRecording(options: VoiceRecordingOptions = {}) {
             };
 
             mediaRecorder.onstop = () => {
+                // Use the same mime type that was used for recording
                 const audioBlob = new Blob(chunksRef.current, {
-                    type: 'audio/webm;codecs=opus',
+                    type: mimeTypeRef.current,
                 });
                 options.onRecordingComplete?.(audioBlob);
 

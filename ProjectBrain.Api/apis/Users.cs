@@ -11,7 +11,7 @@ public class UserServices(
     ILogger<UserServices> logger,
     IIdentityService identityService,
     IUserService userService,
-    IRoleManagement roleManagementService,
+    IAuth0UserManagement auth0UserManagementService,
     IMemoryCache memoryCache,
     IFeatureFlagService featureFlagService,
     IConfiguration configuration,
@@ -25,7 +25,7 @@ public class UserServices(
     public ILogger<UserServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public IUserService UserService { get; } = userService;
-    public IRoleManagement RoleManagementService { get; } = roleManagementService;
+    public IAuth0UserManagement Auth0UserManagementService { get; } = auth0UserManagementService;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
     public IFeatureFlagService FeatureFlagService { get; } = featureFlagService;
@@ -97,19 +97,20 @@ public static class UserEndpoints
         }
 
         // Update auth0
-        await services.RoleManagementService.UpdateUserRoles(userId, user.Roles);
+        await services.Auth0UserManagementService.UpdateUserRoles(userId, user.Roles);
+        await services.Auth0UserManagementService.UpdateUser(userId, user);
 
         // Create or update user FIRST (before UserProfile to satisfy foreign key constraint)
-        BaseUserDto result;
+        BaseUserDto createdUser;
         if (existingUser is not null)
         {
             // Update existing user
-            result = await services.UserService.Update(user);
+            createdUser = await services.UserService.Update(user);
         }
         else
         {
             // Create new user
-            result = await services.UserService.Create(user);
+            createdUser = await services.UserService.Create(user);
         }
 
         // Create or update user profile (now that User exists)
@@ -136,10 +137,9 @@ public static class UserEndpoints
         }
 
         // Convert onboarding data to JSON and store in blob storage (for backward compatibility)
-        var createdUser = await services.UserService.GetById(userId) as UserDto;
         try
         {
-            var onboardingData = CreateOnboardingData(userProfile, createdUser!);
+            var onboardingData = CreateOnboardingData(userProfile, createdUser as UserDto, request.Onboarding);
 
             var jsonContent = JsonSerializer.Serialize(onboardingData, new JsonSerializerOptions
             {
@@ -150,32 +150,75 @@ public static class UserEndpoints
             var jsonBytes = Encoding.UTF8.GetBytes(jsonContent);
             await using (var stream = new MemoryStream(jsonBytes))
             {
-                await services.Storage.UploadFile(stream, filename, userId, skipIndexing: true);
+                var options = new StorageUploadOptions
+                {
+                    UserId = userId,
+                    FileOwnership = FileOwnership.User,
+                    StorageType = StorageType.Onboarding,
+                    ResourceId = filename
+                };
+                await services.Storage.UploadFile(stream, filename, options);
+                // await services.Storage.UploadFile(stream, filename, resourceId: filename, userId: userId, skipIndexing: true);
             }
             services.Logger.LogInformation("Successfully uploaded onboarding data to blob storage for user {UserId}", userId);
         }
         catch (Exception ex)
         {
             // Log error but don't fail the onboarding process if JSON upload fails
-            services.Logger.LogError(ex, "Failed to upload onboarding data to blob storage for user {UserId}", userId);
+            services.Logger.LogError(ex, "Failed to upload onboarding data to blob storage for user {UserId}, StackTrace: {StackTrace}", userId, ex.StackTrace);
         }
 
-        return Results.Ok(result);
+        return Results.Ok(createdUser);
     }
 
-    public static object CreateOnboardingData(UserProfile userProfile, UserDto createdUser)
+    public static object CreateOnboardingData(UserProfile userProfile, UserDto createdUser, object? structuredOnboardingData = null)
     {
-        return new
+        var baseData = new Dictionary<string, object?>
         {
-            preferredPronoun = userProfile.PreferredPronoun,
-            neurodiverseTraits = userProfile.NeurodiverseTraits.Select(t => t.Trait).ToList(),
-            preferences = userProfile.Preference?.Preferences,
-            streetAddress = createdUser.StreetAddress,
-            addressLine2 = createdUser.AddressLine2,
-            city = createdUser.City,
-            stateProvince = createdUser.StateProvince,
-            postalCode = createdUser.PostalCode,
-            country = createdUser.Country
+            ["preferredPronoun"] = userProfile.PreferredPronoun,
+            ["neurodiverseTraits"] = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>(),
+            ["preferences"] = userProfile.Preference?.Preferences,
+            ["streetAddress"] = createdUser.StreetAddress,
+            ["addressLine2"] = createdUser.AddressLine2,
+            ["city"] = createdUser.City,
+            ["stateProvince"] = createdUser.StateProvince,
+            ["postalCode"] = createdUser.PostalCode,
+            ["country"] = createdUser.Country
+        };
+
+        // If structured onboarding data is provided, merge it into the base data
+        if (structuredOnboardingData != null)
+        {
+            // Serialize structured data to JSON, then parse and merge properties
+            var structuredJson = JsonSerializer.Serialize(structuredOnboardingData);
+            using var structuredDoc = JsonDocument.Parse(structuredJson);
+
+            // Add all properties from structured onboarding data
+            foreach (var prop in structuredDoc.RootElement.EnumerateObject())
+            {
+                // Convert JsonElement to object by deserializing based on the element type
+                baseData[prop.Name] = ConvertJsonElementToObject(prop.Value);
+            }
+        }
+
+        return baseData;
+    }
+
+    private static object? ConvertJsonElementToObject(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.TryGetInt64(out var longVal) ? longVal : (object)element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElementToObject).ToList(),
+            JsonValueKind.Object => element.EnumerateObject().ToDictionary(
+                p => p.Name,
+                p => ConvertJsonElementToObject(p.Value)
+            ),
+            _ => element.GetRawText()
         };
     }
 
@@ -214,7 +257,8 @@ public static class UserEndpoints
         }
 
         // Update auth0
-        await services.RoleManagementService.UpdateUserRoles(userId, user.Roles);
+        await services.Auth0UserManagementService.UpdateUserRoles(userId, user.Roles);
+        await services.Auth0UserManagementService.UpdateUser(userId, user);
 
         // Create or update coach profile
         await services.CoachProfileService.CreateOrUpdate(

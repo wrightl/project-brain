@@ -406,4 +406,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<CoachRating> CoachRatings => Set<CoachRating>();
     public DbSet<Goal> Goals => Set<Goal>();
     public DbSet<OnboardingData> OnboardingData => Set<OnboardingData>();
+    public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
+    public DbSet<AgentAction> AgentActions => Set<AgentAction>();
 }

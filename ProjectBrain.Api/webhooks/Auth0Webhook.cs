@@ -7,13 +7,15 @@ public class Auth0WebhookServices(
         IUserService userService,
         IEmailService emailService,
         HttpContext context,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        Storage storage)
 {
     public ILogger<Auth0WebhookServices> Logger { get; } = logger;
     public IUserService UserService { get; } = userService;
     public HttpContext Context { get; } = context;
     public IConfiguration Configuration { get; } = configuration;
     public IEmailService EmailService { get; } = emailService;
+    public Storage Storage { get; } = storage;
 }
 
 /// <summary>
@@ -24,6 +26,8 @@ public class Auth0UserData
     public required string UserId { get; init; }
     public required string Email { get; init; }
     public string FullName { get; init; } = string.Empty;
+    public string? Connection { get; init; }
+    public bool EmailVerified { get; init; } = false;
 }
 
 public static class Auth0WebhookEndpoints
@@ -186,11 +190,35 @@ public static class Auth0WebhookEndpoints
             }
         }
 
+        // Extract connection (authentication method)
+        string? connection = null;
+        if (userElement.TryGetProperty("identities", out var identitiesElement) && identitiesElement.ValueKind == JsonValueKind.Array)
+        {
+            // Get the first identity's connection
+            if (identitiesElement.GetArrayLength() > 0)
+            {
+                var firstIdentity = identitiesElement[0];
+                if (firstIdentity.TryGetProperty("connection", out var connectionElement))
+                {
+                    connection = connectionElement.GetString();
+                }
+            }
+        }
+
+        // Extract email_verified
+        var emailVerified = false;
+        if (userElement.TryGetProperty("email_verified", out var emailVerifiedElement))
+        {
+            emailVerified = emailVerifiedElement.GetBoolean();
+        }
+
         return new Auth0UserData
         {
             UserId = userId,
             Email = email,
-            FullName = fullName
+            FullName = fullName,
+            Connection = connection,
+            EmailVerified = emailVerified
         };
     }
 
@@ -217,7 +245,9 @@ public static class Auth0WebhookEndpoints
             Email = userData.Email,
             FullName = userData.FullName,
             IsOnboarded = false,
-            Roles = new List<string> { "user" }
+            Roles = new List<string>(),
+            Connection = userData.Connection,
+            EmailVerified = userData.EmailVerified
         };
 
         try
@@ -225,13 +255,12 @@ public static class Auth0WebhookEndpoints
             await services.UserService.Create(userDto);
             services.Logger.LogInformation("Created user {UserId} ({Email}) from Auth0 webhook", userData.UserId, userData.Email);
 
-            // Send welcome email to user
-            // Send welcome email to user using templating
+            // Send welcome email to user using template
             var templateName = "welcome email";
             var templateData = new Dictionary<string, object>
-        {
-            { "name", userData.FullName }
-        };
+            {
+                { "name", userData.FullName }
+            };
 
             await services.EmailService.SendEmailAsync(
                 to: userData.Email,
@@ -277,7 +306,9 @@ public static class Auth0WebhookEndpoints
             City = existingUser.City,
             StateProvince = existingUser.StateProvince,
             PostalCode = existingUser.PostalCode,
-            Country = existingUser.Country
+            Country = existingUser.Country,
+            Connection = userData.Connection, // Update connection from Auth0
+            EmailVerified = userData.EmailVerified // Update email verification status from Auth0
         };
 
         try
@@ -310,6 +341,18 @@ public static class Auth0WebhookEndpoints
 
         try
         {
+            // Delete all files associated with the user
+            try
+            {
+                var deletedFileCount = await services.Storage.DeleteAllUserFiles(userData.UserId);
+                services.Logger.LogInformation("Deleted {FileCount} files for user {UserId}", deletedFileCount, userData.UserId);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogError(ex, "Error deleting files for user {UserId}, continuing with user deletion", userData.UserId);
+                // Continue with user deletion even if file deletion fails
+            }
+
             await services.UserService.DeleteById(userData.UserId);
             services.Logger.LogInformation("Deleted user {UserId} ({Email}) from Auth0 webhook", userData.UserId, userData.Email);
         }

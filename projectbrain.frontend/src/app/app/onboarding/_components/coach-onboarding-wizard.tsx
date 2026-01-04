@@ -98,7 +98,8 @@ export default function CoachOnboardingWizard({
                 );
             }
 
-            router.push('/app');
+            // Redirect to the login url to force a refresh of the user's token so it picks up the users' role
+            router.push('/auth/login?returnTo=/app');
             router.refresh();
         } catch (err) {
             setError(

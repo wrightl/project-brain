@@ -68,60 +68,72 @@ public static class JournalEndpoints
 
         _ = Task.Run(async () =>
         {
-            try
-            {
-                using var scope = services.ServiceScopeFactory.CreateScope();
-                var azureOpenAI = scope.ServiceProvider.GetRequiredService<AzureOpenAI>();
-                var storage = scope.ServiceProvider.GetRequiredService<Storage>();
-                var searchIndexService = scope.ServiceProvider.GetRequiredService<ISearchIndexService>();
-                var journalEntryService = scope.ServiceProvider.GetRequiredService<IJournalEntryService>();
-
-                // Generate summary using Azure OpenAI
-                var summary = await azureOpenAI.GetConversationSummary(entryContent, entryUserId);
-
-                // Update the entry with the summary
-                var entry = await journalEntryService.GetById(entryId, entryUserId);
-                if (entry != null)
-                {
-                    entry.Summary = summary;
-                    entry.UpdatedAt = DateTime.UtcNow;
-                    await journalEntryService.Update(entry, null);
-                }
-
-                // Upload to blob storage as JSON
-                var blobPath = $"journal/{entryUserId}/{entryId}.json";
-                var jsonContent = JsonSerializer.Serialize(new
-                {
-                    id = entryId.ToString(),
-                    userId = entryUserId,
-                    content = entryContent,
-                    summary = summary,
-                    createdAt = entry?.CreatedAt ?? DateTime.UtcNow,
-                    updatedAt = DateTime.UtcNow
-                }, new JsonSerializerOptions { WriteIndented = false });
-
-                using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonContent));
-                await storage.UploadFile(stream, $"{entryId}.json", entryId.ToString(), entryUserId, skipIndexing: true, parentFolder: "journal");
-
-                // Index in Azure Search
-                using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(entryContent));
-                await searchIndexService.ExtractEmbedAndIndexFromStreamAsync(
-                    contentStream,
-                    $"{entryId}.json",
-                    entryUserId,
-                    blobPath,
-                    entryId.ToString());
-
-                services.Logger.LogInformation("Successfully processed journal entry {EntryId} asynchronously", entryId);
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogError(ex, "Error processing journal entry {EntryId} asynchronously", entryId);
-            }
+            await UploadJournalEntryToBlobStorage(services, entryId, entryContent, entryUserId);
         });
 
         var dto = JournalEntryMapper.ToDto(createdEntry);
         return Results.Created($"/journal/{createdEntry.Id}", dto);
+    }
+
+    private async static Task UploadJournalEntryToBlobStorage(JournalServices services, Guid entryId, string entryContent, string entryUserId)
+    {
+        try
+        {
+            using var scope = services.ServiceScopeFactory.CreateScope();
+            var azureOpenAI = scope.ServiceProvider.GetRequiredService<AzureOpenAI>();
+            var storage = scope.ServiceProvider.GetRequiredService<Storage>();
+            var searchIndexService = scope.ServiceProvider.GetRequiredService<ISearchIndexService>();
+            var journalEntryService = scope.ServiceProvider.GetRequiredService<IJournalEntryService>();
+
+            // Generate summary using Azure OpenAI
+            var summary = await azureOpenAI.GetConversationSummary(entryContent, entryUserId);
+
+            // Update the entry with the summary
+            var entry = await journalEntryService.GetById(entryId, entryUserId);
+            if (entry != null)
+            {
+                entry.Summary = summary;
+                entry.UpdatedAt = DateTime.UtcNow;
+                await journalEntryService.Update(entry, null);
+            }
+
+            // Upload to blob storage as JSON
+            // var blobPath = $"journal/{entryUserId}/{entryId}.json";
+            // var jsonContent = JsonSerializer.Serialize(new
+            // {
+            //     id = entryId.ToString(),
+            //     userId = entryUserId,
+            //     content = entryContent,
+            //     summary = summary,
+            //     createdAt = entry?.CreatedAt ?? DateTime.UtcNow,
+            //     updatedAt = DateTime.UtcNow
+            // }, new JsonSerializerOptions { WriteIndented = false });
+
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(entryContent));
+            var options = new StorageUploadOptions
+            {
+                UserId = entryUserId,
+                StorageType = StorageType.Journal,
+                ResourceId = entryId.ToString()
+            };
+            await storage.UploadFile(stream, $"{entryId}.txt", options);
+            // await storage.UploadFile(stream, $"{entryId}.json", entryId.ToString(), entryUserId, skipIndexing: true, parentFolder: "journal");
+
+            // // Index in Azure Search
+            // using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(entryContent));
+            // await searchIndexService.ExtractEmbedAndIndexFromStreamAsync(
+            //     contentStream,
+            //     $"{entryId}.json",
+            //     entryUserId,
+            //     blobPath,
+            //     entryId.ToString());
+
+            services.Logger.LogInformation("Successfully processed journal entry {EntryId} asynchronously", entryId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error processing journal entry {EntryId} asynchronously", entryId);
+        }
     }
 
     private static async Task<IResult> GetJournalEntryById(
@@ -241,56 +253,7 @@ public static class JournalEndpoints
         // TODO: Do this properly with queues and background services
         _ = Task.Run(async () =>
         {
-            try
-            {
-                using var scope = services.ServiceScopeFactory.CreateScope();
-                var azureOpenAI = scope.ServiceProvider.GetRequiredService<AzureOpenAI>();
-                var storage = scope.ServiceProvider.GetRequiredService<Storage>();
-                var searchIndexService = scope.ServiceProvider.GetRequiredService<ISearchIndexService>();
-                var journalEntryService = scope.ServiceProvider.GetRequiredService<IJournalEntryService>();
-
-                // Generate new summary
-                var summary = await azureOpenAI.GetConversationSummary(entryContent, entryUserId);
-
-                // Update the entry with the summary
-                var entry = await journalEntryService.GetById(entryId, entryUserId);
-                if (entry != null)
-                {
-                    entry.Summary = summary;
-                    entry.UpdatedAt = DateTime.UtcNow;
-                    await journalEntryService.Update(entry, null);
-                }
-
-                // Update blob storage
-                var blobPath = $"journal/{entryUserId}/{entryId}.json";
-                var jsonContent = JsonSerializer.Serialize(new
-                {
-                    id = entryId.ToString(),
-                    userId = entryUserId,
-                    content = entryContent,
-                    summary = summary,
-                    createdAt = entryCreatedAt,
-                    updatedAt = DateTime.UtcNow
-                }, new JsonSerializerOptions { WriteIndented = false });
-
-                using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonContent));
-                await storage.UploadFile(stream, $"{entryId}.json", entryId.ToString(), entryUserId, skipIndexing: true, parentFolder: "journal");
-
-                // Re-index in Azure Search
-                using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(entryContent));
-                await searchIndexService.ExtractEmbedAndIndexFromStreamAsync(
-                    contentStream,
-                    $"{entryId}.json",
-                    entryUserId,
-                    blobPath,
-                    entryId.ToString());
-
-                services.Logger.LogInformation("Successfully processed journal entry update {EntryId} asynchronously", entryId);
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogError(ex, "Error processing journal entry update {EntryId} asynchronously", entryId);
-            }
+            await UploadJournalEntryToBlobStorage(services, entryId, entryContent, entryUserId);
         });
 
         var dto = JournalEntryMapper.ToDto(updatedEntry);
@@ -327,8 +290,13 @@ public static class JournalEndpoints
                 var storage = scope.ServiceProvider.GetRequiredService<Storage>();
 
                 // Delete from blob storage
-                var blobPath = $"journal/{entryUserId}/{entryId}.json";
-                await storage.DeleteFile(blobPath);
+                // var blobPath = $"journal/{entryUserId}/{entryId}.json";
+                var options = new StorageOptions
+                {
+                    UserId = entryUserId,
+                    StorageType = StorageType.Journal,
+                };
+                await storage.DeleteFile($"{entryId}.txt", options);
 
                 // Delete from search index (would need to implement this in search service)
                 // For now, we'll leave the search index cleanup to a background job or manual process

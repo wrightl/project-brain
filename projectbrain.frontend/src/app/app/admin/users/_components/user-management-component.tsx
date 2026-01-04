@@ -129,8 +129,9 @@ export default function UserManagementComponent() {
             if (!response.ok) {
                 throw new Error('Failed to delete user');
             }
-            toast.success('User deleted successfully');
-            await loadUsers();
+            toast.success(
+                'User delete request sent. The user will be deleted in a few minutes, please refresh the page in a few minutes to see the changes.'
+            );
         } catch (err) {
             toast.error(
                 err instanceof Error ? err.message : 'Failed to delete user'

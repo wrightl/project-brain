@@ -2,13 +2,17 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Conversation, ChatMessage, Citation } from '@/_lib/types';
+import { Conversation, ChatMessage, Citation, ToolExecution } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { PaperAirplaneIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import VoiceRecorder from '@/_components/VoiceRecorder';
 import FeatureGate from '@/_components/feature-gate';
 import ConversationsDrawer from './conversations-drawer';
+import { useAgentFeatureEnabled } from '@/_hooks/use-feature-flag';
+import { ChatService } from '@/_services/chat-service';
+import ToolExecutionBadge from './tool-execution-badge';
+import toast from 'react-hot-toast';
 
 interface ChatInterfaceProps {
     conversation?: Conversation;
@@ -16,18 +20,21 @@ interface ChatInterfaceProps {
 
 export default function ChatInterface({ conversation }: ChatInterfaceProps) {
     const router = useRouter();
+    const agentFeatureEnabled = useAgentFeatureEnabled();
     const [messages, setMessages] = useState<ChatMessage[]>(
         conversation?.messages || []
     );
     const [conversationId, setConversationId] = useState<string | undefined>(
         conversation?.id
     );
+    const [workflowId, setWorkflowId] = useState<string | undefined>(undefined);
     const [input, setInput] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingMessage, setStreamingMessage] = useState('');
     const [transcribedText, setTranscribedText] = useState('');
     const [isProcessingVoice, setIsProcessingVoice] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [currentToolExecutions, setCurrentToolExecutions] = useState<ToolExecution[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const streamingMessageRef = useRef<string>('');
@@ -184,90 +191,146 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
         setInput('');
         setIsStreaming(true);
         setStreamingMessage('');
+        setCurrentToolExecutions([]);
 
         try {
             streamingMessageRef.current = '';
 
-            // Call API route for streaming chat
-            const response = await fetchWithAuth('/api/chat/stream', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    content: userMessage.content,
+            // Check if agent feature is enabled
+            if (agentFeatureEnabled) {
+                // Use agent endpoint with tool execution support
+                let toolExecutions: ToolExecution[] = [];
+                let citations: Citation[] = [];
+                let newWorkflowId: string | undefined = undefined;
+
+                await ChatService.streamAgentChat(
+                    userMessage.content,
                     conversationId,
-                }),
-            });
+                    workflowId,
+                    (text) => {
+                        streamingMessageRef.current += text;
+                        setStreamingMessage(streamingMessageRef.current);
+                    },
+                    (id) => {
+                        setConversationId(id);
+                    },
+                    (id) => {
+                        newWorkflowId = id;
+                        setWorkflowId(id);
+                    },
+                    (cits) => {
+                        citations = cits;
+                    },
+                    (tools) => {
+                        toolExecutions = [...toolExecutions, ...tools];
+                        setCurrentToolExecutions([...toolExecutions]);
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || 'Failed to stream chat');
-            }
+                        // Show toast notification if goals were created
+                        const goalsCreated = tools.some(
+                            (tool) =>
+                                tool.toolName === 'create_daily_goals' &&
+                                tool.success
+                        );
+                        if (goalsCreated) {
+                            toast.success('Daily goals created successfully!', {
+                                icon: '🎯',
+                            });
+                        }
+                    },
+                    (error) => {
+                        console.error('Agent error:', error);
+                        toast.error(`Agent error: ${error}`);
+                    }
+                );
 
-            // Get conversation ID from response header
-            const newConversationId = response.headers.get('X-Conversation-Id');
-            if (newConversationId) {
-                setConversationId(newConversationId);
-                // if (
-                //     newConversationId &&
-                //     (!conversationId || newConversationId !== conversationId)
-                // ) {
-                //     router.push(`/app/user/chat/${newConversationId}`);
-                // }
-            }
+                // Add complete assistant message with tool executions
+                if (streamingMessageRef.current || toolExecutions.length > 0) {
+                    const assistantMessage: ChatMessage = {
+                        role: 'assistant',
+                        content: streamingMessageRef.current || 'Action completed.',
+                        citations: citations.length > 0 ? citations : undefined,
+                        toolExecutions:
+                            toolExecutions.length > 0 ? toolExecutions : undefined,
+                        workflowId: newWorkflowId,
+                    };
+                    setMessages((prev) => [...prev, assistantMessage]);
+                }
+            } else {
+                // Use regular chat endpoint (existing behavior)
+                const response = await fetchWithAuth('/api/chat/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: userMessage.content,
+                        conversationId,
+                    }),
+                });
 
-            // Stream response using ReadableStream
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
-            if (!reader) throw new Error('No response body');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Failed to stream chat');
+                }
 
-            let citations: Citation[] = [];
-            let done = false;
-            while (!done) {
-                const { value, done: streamDone } = await reader.read();
-                done = streamDone;
-                if (value) {
-                    const text = decoder.decode(value, { stream: true });
-                    // Assume SSE format: lines starting with 'data: '
-                    const lines = text.split('\n');
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = line.slice(6);
-                            try {
-                                const parsed = JSON.parse(data);
-                                if (
-                                    parsed.type === 'citations' &&
-                                    parsed.value
-                                ) {
-                                    // Handle citations metadata
-                                    citations = parsed.value;
-                                } else if (
-                                    parsed.value &&
-                                    parsed.type !== 'citations'
-                                ) {
-                                    // Handle text chunks
-                                    streamingMessageRef.current += parsed.value;
-                                    setStreamingMessage(
-                                        streamingMessageRef.current
-                                    );
+                // Get conversation ID from response header
+                const newConversationId = response.headers.get('X-Conversation-Id');
+                if (newConversationId) {
+                    setConversationId(newConversationId);
+                }
+
+                // Stream response using ReadableStream
+                const reader = response.body?.getReader();
+                const decoder = new TextDecoder();
+                if (!reader) throw new Error('No response body');
+
+                let citations: Citation[] = [];
+                let done = false;
+                while (!done) {
+                    const { value, done: streamDone } = await reader.read();
+                    done = streamDone;
+                    if (value) {
+                        const text = decoder.decode(value, { stream: true });
+                        // Assume SSE format: lines starting with 'data: '
+                        const lines = text.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = line.slice(6);
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (
+                                        parsed.type === 'citations' &&
+                                        parsed.value
+                                    ) {
+                                        // Handle citations metadata
+                                        citations = parsed.value;
+                                    } else if (
+                                        parsed.value &&
+                                        parsed.type !== 'citations'
+                                    ) {
+                                        // Handle text chunks
+                                        streamingMessageRef.current += parsed.value;
+                                        setStreamingMessage(
+                                            streamingMessageRef.current
+                                        );
+                                    }
+                                } catch {
+                                    // Ignore parse errors
                                 }
-                            } catch {
-                                // Ignore parse errors
                             }
                         }
                     }
                 }
-            }
 
-            // Add complete assistant message
-            if (streamingMessageRef.current) {
-                const assistantMessage: ChatMessage = {
-                    role: 'assistant',
-                    content: streamingMessageRef.current,
-                    citations: citations.length > 0 ? citations : undefined,
-                };
-                setMessages((prev) => [...prev, assistantMessage]);
+                // Add complete assistant message
+                if (streamingMessageRef.current) {
+                    const assistantMessage: ChatMessage = {
+                        role: 'assistant',
+                        content: streamingMessageRef.current,
+                        citations: citations.length > 0 ? citations : undefined,
+                    };
+                    setMessages((prev) => [...prev, assistantMessage]);
+                }
             }
         } catch (error) {
             console.error('Chat error:', error);
@@ -280,6 +343,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
         } finally {
             setIsStreaming(false);
             setStreamingMessage('');
+            setCurrentToolExecutions([]);
             router.refresh();
         }
     };
@@ -417,27 +481,45 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                     : 'justify-start'
                             }`}
                         >
-                            <div
-                                className={`max-w-4xl rounded-lg px-4 py-3 ${
-                                    message.role === 'user'
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-white border border-gray-200 text-gray-900'
-                                }`}
-                            >
-                                <div className="text-xs font-medium mb-1 opacity-75">
-                                    {message.role === 'user'
-                                        ? 'You'
-                                        : 'Assistant'}
+                            <div className="max-w-4xl">
+                                <div
+                                    className={`rounded-lg px-4 py-3 ${
+                                        message.role === 'user'
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-white border border-gray-200 text-gray-900'
+                                    }`}
+                                >
+                                    <div className="text-xs font-medium mb-1 opacity-75">
+                                        {message.role === 'user'
+                                            ? 'You'
+                                            : 'Assistant'}
+                                    </div>
+                                    <div className="text-sm whitespace-pre-wrap">
+                                        {message.role === 'assistant' &&
+                                        message.citations
+                                            ? renderMessageWithCitations(
+                                                  message.content,
+                                                  message.citations
+                                              )
+                                            : message.content}
+                                    </div>
                                 </div>
-                                <div className="text-sm whitespace-pre-wrap">
-                                    {message.role === 'assistant' &&
-                                    message.citations
-                                        ? renderMessageWithCitations(
-                                              message.content,
-                                              message.citations
-                                          )
-                                        : message.content}
-                                </div>
+                                {/* Tool execution badges (only for assistant messages and if feature flag enabled) */}
+                                {agentFeatureEnabled &&
+                                    message.role === 'assistant' &&
+                                    message.toolExecutions &&
+                                    message.toolExecutions.length > 0 && (
+                                        <div className="mt-2 space-y-2">
+                                            {message.toolExecutions.map(
+                                                (tool, toolIndex) => (
+                                                    <ToolExecutionBadge
+                                                        key={toolIndex}
+                                                        tool={tool}
+                                                    />
+                                                )
+                                            )}
+                                        </div>
+                                    )}
                             </div>
                         </div>
                     ))}

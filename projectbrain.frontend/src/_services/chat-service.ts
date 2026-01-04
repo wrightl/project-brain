@@ -1,5 +1,5 @@
 import { BackendApiError, callBackendApi } from '@/_lib/backend-api';
-import { Conversation, Citation } from '@/_lib/types';
+import { Conversation, Citation, ToolExecution } from '@/_lib/types';
 import { ConversationService } from './conversation-service';
 
 export class ChatService {
@@ -153,6 +153,112 @@ export class ChatService {
                             } else if (
                                 parsed.value &&
                                 parsed.type !== 'citations' &&
+                                onChunk
+                            ) {
+                                // Handle text chunks
+                                onChunk(parsed.value);
+                            }
+                        } catch {
+                            // Ignore parse errors for malformed chunks
+                        }
+                    }
+                }
+            }
+        } finally {
+            reader.releaseLock();
+        }
+    }
+
+    /**
+     * Stream agent chat response using Server-Sent Events with tool execution support
+     */
+    static async streamAgentChat(
+        content: string,
+        conversationId?: string,
+        workflowId?: string,
+        onChunk?: (text: string) => void,
+        onConversationId?: (id: string) => void,
+        onWorkflowId?: (id: string) => void,
+        onCitations?: (citations: Citation[]) => void,
+        onToolsExecuted?: (tools: ToolExecution[]) => void,
+        onError?: (error: string) => void
+    ): Promise<void> {
+        const body: Record<string, unknown> = { content };
+        if (conversationId) {
+            body.conversationId = conversationId;
+        }
+        if (workflowId) {
+            body.workflowId = workflowId;
+        }
+
+        const response = await callBackendApi('/agent/stream', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+            let errorMessage = `Agent chat stream failed (${response.status})`;
+            try {
+                const errorText = await response.text();
+                if (errorText) errorMessage = `${errorMessage}: ${errorText}`;
+            } catch {
+                // Use default message if parsing fails
+            }
+            throw new BackendApiError(response.status, errorMessage, response);
+        }
+
+        // Get conversation ID from response header
+        const newConversationId = response.headers.get('X-Conversation-Id');
+        if (newConversationId && onConversationId) {
+            onConversationId(newConversationId);
+        }
+
+        // Get workflow ID from response header
+        const workflowIdHeader = response.headers.get('X-Workflow-Id');
+        if (workflowIdHeader && onWorkflowId) {
+            onWorkflowId(workflowIdHeader);
+        }
+
+        // Stream the response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+            throw new BackendApiError(500, 'Response body is not readable');
+        }
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const text = decoder.decode(value, { stream: true });
+                const lines = text.split('\n');
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        try {
+                            const parsed = JSON.parse(data);
+                            
+                            if (parsed.type === 'citations' && parsed.value && onCitations) {
+                                // Handle citations metadata
+                                onCitations(parsed.value);
+                            } else if (parsed.type === 'tools_executed' && parsed.value && onToolsExecuted) {
+                                // Handle tool execution results
+                                onToolsExecuted(parsed.value);
+                            } else if (parsed.type === 'workflow' && parsed.value?.id && onWorkflowId) {
+                                // Handle workflow ID
+                                onWorkflowId(parsed.value.id);
+                            } else if (parsed.type === 'error' && parsed.value && onError) {
+                                // Handle errors
+                                onError(parsed.value);
+                            } else if (
+                                parsed.value &&
+                                parsed.type !== 'citations' &&
+                                parsed.type !== 'tools_executed' &&
+                                parsed.type !== 'workflow' &&
+                                parsed.type !== 'error' &&
                                 onChunk
                             ) {
                                 // Handle text chunks

@@ -20,6 +20,8 @@ export async function RoleGuard({
     try {
         const userRole = await getUserRoles();
 
+        console.log('userRole', userRole);
+
         if (!userRole || !allowedRoles.includes(userRole[0])) {
             redirect(redirectTo);
         }

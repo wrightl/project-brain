@@ -48,11 +48,11 @@ public class StripeService : IStripeService
         }
     }
 
-    public async Task<string> CreateCheckoutSessionAsync(string userId, string userType, string tier, bool isAnnual, string? customerId = null)
+    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? customerId = null)
     {
         try
         {
-            var priceKey = $"{userType}_{tier}_{(isAnnual ? "Annual" : "Monthly")}";
+            var priceKey = $"{userType.ToString()}_{tier}_{(isAnnual ? "Annual" : "Monthly")}";
             var priceId = _configuration[$"Stripe:PriceIds:{priceKey}"]
                 ?? throw new InvalidOperationException($"Stripe price ID not found for {priceKey}");
 
@@ -76,7 +76,7 @@ public class StripeService : IStripeService
                 Metadata = new Dictionary<string, string>
                 {
                     { "userId", userId },
-                    { "userType", userType },
+                    { "userType", userType.ToString() },
                     { "tier", tier }
                 },
                 SubscriptionData = new Stripe.Checkout.SessionSubscriptionDataOptions
@@ -84,7 +84,7 @@ public class StripeService : IStripeService
                     Metadata = new Dictionary<string, string>
                     {
                         { "userId", userId },
-                        { "userType", userType },
+                        { "userType", userType.ToString() },
                         { "tier", tier }
                     }
                 }
@@ -189,7 +189,7 @@ public class StripeService : IStripeService
 public interface IStripeService
 {
     Task<string> CreateCustomerAsync(string userId, string email, string name);
-    Task<string> CreateCheckoutSessionAsync(string userId, string userType, string tier, bool isAnnual, string? customerId = null);
+    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? customerId = null);
     Task<StripeSubscriptionInfo> GetSubscriptionAsync(string stripeSubscriptionId);
     Task CancelSubscriptionAsync(string stripeSubscriptionId);
 }

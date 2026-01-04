@@ -51,7 +51,7 @@ public static class SubscriptionEndpoints
 
         // Determine user type from roles
         var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         try
         {
@@ -97,7 +97,7 @@ public static class SubscriptionEndpoints
         }
 
         var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         try
         {
@@ -122,7 +122,7 @@ public static class SubscriptionEndpoints
         }
 
         var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         try
         {
@@ -147,7 +147,7 @@ public static class SubscriptionEndpoints
         }
 
         var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         try
         {
@@ -170,7 +170,7 @@ public static class SubscriptionEndpoints
         }
 
         var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         try
         {
@@ -223,7 +223,7 @@ public static class SubscriptionEndpoints
         }
 
         var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         try
         {

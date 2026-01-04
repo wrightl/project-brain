@@ -26,8 +26,8 @@ public class VoiceNoteServices(
 public static class VoiceNoteEndpoints
 {
     private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
-    private static readonly string[] AllowedMimeTypes = { "audio/m4a", "audio/mpeg", "audio/aac", "audio/wav", "audio/x-m4a", "audio/mp4" };
-    private static readonly string[] AllowedExtensions = { ".m4a", ".mp3", ".aac", ".wav" };
+    private static readonly string[] AllowedMimeTypes = { "audio/m4a", "audio/mpeg", "audio/aac", "audio/wav", "audio/x-m4a", "audio/mp4", "audio/webm", "audio/webm;codecs=opus" };
+    private static readonly string[] AllowedExtensions = { ".m4a", ".mp3", ".aac", ".wav", ".webm" };
 
     public static void MapVoiceNoteEndpoints(this WebApplication app)
     {
@@ -186,7 +186,8 @@ public static class VoiceNoteEndpoints
         }
 
         // Get file stream from storage
-        var fileStream = await services.Storage.GetFile(voiceNote.FilePath);
+        var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.VoiceNotes };
+        var fileStream = await services.Storage.GetFile(voiceNote.FileName, options);
         if (fileStream == null)
         {
             throw new NotFoundException("Audio file");
@@ -251,7 +252,8 @@ public static class VoiceNoteEndpoints
         // Delete file from storage
         try
         {
-            await services.Storage.DeleteFile(voiceNote.FilePath);
+            var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.VoiceNotes };
+            await services.Storage.DeleteFile(voiceNote.FileName, options);
         }
         catch (Exception ex)
         {
@@ -283,7 +285,16 @@ public static class VoiceNoteEndpoints
         };
 
         await using var stream = file.OpenReadStream();
-        return await services.Storage.UploadFile(stream, filename, resourceId, userId, skipIndexing: true, metadata, parentFolder: "voicenotes");
+        var options = new StorageUploadOptions
+        {
+            UserId = userId,
+            FileOwnership = FileOwnership.User,
+            StorageType = StorageType.VoiceNotes,
+            ResourceId = resourceId,
+            SkipIndexing = true,
+            Metadata = metadata
+        };
+        return await services.Storage.UploadFile(stream, filename, options);
     }
 
     private static string SanitizeFileName(string fileName)
@@ -313,6 +324,7 @@ public static class VoiceNoteEndpoints
             ".mp3" => "audio/mpeg",
             ".aac" => "audio/aac",
             ".wav" => "audio/wav",
+            ".webm" => "audio/webm",
             _ => "audio/m4a"
         };
     }

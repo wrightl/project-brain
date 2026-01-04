@@ -19,14 +19,18 @@ export default async function DashboardPage() {
 
         const role = user?.roles?.[0];
 
+        console.log('session', session);
+        console.log('user', user);
+        console.log('role', role);
+
         if (!session) {
             redirect('/auth/login?returnTo=/app');
         } else if (!role) {
             redirect('/app/onboarding/select-role');
         } else if (!user?.isOnboarded) {
-            redirect(`/app/onboarding/${user.roles[0].toLowerCase()}`);
+            redirect(`/app/onboarding/${role.toLowerCase()}`);
         } else {
-            redirect(`/app/${user.roles[0].toLowerCase()}`);
+            redirect(`/app/${role.toLowerCase()}`);
         }
     } catch (error) {
         if (error instanceof SessionExpiredError) {

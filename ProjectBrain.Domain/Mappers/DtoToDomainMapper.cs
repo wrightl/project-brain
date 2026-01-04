@@ -18,7 +18,9 @@ public static class DtoToDomainMapper
             City = userDto.City,
             StateProvince = userDto.StateProvince,
             PostalCode = userDto.PostalCode,
-            Country = userDto.Country
+            Country = userDto.Country,
+            Connection = userDto.Connection,
+            EmailVerified = userDto.EmailVerified
         };
 
         return user;

@@ -93,7 +93,7 @@ public static class SubscriptionManagementEndpoints
         {
             await services.SubscriptionService.ExcludeUserFromSubscriptionAsync(
                 request.UserId,
-                request.UserType,
+                Enum.Parse<UserType>(request.UserType, true),
                 adminId,
                 request.Notes);
 
@@ -113,8 +113,8 @@ public static class SubscriptionManagementEndpoints
         try
         {
             // Need to determine user type - for now, try both
-            await services.SubscriptionService.RemoveExclusionAsync(userId, "user");
-            await services.SubscriptionService.RemoveExclusionAsync(userId, "coach");
+            await services.SubscriptionService.RemoveExclusionAsync(userId, UserType.User);
+            await services.SubscriptionService.RemoveExclusionAsync(userId, UserType.Coach);
 
             return Results.Ok(new { message = "Exclusion removed successfully" });
         }
@@ -139,15 +139,15 @@ public static class SubscriptionManagementEndpoints
         try
         {
             // Try both user types
-            var userSubscription = await services.SubscriptionService.GetUserSubscriptionAsync(userId, "user");
+            var userSubscription = await services.SubscriptionService.GetUserSubscriptionAsync(userId, UserType.User);
             if (userSubscription == null)
             {
-                userSubscription = await services.SubscriptionService.GetUserSubscriptionAsync(userId, "coach");
+                userSubscription = await services.SubscriptionService.GetUserSubscriptionAsync(userId, UserType.Coach);
             }
 
             // Check if user is excluded
-            var isExcludedUser = await services.SubscriptionService.IsUserExcludedAsync(userId, "user");
-            var isExcludedCoach = await services.SubscriptionService.IsUserExcludedAsync(userId, "coach");
+            var isExcludedUser = await services.SubscriptionService.IsUserExcludedAsync(userId, UserType.User);
+            var isExcludedCoach = await services.SubscriptionService.IsUserExcludedAsync(userId, UserType.Coach);
             var isExcluded = isExcludedUser || isExcludedCoach;
 
             if (userSubscription == null && !isExcluded)
@@ -156,7 +156,7 @@ public static class SubscriptionManagementEndpoints
                 {
                     tier = "Free",
                     status = "active",
-                    userType = "user",
+                    userType = UserType.User,
                     isExcluded = false
                 });
             }
@@ -167,7 +167,7 @@ public static class SubscriptionManagementEndpoints
                 {
                     tier = "Free",
                     status = "active",
-                    userType = userSubscription?.UserType ?? "user",
+                    userType = userSubscription?.UserType,
                     isExcluded = true
                 });
             }

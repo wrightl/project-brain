@@ -2,37 +2,69 @@ using System.Text.Json;
 using Auth0.AuthenticationApi;
 using Auth0.AuthenticationApi.Models;
 using Microsoft.Extensions.Caching.Memory;
+using ProjectBrain.Domain;
 
 namespace ProjectBrain.Api.Authentication;
 
-public class RoleManagementServices(
-    ILogger<RoleManagementServices> logger,
+public class Auth0UserManagementServices(
+    ILogger<Auth0UserManagementServices> logger,
     IMemoryCache memoryCache,
     IConfiguration configuration)
 {
-    public ILogger<RoleManagementServices> Logger { get; } = logger;
+    public ILogger<Auth0UserManagementServices> Logger { get; } = logger;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
 }
 
-public interface IRoleManagement
+public interface IAuth0UserManagement
 {
-    Task UpdateUserRoles(string userId, List<string> roles);
+    Task<bool> UpdateUserRoles(string userId, List<string> roles);
+    Task<bool> UpdateUser(string userId, BaseUserDto user);
+    Task<bool> DeleteUserById(string id);
 }
 
-public class Auth0RoleManagement : IRoleManagement
+public class Auth0UserManagement : IAuth0UserManagement
 {
-    private readonly RoleManagementServices _services;
-    public Auth0RoleManagement(RoleManagementServices services)
+    private readonly Auth0UserManagementServices _services;
+    public Auth0UserManagement(Auth0UserManagementServices services)
     {
         _services = services;
     }
 
-    public async Task UpdateUserRoles(string userId, List<string> roles)
+    public async Task<bool> UpdateUser(string userId, BaseUserDto user)
     {
-        var config = _services.Configuration.GetSection("Auth0");
-        var domain = config["Domain"];
+        var token = await getAuth0Token();
 
+        var client = new HttpClient();
+
+        var userResponse = await getResponse($"/users/{userId}", token, client, HttpMethod.Get);
+
+        if (userResponse.IsSuccessStatusCode)
+        {
+            var jsonStringUser = await userResponse.Content.ReadAsStringAsync();
+            var auth0User = BaseUserDto.FromJson(jsonStringUser);
+
+            // Only update auth0 if any user details have changed
+            if (BaseUserDto.Equals(auth0User, user))
+            {
+                _services.Logger.LogInformation("No changes to user {userId} in Auth0", userId);
+                return true;
+            }
+
+            var userJson = BaseUserDto.ToJson(user);
+
+            var result = await getResponse($"/users/{userId}", token, client, HttpMethod.Patch, new StringContent(userJson, null, "application/json"));
+            return result.IsSuccessStatusCode;
+        }
+        else
+        {
+            _services.Logger.LogError("Failed to get user {userId} from Auth0", userId);
+            return false;
+        }
+    }
+
+    public async Task<bool> UpdateUserRoles(string userId, List<string> roles)
+    {
         var token = await getAuth0Token();
 
         // Get roles
@@ -89,6 +121,16 @@ public class Auth0RoleManagement : IRoleManagement
 
             await getResponse($"/users/{userId}/roles", token, client, HttpMethod.Post, new StringContent("{\"roles\":" + roleIdsStringToAssign + "}", null, "application/json"));
         }
+
+        return true;
+    }
+
+    public async Task<bool> DeleteUserById(string id)
+    {
+        var token = await getAuth0Token();
+        var client = new HttpClient();
+        var response = await getResponse($"/users/{id}", token, client, HttpMethod.Delete);
+        return response.IsSuccessStatusCode;
     }
 
     private async Task<HttpResponseMessage> getResponse(string url, string token, HttpClient client, HttpMethod method, HttpContent? content = null)
@@ -110,9 +152,6 @@ public class Auth0RoleManagement : IRoleManagement
     private async Task<string> getAuth0Token()
     {
         var config = _services.Configuration.GetSection("Auth0");
-        var domain = config["Domain"] ?? throw new InvalidOperationException("Auth0 Domain is not configured");
-        var clientId = config["ManagementApiClientId"];
-        var clientSecret = config["ManagementApiClientSecret"];
 
         var cache = _services.MemoryCache;
 
@@ -121,6 +160,10 @@ public class Auth0RoleManagement : IRoleManagement
         {
             return token;
         }
+
+        var domain = config["Domain"] ?? throw new InvalidOperationException("Auth0 Domain is not configured");
+        var clientId = config["ManagementApiClientId"];
+        var clientSecret = config["ManagementApiClientSecret"];
 
         var authClient = new AuthenticationApiClient(domain);
 

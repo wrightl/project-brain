@@ -119,7 +119,13 @@ public static class ResourceEndpoints
         if (resource is null)
             return Results.NotFound();
 
-        var fileStream = await services.Storage.GetFile(resource.Location);
+        var options = new StorageOptions
+        {
+            UserId = user!.Id,
+            FileOwnership = FileOwnership.User,
+            StorageType = StorageType.Resources
+        };
+        var fileStream = await services.Storage.GetFile(resource.FileName, options);
         if (fileStream is null)
             return Results.NotFound();
 
@@ -135,7 +141,12 @@ public static class ResourceEndpoints
         if (resource is null)
             return Results.NotFound();
 
-        var fileStream = await services.Storage.GetFile(resource.Location);
+        var options = new StorageOptions
+        {
+            FileOwnership = FileOwnership.Shared,
+            StorageType = StorageType.Resources
+        };
+        var fileStream = await services.Storage.GetFile(resource.FileName, options);
         if (fileStream is null)
             return Results.NotFound();
 
@@ -165,10 +176,10 @@ public static class ResourceEndpoints
         if (userId != null)
         {
             var isCoach = services.IdentityService.IsCoach;
-            var userType = isCoach ? "coach" : "user";
+            var userType = isCoach ? UserType.Coach : UserType.User;
 
             // Only check limits for regular users, not coaches (coaches don't have file limits)
-            if (userType == "user")
+            if (userType == UserType.User)
             {
                 var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "file_upload");
                 if (!allowed)
@@ -207,12 +218,11 @@ public static class ResourceEndpoints
             if (userId != null)
             {
                 var isCoach = services.IdentityService.IsCoach;
-                var userType = isCoach ? "coach" : "user";
 
-                if (userType == "user")
+                if (!isCoach)
                 {
                     var currentStorage = await services.UsageTrackingService.GetFileStorageUsageAsync(userId);
-                    var tier = await services.SubscriptionService.GetUserTierAsync(userId, userType);
+                    var tier = await services.SubscriptionService.GetUserTierAsync(userId, UserType.User);
                     var maxStorageMB = int.Parse(services.Config[$"TierLimits:User:{tier}:MaxFileStorageMB"] ?? "100");
                     var maxStorageBytes = maxStorageMB * 1024L * 1024L;
 
@@ -226,7 +236,15 @@ public static class ResourceEndpoints
 
             var resourceId = Guid.NewGuid();
             var fileStream = file.OpenReadStream();
-            var location = await services.Storage.UploadFile(fileStream, filename, resourceId.ToString(), userId);
+            var options = new StorageUploadOptions
+            {
+                UserId = userId ?? string.Empty,
+                FileOwnership = userId is null ? FileOwnership.Shared : FileOwnership.User,
+                StorageType = StorageType.Resources,
+                ResourceId = resourceId.ToString()
+            };
+            var location = await services.Storage.UploadFile(fileStream, filename, options);
+            // var location = await services.Storage.UploadFile(fileStream, filename, resourceId.ToString(), userId);
             results.Add(new { status = "uploaded", filename, fileSize = file.Length, location });
 
             await services.ResourceService.Add(new Resource()
@@ -275,7 +293,7 @@ public static class ResourceEndpoints
 
     private static async Task<IResult> DeleteResource([AsParameters] ResourceServices services, Resource resource)
     {
-        await services.Storage.DeleteFile(resource.Location);
+        await services.Storage.DeleteFile(resource.FileName, new StorageOptions { UserId = resource.UserId, FileOwnership = resource.IsShared ? FileOwnership.Shared : FileOwnership.User, StorageType = StorageType.Resources });
         await services.ResourceService.Remove(resource);
         return Results.Ok(resource.Id);
     }

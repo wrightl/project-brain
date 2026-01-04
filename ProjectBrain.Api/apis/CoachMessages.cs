@@ -339,9 +339,8 @@ public static class CoachMessageEndpoints
 
             // Generate unique filename
             var messageId = Guid.NewGuid();
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var sanitizedFileName = SanitizeFileName(fileName);
-            var uniqueFileName = $"{messageId}_{timestamp}{extension}";
+            // var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            // var sanitizedFileName = SanitizeFileName(fileName);
 
             // Upload file to storage
             var storageFileName = $"{messageId}{extension}";
@@ -350,14 +349,23 @@ public static class CoachMessageEndpoints
             {
                 ["mimeType"] = contentType ?? "audio/m4a"
             };
-            var blobPath = await services.Storage.UploadFile(
-                fileStream,
-                storageFileName,
-                messageId.ToString(),
-                currentUserId,
-                skipIndexing: true,
-                metadata: metadata,
-                parentFolder: "coach-messages");
+            // var blobPath = await services.Storage.UploadFile(
+            //     fileStream,
+            //     storageFileName,
+            //     messageId.ToString(),
+            //     currentUserId,
+            //     skipIndexing: true,
+            //     metadata: metadata,
+            //     parentFolder: "coach-messages");
+            var options = new StorageUploadOptions
+            {
+                UserId = currentUserId,
+                StorageType = StorageType.CoachMessages,
+                SkipIndexing = true,
+                Metadata = metadata,
+                ParentFolder = currentUserId.ToString()
+            };
+            var blobPath = await services.Storage.UploadFile(fileStream, storageFileName, options);
 
             // Build audio URL
             var baseUrl = services.Configuration["ApiBaseUrl"] ??
@@ -373,9 +381,9 @@ public static class CoachMessageEndpoints
                 ConnectionId = connection.Id,
                 SenderId = currentUserId,
                 MessageType = "voice",
-                Content = sanitizedFileName, // Store filename as content
+                Content = string.Empty,
                 VoiceNoteUrl = audioUrl,
-                VoiceNoteFileName = sanitizedFileName,
+                VoiceNoteFileName = storageFileName,
                 Status = "sent",
                 CreatedAt = DateTime.UtcNow
             };
@@ -808,14 +816,21 @@ public static class CoachMessageEndpoints
                 });
             }
 
-            // Extract the blob path from the stored location
-            // The blob path should be in the format: coach-messages/{userId}/{messageId}.{ext}
-            var blobPath = $"coach-messages/{message.SenderId}/{messageId}";
-            var extension = Path.GetExtension(message.VoiceNoteFileName ?? ".m4a");
-            blobPath += extension;
+            // // Extract the blob path from the stored location
+            // // The blob path should be in the format: coach-messages/{userId}/{messageId}.{ext}
+            // var blobPath = $"coach-messages/{message.SenderId}/{messageId}";
+            // var extension = Path.GetExtension(message.VoiceNoteFileName ?? ".m4a");
+            // blobPath += extension;
 
             // Get the audio file from storage
-            var audioStream = await services.Storage.GetFile(blobPath);
+            var options = new StorageOptions
+            {
+                UserId = currentUserId,
+                StorageType = StorageType.CoachMessages,
+                FileOwnership = FileOwnership.User,
+                ParentFolder = message.SenderId.ToString()
+            };
+            var audioStream = await services.Storage.GetFile(message.VoiceNoteFileName!, options);
             if (audioStream == null)
             {
                 return Results.NotFound(new

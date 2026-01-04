@@ -9,8 +9,8 @@ public static class Auth0Extensions
         // 1. Add Memory Cache to store the Management API token
         builder.Services.AddMemoryCache();
 
-        builder.Services.AddScoped<IRoleManagement, Auth0RoleManagement>();
-        builder.Services.AddScoped<RoleManagementServices>();
+        builder.Services.AddScoped<IAuth0UserManagement, Auth0UserManagement>();
+        builder.Services.AddScoped<Auth0UserManagementServices>();
 
         return builder;
     }

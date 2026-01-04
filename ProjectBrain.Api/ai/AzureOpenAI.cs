@@ -681,6 +681,17 @@ public static class AzureOpenAIExtensions
         builder.Services.AddSingleton<Embedding.PngDocumentEmbedder>();
         builder.Services.AddSingleton<Embedding.JsonDocumentEmbedder>();
 
+        // Register AgentOpenAIService (implements IAgentOpenAIService from Domain)
+        builder.Services.AddScoped<ProjectBrain.Domain.IAgentOpenAIService>(sp =>
+        {
+            var services = new AzureOpenAIServices(
+                sp.GetRequiredService<OpenAIClient>(),
+                sp.GetRequiredService<ISearchIndexService>(),
+                sp.GetRequiredService<IConfiguration>(),
+                sp.GetRequiredService<ILogger<AzureOpenAIServices>>());
+            return new AgentOpenAIService(services);
+        });
+
         // Register factory as singleton
         builder.Services.AddSingleton<Embedding.DocumentEmbedderFactory>(sp =>
         {

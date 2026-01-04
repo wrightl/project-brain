@@ -18,7 +18,7 @@ public class UserEndpointsTests
     private readonly Mock<ILogger<UserServices>> _mockLogger;
     private readonly Mock<IIdentityService> _mockIdentityService;
     private readonly Mock<IUserService> _mockUserService;
-    private readonly Mock<IRoleManagement> _mockRoleManagement;
+    private readonly Mock<IAuth0UserManagement> _mockAuth0UserManagement;
     private readonly Mock<ICoachProfileService> _mockCoachProfileService;
     private readonly Mock<IUserProfileService> _mockUserProfileService;
     private readonly UserServices _userServices;
@@ -30,7 +30,7 @@ public class UserEndpointsTests
         _mockLogger = new Mock<ILogger<UserServices>>();
         _mockIdentityService = new Mock<IIdentityService>();
         _mockUserService = new Mock<IUserService>();
-        _mockRoleManagement = new Mock<IRoleManagement>();
+        _mockAuth0UserManagement = new Mock<IAuth0UserManagement>();
         _mockCoachProfileService = new Mock<ICoachProfileService>();
         _mockUserProfileService = new Mock<IUserProfileService>();
         _mockUserActivityService = new Mock<IUserActivityService>();
@@ -45,7 +45,7 @@ public class UserEndpointsTests
             _mockLogger.Object,
             _mockIdentityService.Object,
             _mockUserService.Object,
-            _mockRoleManagement.Object,
+            _mockAuth0UserManagement.Object,
             mockMemoryCache.Object,
             mockFeatureFlagService.Object,
             mockConfiguration.Object,

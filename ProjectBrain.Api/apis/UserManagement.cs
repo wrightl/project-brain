@@ -13,7 +13,7 @@ public class UserManagementServices(
     ILogger<UserManagementServices> logger,
     IUserManagementService userManagementService,
     IUserService userService,
-    IRoleManagement roleManagementService,
+    IAuth0UserManagement auth0UserManagementService,
     IIdentityService identityService,
     IMemoryCache memoryCache,
     IConfiguration configuration)
@@ -21,7 +21,7 @@ public class UserManagementServices(
     public ILogger<UserManagementServices> Logger { get; } = logger;
     public IUserManagementService UserManagementService { get; } = userManagementService;
     public IUserService UserService { get; } = userService;
-    public IRoleManagement RoleManagementService { get; } = roleManagementService;
+    public IAuth0UserManagement Auth0UserManagementService { get; } = auth0UserManagementService;
     public IIdentityService IdentityService { get; } = identityService;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
@@ -130,7 +130,7 @@ public static class UserManagement
         var result = await services.UserManagementService.UpdateRoles(id, request.Roles);
 
         // Update roles in Auth0
-        await services.RoleManagementService.UpdateUserRoles(id, request.Roles);
+        await services.Auth0UserManagementService.UpdateUserRoles(id, request.Roles);
 
         return Results.Ok(result);
     }
@@ -142,9 +142,11 @@ public static class UserManagement
             return Results.Forbid();
         }
 
-        var result = await services.UserService.DeleteById(id);
+        // Delete the user from auth0 - this will trigger the webhook to delete the user from the database and any associated blobs, etc
+        var result = await services.Auth0UserManagementService.DeleteUserById(id);
+        // var result = await services.UserService.DeleteById(id);
 
-        return result is not null ? Results.Ok(result) : Results.NotFound();
+        return result ? Results.NoContent() : Results.NotFound();
     }
 }
 

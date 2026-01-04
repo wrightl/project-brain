@@ -179,22 +179,32 @@ public static class FeatureFlagExtensions
     {
         string env = builder.Environment.EnvironmentName;
 
-        builder.AddAzureAppConfiguration(
-            "config",
-            configureOptions: options =>
-            {
-                options.Select("*");
-                options.Select("*", env);
+        // Check if Azure App Configuration connection details are available
+        // This prevents errors when running EF migrations or other design-time operations
+        var connectionString = builder.Configuration.GetConnectionString("config");
+        var endpoint = builder.Configuration["Aspire:Microsoft:Extensions:Configuration:AzureAppConfiguration:Endpoint"];
+        var configConnectionString = builder.Configuration["Aspire:Microsoft:Extensions:Configuration:AzureAppConfiguration:ConnectionString"];
 
-                // Configure refresh options
-                options.ConfigureRefresh(refresh =>
+        if (!string.IsNullOrEmpty(connectionString) || !string.IsNullOrEmpty(endpoint) || !string.IsNullOrEmpty(configConnectionString))
+        {
+            builder.AddAzureAppConfiguration(
+                "config",
+                configureOptions: options =>
                 {
-                    refresh.RegisterAll()
-                        .SetRefreshInterval(TimeSpan.FromSeconds(30));
-                    // refresh.Register("Sentinel", refreshAll: true)
-                    //        .SetRefreshInterval(TimeSpan.FromSeconds(5));
+                    options.Select("*");
+                    options.Select("*", env);
+
+                    // Configure refresh options
+                    options.ConfigureRefresh(refresh =>
+                    {
+                        refresh.RegisterAll()
+                            .SetRefreshInterval(TimeSpan.FromSeconds(30));
+                        // refresh.Register("Sentinel", refreshAll: true)
+                        //        .SetRefreshInterval(TimeSpan.FromSeconds(5));
+                    });
                 });
-            });
+        }
+
         builder.Services.AddFeatureManagement();
 
         builder.Services.AddScoped<IFeatureFlagService, AzureAppConfigFeatureFlagService>();

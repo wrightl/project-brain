@@ -6,6 +6,13 @@ using ProjectBrain.Domain.Caching;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;
 
+public enum UserType
+{
+    User,
+    Coach,
+    Admin
+}
+
 public class SubscriptionService : ISubscriptionService
 {
     private readonly IUserSubscriptionRepository _repository;
@@ -35,12 +42,12 @@ public class SubscriptionService : ISubscriptionService
         _cache = cache;
     }
 
-    public async Task<UserSubscription?> GetUserSubscriptionAsync(string userId, string userType)
+    public async Task<UserSubscription?> GetUserSubscriptionAsync(string userId, UserType userType)
     {
         return await _repository.GetLatestForUserAsync(userId, userType);
     }
 
-    public async Task<string> GetUserTierAsync(string userId, string userType)
+    public async Task<string> GetUserTierAsync(string userId, UserType userType)
     {
         // Try cache first
         var cacheKey = $"{TierCacheKeyPrefix}{userId}:{userType}";
@@ -52,7 +59,7 @@ public class SubscriptionService : ISubscriptionService
 
         // Check if user is excluded
         var isExcluded = await _context.SubscriptionExclusions
-            .AnyAsync(se => se.UserId == userId && se.UserType == userType);
+            .AnyAsync(se => se.UserId == userId && se.UserType == userType.ToString());
 
         if (isExcluded)
         {
@@ -63,13 +70,13 @@ public class SubscriptionService : ISubscriptionService
 
         // Check if subscription system is enabled for this user type
         var settings = await GetSubscriptionSettingsAsync();
-        if (userType == "user" && !settings.EnableUserSubscriptions)
+        if (userType == UserType.User && !settings.EnableUserSubscriptions)
         {
             var tier = "Free"; // If disabled, everyone gets Free tier
             await _cache.SetAsync(cacheKey, tier, TierCacheExpiration);
             return tier;
         }
-        if (userType == "coach" && !settings.EnableCoachSubscriptions)
+        if (userType == UserType.Coach && !settings.EnableCoachSubscriptions)
         {
             var tier = "Free";
             await _cache.SetAsync(cacheKey, tier, TierCacheExpiration);
@@ -94,7 +101,7 @@ public class SubscriptionService : ISubscriptionService
         return tierResult;
     }
 
-    public async Task<string> CreateCheckoutSessionAsync(string userId, string userType, string tier, bool isAnnual)
+    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual)
     {
         // Get or create Stripe customer
         var subscription = await GetUserSubscriptionAsync(userId, userType);
@@ -128,7 +135,7 @@ public class SubscriptionService : ISubscriptionService
             {
                 // Create a placeholder subscription record to store the customer ID
                 var tierEntity = await _context.SubscriptionTiers
-                    .FirstOrDefaultAsync(t => t.Name == "Free" && t.UserType == userType);
+                    .FirstOrDefaultAsync(t => t.Name == "Free" && t.UserType == userType.ToString());
 
                 if (tierEntity != null)
                 {
@@ -136,7 +143,7 @@ public class SubscriptionService : ISubscriptionService
                     {
                         Id = Guid.NewGuid(),
                         UserId = userId,
-                        UserType = userType,
+                        UserType = userType.ToString(),
                         TierId = tierEntity.Id,
                         StripeCustomerId = customerId,
                         Status = "incomplete",
@@ -199,7 +206,7 @@ public class SubscriptionService : ISubscriptionService
         _logger.LogInformation("Updated subscription {SubscriptionId} from Stripe", trackedSubscription.Id);
     }
 
-    public async Task CancelSubscriptionAsync(string userId, string userType)
+    public async Task CancelSubscriptionAsync(string userId, UserType userType)
     {
         var subscription = await GetUserSubscriptionAsync(userId, userType);
 
@@ -230,11 +237,11 @@ public class SubscriptionService : ISubscriptionService
         _logger.LogInformation("Subscription {SubscriptionId} canceled for user {UserId}", subscription.Id, userId);
     }
 
-    public async Task StartTrialAsync(string userId, string userType, string tier)
+    public async Task StartTrialAsync(string userId, UserType userType, string tier)
     {
         // Get tier ID
         var tierEntity = await _context.SubscriptionTiers
-            .FirstOrDefaultAsync(t => t.Name == tier && t.UserType == userType);
+            .FirstOrDefaultAsync(t => t.Name == tier && t.UserType == userType.ToString());
 
         if (tierEntity == null)
         {
@@ -257,7 +264,7 @@ public class SubscriptionService : ISubscriptionService
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            UserType = userType,
+            UserType = userType.ToString(),
             TierId = tierEntity.Id,
             Status = "trialing",
             TrialEndsAt = trialEndsAt,
@@ -273,11 +280,11 @@ public class SubscriptionService : ISubscriptionService
         _logger.LogInformation("Started 7-day trial for user {UserId}, type {UserType}, tier {Tier}", userId, userType, tier);
     }
 
-    public async Task<bool> IsSubscriptionRequiredAsync(string userId, string userType)
+    public async Task<bool> IsSubscriptionRequiredAsync(string userId, UserType userType)
     {
         // Check if user is excluded
         var isExcluded = await _context.SubscriptionExclusions
-            .AnyAsync(se => se.UserId == userId && se.UserType == userType);
+            .AnyAsync(se => se.UserId == userId && se.UserType == userType.ToString());
 
         if (isExcluded)
         {
@@ -286,11 +293,11 @@ public class SubscriptionService : ISubscriptionService
 
         // Check if subscription system is enabled
         var settings = await GetSubscriptionSettingsAsync();
-        if (userType == "user" && !settings.EnableUserSubscriptions)
+        if (userType == UserType.User && !settings.EnableUserSubscriptions)
         {
             return false;
         }
-        if (userType == "coach" && !settings.EnableCoachSubscriptions)
+        if (userType == UserType.Coach && !settings.EnableCoachSubscriptions)
         {
             return false;
         }
@@ -298,11 +305,11 @@ public class SubscriptionService : ISubscriptionService
         return true; // Subscription is required
     }
 
-    public async Task ExcludeUserFromSubscriptionAsync(string userId, string userType, string excludedBy, string? notes)
+    public async Task ExcludeUserFromSubscriptionAsync(string userId, UserType userType, string excludedBy, string? notes)
     {
         // Check if exclusion already exists
         var existing = await _context.SubscriptionExclusions
-            .FirstOrDefaultAsync(se => se.UserId == userId && se.UserType == userType);
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.UserType == userType.ToString());
 
         if (existing != null)
         {
@@ -316,7 +323,7 @@ public class SubscriptionService : ISubscriptionService
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                UserType = userType,
+                UserType = userType.ToString(),
                 ExcludedBy = excludedBy,
                 ExcludedAt = DateTime.UtcNow,
                 Notes = notes
@@ -329,10 +336,10 @@ public class SubscriptionService : ISubscriptionService
             userId, userType, excludedBy);
     }
 
-    public async Task RemoveExclusionAsync(string userId, string userType)
+    public async Task RemoveExclusionAsync(string userId, UserType userType)
     {
         var exclusion = await _context.SubscriptionExclusions
-            .FirstOrDefaultAsync(se => se.UserId == userId && se.UserType == userType);
+            .FirstOrDefaultAsync(se => se.UserId == userId && se.UserType == userType.ToString());
 
         if (exclusion != null)
         {
@@ -342,7 +349,7 @@ public class SubscriptionService : ISubscriptionService
         }
     }
 
-    public async Task<bool> IsUserExcludedAsync(string userId, string userType)
+    public async Task<bool> IsUserExcludedAsync(string userId, UserType userType)
     {
         return await _repository.IsUserExcludedAsync(userId, userType);
     }
@@ -387,10 +394,10 @@ public class SubscriptionService : ISubscriptionService
         settings.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-        
+
         // Invalidate cache
         await _cache.RemoveAsync(SettingsCacheKey);
-        
+
         _logger.LogInformation("Subscription settings updated by {UpdatedBy}: Users={EnableUsers}, Coaches={EnableCoaches}",
             updatedBy, enableUsers, enableCoaches);
     }
@@ -398,16 +405,16 @@ public class SubscriptionService : ISubscriptionService
 
 public interface ISubscriptionService
 {
-    Task<UserSubscription?> GetUserSubscriptionAsync(string userId, string userType);
-    Task<string> GetUserTierAsync(string userId, string userType);
-    Task<string> CreateCheckoutSessionAsync(string userId, string userType, string tier, bool isAnnual);
+    Task<UserSubscription?> GetUserSubscriptionAsync(string userId, UserType userType);
+    Task<string> GetUserTierAsync(string userId, UserType userType);
+    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual);
     Task UpdateSubscriptionFromStripeAsync(string stripeSubscriptionId);
-    Task CancelSubscriptionAsync(string userId, string userType);
-    Task StartTrialAsync(string userId, string userType, string tier);
-    Task<bool> IsSubscriptionRequiredAsync(string userId, string userType);
-    Task ExcludeUserFromSubscriptionAsync(string userId, string userType, string excludedBy, string? notes);
-    Task RemoveExclusionAsync(string userId, string userType);
-    Task<bool> IsUserExcludedAsync(string userId, string userType);
+    Task CancelSubscriptionAsync(string userId, UserType userType);
+    Task StartTrialAsync(string userId, UserType userType, string tier);
+    Task<bool> IsSubscriptionRequiredAsync(string userId, UserType userType);
+    Task ExcludeUserFromSubscriptionAsync(string userId, UserType userType, string excludedBy, string? notes);
+    Task RemoveExclusionAsync(string userId, UserType userType);
+    Task<bool> IsUserExcludedAsync(string userId, UserType userType);
     Task<SubscriptionSettings> GetSubscriptionSettingsAsync();
     Task UpdateSubscriptionSettingsAsync(bool enableUsers, bool enableCoaches, string updatedBy);
 }

@@ -8,7 +8,7 @@ public interface IUserSubscriptionRepository : IRepository<UserSubscription, Gui
     /// <summary>
     /// Gets the most recent subscription for a user and user type
     /// </summary>
-    Task<UserSubscription?> GetLatestForUserAsync(string userId, string userType, CancellationToken cancellationToken = default);
+    Task<UserSubscription?> GetLatestForUserAsync(string userId, UserType userType, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets a subscription by Stripe subscription ID
@@ -18,6 +18,6 @@ public interface IUserSubscriptionRepository : IRepository<UserSubscription, Gui
     /// <summary>
     /// Checks if a user is excluded from subscription requirements
     /// </summary>
-    Task<bool> IsUserExcludedAsync(string userId, string userType, CancellationToken cancellationToken = default);
+    Task<bool> IsUserExcludedAsync(string userId, UserType userType, CancellationToken cancellationToken = default);
 }
 

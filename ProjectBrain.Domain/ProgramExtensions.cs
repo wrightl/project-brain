@@ -32,6 +32,8 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICoachRatingRepository, CoachRatingRepository>();
         builder.Services.AddScoped<IGoalRepository, GoalRepository>();
         builder.Services.AddScoped<IOnboardingDataRepository, OnboardingDataRepository>();
+        builder.Services.AddScoped<IAgentWorkflowRepository, AgentWorkflowRepository>();
+        builder.Services.AddScoped<IAgentActionRepository, AgentActionRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
@@ -61,6 +63,9 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICoachRatingService, CoachRatingService>();
         builder.Services.AddScoped<IGoalService, GoalService>();
         builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
+        builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+        builder.Services.AddScoped<IAgentService, AgentService>();
+        builder.Services.AddScoped<IAgentActionTrackingService, AgentActionTrackingService>();
 
         // Register mail provider
         builder.Services.AddScoped<IEmailService, MailgunEmailService>();

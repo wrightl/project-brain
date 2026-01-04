@@ -192,6 +192,17 @@ export interface ChatMessage {
     content: string;
     createdAt?: string;
     citations?: Citation[];
+    toolExecutions?: ToolExecution[];
+    workflowId?: string;
+}
+
+export interface ToolExecution {
+    toolName: string;
+    parameters: Record<string, unknown>;
+    result: unknown;
+    success: boolean;
+    errorMessage?: string;
+    executedAt: string;
 }
 
 export interface Conversation {

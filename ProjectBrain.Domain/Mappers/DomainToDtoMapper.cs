@@ -22,6 +22,8 @@ public static class DomainToDtoMapper
             StateProvince = user.StateProvince,
             PostalCode = user.PostalCode,
             Country = user.Country,
+            Connection = user.Connection,
+            EmailVerified = user.EmailVerified,
             Roles = user.UserRoles?.Select(ur => ur.RoleName)?.ToList() ?? new List<string>()
         };
     }
@@ -89,6 +91,8 @@ public static class DomainToDtoMapper
             StateProvince = coachProfile.User.StateProvince,
             PostalCode = coachProfile.User.PostalCode,
             Country = coachProfile.User.Country,
+            Connection = coachProfile.User.Connection,
+            EmailVerified = coachProfile.User.EmailVerified,
             Roles = coachProfile.User.UserRoles?.Select(ur => ur.RoleName)?.ToList() ?? new List<string>(),
             Qualifications = coachProfile.Qualifications?.Select(q => q.Qualification).ToList() ?? new List<string>(),
             Specialisms = coachProfile.Specialisms?.Select(s => s.Specialism).ToList() ?? new List<string>(),

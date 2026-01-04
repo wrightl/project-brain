@@ -190,6 +190,7 @@ app.MapJournalEndpoints();
 app.MapTagEndpoints();
 app.MapGoalEndpoints();
 app.MapFeatureFlagEndpoints();
+app.MapAgentEndpoints();
 
 // Map SignalR hub
 app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").RequireAuthorization();

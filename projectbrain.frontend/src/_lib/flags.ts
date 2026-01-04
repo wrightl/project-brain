@@ -5,6 +5,7 @@ import { callBackendApi } from './backend-api';
 export type FeatureFlags = {
     CoachFeatureEnabled: boolean;
     EmailFeatureEnabled: boolean;
+    AgentFeatureEnabled: boolean;
     // [key: string]: boolean | undefined;
 };
 
@@ -56,6 +57,7 @@ export async function getFlags(): Promise<FeatureFlags> {
         return {
             CoachFeatureEnabled: false,
             EmailFeatureEnabled: false,
+            AgentFeatureEnabled: false,
         };
     }
     // const SDK_KEY = process.env.LAUNCHDARKLY_SDK_KEY;

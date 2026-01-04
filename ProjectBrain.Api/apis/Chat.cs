@@ -121,7 +121,7 @@ public static class ChatEndpoints
         var userId = services.IdentityService.UserId!;
 
         var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? UserType.Coach : UserType.User;
 
         // Check if speech input is allowed
         var (allowed, errorMessage) = await services.FeatureGateService.CheckFeatureAccessAsync(userId, userType, "speech_input");
@@ -240,7 +240,7 @@ public static class ChatEndpoints
 #endif
 
         // Check usage limits
-        if (!await CheckUsageLimits(services, http, userId))
+        if (!await CheckUsageLimits(services, http, userId!))
         {
             return;
         }
@@ -296,7 +296,8 @@ public static class ChatEndpoints
 
         // Get the onboarding data for the user
         string userInformation = string.Empty;
-        var userInformationStream = await services.Storage.GetFile($"{userId}/{Constants.ONBOARDING_DATA_FILENAME}");
+        var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.Onboarding };
+        var userInformationStream = await services.Storage.GetFile(Constants.ONBOARDING_DATA_FILENAME, options);
         if (userInformationStream is not null)
         {
             using (var reader = new StreamReader(userInformationStream))
@@ -371,12 +372,12 @@ public static class ChatEndpoints
         await services.UsageTrackingService.TrackAIQueryAsync(userId);
     }
 
-    private static async Task<bool> CheckUsageLimits(ChatServices services, HttpContext http, string? userId)
+    private static async Task<bool> CheckUsageLimits(ChatServices services, HttpContext http, string userId)
     {
         // Check daily limit
         var dailyLimit = int.Parse(services.Config["TierLimits:User:Free:DailyAIQueries"] ?? "50");
         var dailyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "daily");
-        var tier = await services.SubscriptionService.GetUserTierAsync(userId, "user");
+        var tier = await services.SubscriptionService.GetUserTierAsync(userId, UserType.User);
         var tierDailyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:DailyAIQueries"] ?? "-1");
         var effectiveDailyLimit = tierDailyLimit >= 0 ? tierDailyLimit : dailyLimit;
 

@@ -26,7 +26,7 @@ export default function FollowOnQuestionsStep({
 }: FollowOnQuestionsStepProps) {
     const strings = getOnboardingStrings(locale);
     const followOnData = formData.onboarding?.followOnQuestions || {};
-    
+
     // Get which categories should be shown
     const categoriesToShow = getFollowOnCategories({
         welcome: formData.onboarding?.welcome || {},
@@ -42,9 +42,12 @@ export default function FollowOnQuestionsStep({
         >
     ) => {
         const { name, value, type } = e.target;
-        const newValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+        const newValue =
+            type === 'checkbox'
+                ? (e.target as HTMLInputElement).checked
+                : value;
         const [category, field] = name.split('.');
-        
+
         updateFormData({
             onboarding: {
                 ...formData.onboarding,
@@ -67,7 +70,9 @@ export default function FollowOnQuestionsStep({
                         Follow-up Questions
                     </h2>
                     <p className="mt-1 text-sm text-gray-600">
-                        Based on your answers, we don't have any additional questions at this time. You can proceed to complete onboarding.
+                        Based on your answers, we don't have any additional
+                        questions at this time. You can proceed to complete
+                        onboarding.
                     </p>
                 </div>
             </div>
@@ -81,7 +86,8 @@ export default function FollowOnQuestionsStep({
                     Follow-up Questions
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">
-                    Based on your answers, we'd like to ask a few follow-up questions to better understand your needs.
+                    Based on your answers, we'd like to ask a few follow-up
+                    questions to better understand your needs.
                 </p>
             </div>
 
@@ -96,7 +102,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="strengths.howUseStrengths"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.strengths.questions.howUseStrengthsLabel}
+                                {
+                                    strings.followOn.strengths.questions
+                                        .howUseStrengthsLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -105,9 +114,15 @@ export default function FollowOnQuestionsStep({
                                 id="strengths.howUseStrengths"
                                 name="strengths.howUseStrengths"
                                 rows={3}
-                                value={followOnData.strengths?.howUseStrengths || ''}
+                                value={
+                                    followOnData.strengths?.howUseStrengths ||
+                                    ''
+                                }
                                 onChange={handleChange}
-                                placeholder={strings.followOn.strengths.questions.howUseStrengthsPlaceholder}
+                                placeholder={
+                                    strings.followOn.strengths.questions
+                                        .howUseStrengthsPlaceholder
+                                }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                         </div>
@@ -116,7 +131,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="strengths.tapIntoStrengths"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.strengths.questions.tapIntoStrengthsLabel}
+                                {
+                                    strings.followOn.strengths.questions
+                                        .tapIntoStrengthsLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -125,9 +143,15 @@ export default function FollowOnQuestionsStep({
                                 id="strengths.tapIntoStrengths"
                                 name="strengths.tapIntoStrengths"
                                 rows={3}
-                                value={followOnData.strengths?.tapIntoStrengths || ''}
+                                value={
+                                    followOnData.strengths?.tapIntoStrengths ||
+                                    ''
+                                }
                                 onChange={handleChange}
-                                placeholder={strings.followOn.strengths.questions.tapIntoStrengthsPlaceholder}
+                                placeholder={
+                                    strings.followOn.strengths.questions
+                                        .tapIntoStrengthsPlaceholder
+                                }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                         </div>
@@ -136,7 +160,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="strengths.buildOnStrengths"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.strengths.questions.buildOnStrengthsLabel}
+                                {
+                                    strings.followOn.strengths.questions
+                                        .buildOnStrengthsLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -145,9 +172,15 @@ export default function FollowOnQuestionsStep({
                                 id="strengths.buildOnStrengths"
                                 name="strengths.buildOnStrengths"
                                 rows={3}
-                                value={followOnData.strengths?.buildOnStrengths || ''}
+                                value={
+                                    followOnData.strengths?.buildOnStrengths ||
+                                    ''
+                                }
                                 onChange={handleChange}
-                                placeholder={strings.followOn.strengths.questions.buildOnStrengthsPlaceholder}
+                                placeholder={
+                                    strings.followOn.strengths.questions
+                                        .buildOnStrengthsPlaceholder
+                                }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                         </div>
@@ -166,7 +199,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="challenges.hardestToManage"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.challenges.questions.hardestToManageLabel}
+                                {
+                                    strings.followOn.challenges.questions
+                                        .hardestToManageLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -175,9 +211,15 @@ export default function FollowOnQuestionsStep({
                                 id="challenges.hardestToManage"
                                 name="challenges.hardestToManage"
                                 rows={3}
-                                value={followOnData.challenges?.hardestToManage || ''}
+                                value={
+                                    followOnData.challenges?.hardestToManage ||
+                                    ''
+                                }
                                 onChange={handleChange}
-                                placeholder={strings.followOn.challenges.questions.hardestToManagePlaceholder}
+                                placeholder={
+                                    strings.followOn.challenges.questions
+                                        .hardestToManagePlaceholder
+                                }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                         </div>
@@ -186,7 +228,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="challenges.toolsThatHelp"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.challenges.questions.toolsThatHelpLabel}
+                                {
+                                    strings.followOn.challenges.questions
+                                        .toolsThatHelpLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -195,9 +240,14 @@ export default function FollowOnQuestionsStep({
                                 id="challenges.toolsThatHelp"
                                 name="challenges.toolsThatHelp"
                                 rows={3}
-                                value={followOnData.challenges?.toolsThatHelp || ''}
+                                value={
+                                    followOnData.challenges?.toolsThatHelp || ''
+                                }
                                 onChange={handleChange}
-                                placeholder={strings.followOn.challenges.questions.toolsThatHelpPlaceholder}
+                                placeholder={
+                                    strings.followOn.challenges.questions
+                                        .toolsThatHelpPlaceholder
+                                }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                         </div>
@@ -207,7 +257,10 @@ export default function FollowOnQuestionsStep({
                                     id="challenges.suggestions"
                                     name="challenges.suggestions"
                                     type="checkbox"
-                                    checked={followOnData.challenges?.suggestions || false}
+                                    checked={
+                                        followOnData.challenges?.suggestions ||
+                                        false
+                                    }
                                     onChange={handleChange}
                                     className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                                 />
@@ -217,7 +270,10 @@ export default function FollowOnQuestionsStep({
                                     htmlFor="challenges.suggestions"
                                     className="font-medium text-gray-700"
                                 >
-                                    {strings.followOn.challenges.questions.suggestionsLabel}
+                                    {
+                                        strings.followOn.challenges.questions
+                                            .suggestionsLabel
+                                    }
                                 </label>
                             </div>
                         </div>
@@ -226,7 +282,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="challenges.recharge"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.challenges.questions.rechargeLabel}
+                                {
+                                    strings.followOn.challenges.questions
+                                        .rechargeLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -237,7 +296,10 @@ export default function FollowOnQuestionsStep({
                                 rows={3}
                                 value={followOnData.challenges?.recharge || ''}
                                 onChange={handleChange}
-                                placeholder={strings.followOn.challenges.questions.rechargePlaceholder}
+                                placeholder={
+                                    strings.followOn.challenges.questions
+                                        .rechargePlaceholder
+                                }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                         </div>
@@ -256,7 +318,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="learning.learningExample"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.learning.questions.learningExampleLabel}
+                                {
+                                    strings.followOn.learning.questions
+                                        .learningExampleLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -265,9 +330,14 @@ export default function FollowOnQuestionsStep({
                                 id="learning.learningExample"
                                 name="learning.learningExample"
                                 rows={3}
-                                value={followOnData.learning?.learningExample || ''}
+                                value={
+                                    followOnData.learning?.learningExample || ''
+                                }
                                 onChange={handleChange}
-                                placeholder={strings.followOn.learning.questions.learningExamplePlaceholder}
+                                placeholder={
+                                    strings.followOn.learning.questions
+                                        .learningExamplePlaceholder
+                                }
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                             />
                         </div>
@@ -277,7 +347,10 @@ export default function FollowOnQuestionsStep({
                                     id="learning.preferredFormat"
                                     name="learning.preferredFormat"
                                     type="checkbox"
-                                    checked={followOnData.learning?.preferredFormat || false}
+                                    checked={
+                                        followOnData.learning
+                                            ?.preferredFormat || false
+                                    }
                                     onChange={handleChange}
                                     className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                                 />
@@ -287,7 +360,10 @@ export default function FollowOnQuestionsStep({
                                     htmlFor="learning.preferredFormat"
                                     className="font-medium text-gray-700"
                                 >
-                                    {strings.followOn.learning.questions.preferredFormatLabel}
+                                    {
+                                        strings.followOn.learning.questions
+                                            .preferredFormatLabel
+                                    }
                                 </label>
                             </div>
                         </div>
@@ -296,7 +372,10 @@ export default function FollowOnQuestionsStep({
                                 htmlFor="learning.breakTasks"
                                 className="block text-sm font-medium text-gray-700"
                             >
-                                {strings.followOn.learning.questions.breakTasksLabel}
+                                {
+                                    strings.followOn.learning.questions
+                                        .breakTasksLabel
+                                }
                                 <span className="text-gray-500 text-xs ml-1">
                                     {strings.common.optional}
                                 </span>
@@ -313,7 +392,10 @@ export default function FollowOnQuestionsStep({
                                 </option>
                                 {strings.followOn.learning.questions.breakTasksOptions.map(
                                     (option) => (
-                                        <option key={option.value} value={option.value}>
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
                                             {option.label}
                                         </option>
                                     )
@@ -332,7 +414,8 @@ export default function FollowOnQuestionsStep({
                         {strings.followOn.motivation.title}
                     </h3>
                     <p className="text-sm text-gray-600">
-                        Follow-up questions about motivation would appear here based on your selections.
+                        Follow-up questions about motivation would appear here
+                        based on your selections.
                     </p>
                 </div>
             )}
@@ -343,7 +426,8 @@ export default function FollowOnQuestionsStep({
                         {strings.followOn.coping.title}
                     </h3>
                     <p className="text-sm text-gray-600">
-                        Follow-up questions about coping strategies would appear here based on your selections.
+                        Follow-up questions about coping strategies would appear
+                        here based on your selections.
                     </p>
                 </div>
             )}
@@ -354,7 +438,8 @@ export default function FollowOnQuestionsStep({
                         {strings.followOn.support.title}
                     </h3>
                     <p className="text-sm text-gray-600">
-                        Follow-up questions about support needs would appear here based on your selections.
+                        Follow-up questions about support needs would appear
+                        here based on your selections.
                     </p>
                 </div>
             )}
@@ -365,7 +450,8 @@ export default function FollowOnQuestionsStep({
                         {strings.followOn.coachingBuddy.title}
                     </h3>
                     <p className="text-sm text-gray-600">
-                        Follow-up questions about your coaching buddy would appear here based on your selections.
+                        Follow-up questions about your coaching buddy would
+                        appear here based on your selections.
                     </p>
                 </div>
             )}
@@ -376,7 +462,8 @@ export default function FollowOnQuestionsStep({
                         {strings.followOn.emotional.title}
                     </h3>
                     <p className="text-sm text-gray-600">
-                        Follow-up questions about emotional well-being would appear here based on your selections.
+                        Follow-up questions about emotional well-being would
+                        appear here based on your selections.
                     </p>
                 </div>
             )}
@@ -387,7 +474,8 @@ export default function FollowOnQuestionsStep({
                         {strings.followOn.celebrating.title}
                     </h3>
                     <p className="text-sm text-gray-600">
-                        Follow-up questions about celebrating wins would appear here based on your selections.
+                        Follow-up questions about celebrating wins would appear
+                        here based on your selections.
                     </p>
                 </div>
             )}
@@ -398,11 +486,11 @@ export default function FollowOnQuestionsStep({
                         {strings.followOn.customization.title}
                     </h3>
                     <p className="text-sm text-gray-600">
-                        Follow-up questions about customization would appear here based on your selections.
+                        Follow-up questions about customisation would appear
+                        here based on your selections.
                     </p>
                 </div>
             )}
         </div>
     );
 }
-

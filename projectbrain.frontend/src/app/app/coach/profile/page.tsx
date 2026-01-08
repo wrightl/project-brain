@@ -18,7 +18,6 @@ export default async function CoachProfilePage() {
 
     try {
         const user = await UserService.getCurrentUser();
-        console.log('user', user);
         if (!user) {
             error = 'User not found';
         } else {

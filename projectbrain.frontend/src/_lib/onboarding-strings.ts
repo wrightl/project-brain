@@ -255,7 +255,7 @@ const enUSStrings: OnboardingStrings = {
         challengeLabel:
             "What's one thing you find challenging about being an entrepreneur?",
         challengeOptions: [
-            { value: 'organization', label: 'Staying organized' },
+            { value: 'organisation', label: 'Staying organised' },
             { value: 'energy-management', label: 'Managing energy' },
             { value: 'finding-support', label: 'Finding support' },
             { value: 'time-management', label: 'Time management' },
@@ -316,7 +316,7 @@ const enUSStrings: OnboardingStrings = {
             { value: 'marketing', label: 'Marketing' },
             { value: 'networking', label: 'Networking' },
             { value: 'self-care', label: 'Self-care' },
-            { value: 'organization', label: 'Organization' },
+            { value: 'organisation', label: 'Organisation' },
             { value: 'planning', label: 'Planning' },
             { value: 'communication', label: 'Communication' },
         ],
@@ -344,7 +344,7 @@ const enUSStrings: OnboardingStrings = {
         tasksOptions: [
             { value: 'writing-emails', label: 'Writing emails' },
             { value: 'brainstorming', label: 'Brainstorming ideas' },
-            { value: 'organizing-tasks', label: 'Organizing tasks' },
+            { value: 'organising-tasks', label: 'Organising tasks' },
             { value: 'planning', label: 'Planning' },
             { value: 'problem-solving', label: 'Problem-solving' },
             { value: 'communication', label: 'Communication' },

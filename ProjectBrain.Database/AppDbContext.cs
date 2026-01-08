@@ -292,6 +292,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasIndex(je => je.CreatedAt);
 
         // Configure Tag relationships
+        // Note: Using NO ACTION instead of CASCADE to avoid cascade path cycles
+        // Tags are deleted via application logic since JournalEntryTags are cleaned up via JournalEntries
+        modelBuilder.Entity<Tag>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(t => t.UserId)
+            .OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<Tag>()
             .HasIndex(t => new { t.UserId, t.Name })
             .IsUnique();
@@ -307,7 +315,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasOne(jet => jet.Tag)
             .WithMany(t => t.JournalEntryTags)
             .HasForeignKey(jet => jet.TagId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.NoAction);
 
         // Unique constraint to prevent duplicate tag assignments
         modelBuilder.Entity<JournalEntryTag>()

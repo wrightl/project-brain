@@ -19,14 +19,7 @@ public static class FeatureFlagEndpoints
 
         group.MapGet("/", GetAllFeatureFlags).WithName("GetAllFeatureFlags");
         group.MapGet("/{flagKey}", GetFeatureFlag).WithName("GetFeatureFlag");
-        group.MapGet("/test", SendEmail).WithName("SendEmailTest").AllowAnonymous();
 
-    }
-
-    private static async Task<IResult> SendEmail([AsParameters] FeatureFlagServices services)
-    {
-        await services.EmailService.SendEmailAsync("leewright76@hotmail.com", subject: "Test Email", htmlBody: "This is a test email");
-        return Results.Ok("Email sent");
     }
 
     private static async Task<IResult> GetAllFeatureFlags([AsParameters] FeatureFlagServices services)

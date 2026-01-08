@@ -24,6 +24,8 @@ public class UserProfileRepository : Repository<UserProfile, int>, IUserProfileR
             .AsNoTracking()
             .Include(up => up.NeurodiverseTraits)
             .Include(up => up.Preference)
+            .Include(cp => cp.User!)
+            .Include(up => up.User.UserRoles)
             .FirstOrDefaultAsync(up => up.UserId == userId, cancellationToken);
     }
 }

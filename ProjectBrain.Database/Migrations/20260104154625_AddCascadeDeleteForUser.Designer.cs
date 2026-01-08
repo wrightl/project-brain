@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace projectbrain.database.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260104154625_AddCascadeDeleteForUser")]
+    partial class AddCascadeDeleteForUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -339,6 +342,8 @@ namespace projectbrain.database.Migrations
                         .HasColumnType("nvarchar(128)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Conversations");
                 });
@@ -882,6 +887,8 @@ namespace projectbrain.database.Migrations
                         .HasColumnType("nvarchar(128)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Resources");
                 });
@@ -1447,6 +1454,15 @@ namespace projectbrain.database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Conversation", b =>
+                {
+                    b.HasOne("User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ExternalIntegration", b =>
                 {
                     b.HasOne("User", "User")
@@ -1469,6 +1485,15 @@ namespace projectbrain.database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("JournalEntry", b =>
+                {
+                    b.HasOne("User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("JournalEntryTag", b =>
                 {
                     b.HasOne("JournalEntry", "JournalEntry")
@@ -1480,7 +1505,7 @@ namespace projectbrain.database.Migrations
                     b.HasOne("Tag", "Tag")
                         .WithMany("JournalEntryTags")
                         .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.NoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("JournalEntry");
@@ -1532,6 +1557,15 @@ namespace projectbrain.database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ProjectBrain.Database.Models.Goal", b =>
+                {
+                    b.HasOne("User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("QuizQuestion", b =>
                 {
                     b.HasOne("Quiz", "Quiz")
@@ -1563,6 +1597,15 @@ namespace projectbrain.database.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Resource", b =>
+                {
+                    b.HasOne("User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("SubscriptionExclusion", b =>
@@ -1600,7 +1643,7 @@ namespace projectbrain.database.Migrations
                     b.HasOne("User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.NoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -1673,6 +1716,15 @@ namespace projectbrain.database.Migrations
                     b.Navigation("Tier");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("VoiceNote", b =>
+                {
+                    b.HasOne("User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("CoachProfile", b =>

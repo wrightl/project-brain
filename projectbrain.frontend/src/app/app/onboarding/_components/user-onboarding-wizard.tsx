@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { redirect, useRouter } from 'next/navigation';
 import { UserOnboardingData } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
@@ -284,7 +284,15 @@ export default function UserOnboardingWizard({
         <div className="space-y-6">
             {/* Progress Indicator */}
             <div className="bg-white rounded-lg shadow-sm p-4">
-                <div className="flex items-center justify-between overflow-x-auto">
+                <div
+                    className="grid gap-x-1"
+                    style={{
+                        gridTemplateColumns: `repeat(${
+                            visibleSteps.length * 2 - 1
+                        }, minmax(0, 1fr))`,
+                        gridTemplateRows: 'auto auto',
+                    }}
+                >
                     {visibleSteps.map((step, index) => {
                         const isCompleted =
                             visitedSteps.has(step) && index < currentStepIndex;
@@ -292,19 +300,25 @@ export default function UserOnboardingWizard({
                         const isClickable =
                             visitedSteps.has(step) && !isCurrent;
 
+                        const columnStart = index * 2 + 1;
+
                         return (
-                            <div
-                                key={step}
-                                className="flex items-center flex-1 min-w-[100px]"
-                            >
-                                <div className="flex flex-col items-center flex-1">
+                            <React.Fragment key={step}>
+                                {/* Icon - Row 1 */}
+                                <div
+                                    className="flex items-center justify-center"
+                                    style={{
+                                        gridColumn: columnStart,
+                                        gridRow: 1,
+                                    }}
+                                >
                                     <button
                                         type="button"
                                         onClick={() =>
                                             handleStepClick(step, index)
                                         }
                                         disabled={!isClickable}
-                                        className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all shrink-0 ${
                                             isCompleted
                                                 ? 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'
                                                 : isCurrent
@@ -337,13 +351,23 @@ export default function UserOnboardingWizard({
                                             index + 1
                                         )}
                                     </button>
+                                </div>
+
+                                {/* Label - Row 2 */}
+                                <div
+                                    className="flex items-start justify-center mt-2"
+                                    style={{
+                                        gridColumn: columnStart,
+                                        gridRow: 2,
+                                    }}
+                                >
                                     <button
                                         type="button"
                                         onClick={() =>
                                             handleStepClick(step, index)
                                         }
                                         disabled={!isClickable}
-                                        className={`mt-2 text-xs font-medium text-center transition-colors ${
+                                        className={`text-xs font-medium text-center transition-colors min-h-[40px] whitespace-normal leading-tight line-clamp-2 ${
                                             isCurrent
                                                 ? 'text-indigo-600'
                                                 : isCompleted || isClickable
@@ -359,16 +383,28 @@ export default function UserOnboardingWizard({
                                         {getStepTitle(step)}
                                     </button>
                                 </div>
+
+                                {/* Connecting Line - Row 1, between steps */}
                                 {index < visibleSteps.length - 1 && (
                                     <div
-                                        className={`flex-1 h-1 mx-2 ${
-                                            index < currentStepIndex
-                                                ? 'bg-indigo-600'
-                                                : 'bg-gray-200'
-                                        }`}
-                                    />
+                                        className="flex items-center justify-center"
+                                        style={{
+                                            gridColumn: `${
+                                                columnStart + 1
+                                            } / span 1`,
+                                            gridRow: 1,
+                                        }}
+                                    >
+                                        <div
+                                            className={`h-1 w-16 max-w-full ${
+                                                index < currentStepIndex
+                                                    ? 'bg-indigo-600'
+                                                    : 'bg-gray-200'
+                                            }`}
+                                        />
+                                    </div>
                                 )}
-                            </div>
+                            </React.Fragment>
                         );
                     })}
                 </div>

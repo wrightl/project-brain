@@ -1,6 +1,5 @@
 // import { init, BasicLogger } from '@launchdarkly/node-server-sdk';
 // import { getSession, getUserRoles } from './auth';
-import { callBackendApi } from './backend-api';
 
 export type FeatureFlags = {
     CoachFeatureEnabled: boolean;
@@ -26,7 +25,7 @@ export async function getFlags(): Promise<FeatureFlags> {
     }
 
     try {
-        const response = await callBackendApi('/feature-flags', {
+        const response = await fetch('/api/feature-flags', {
             method: 'GET',
         });
 

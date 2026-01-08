@@ -11,8 +11,6 @@ export const metadata: Metadata = {
 export default async function ProfilePage() {
     const user = await UserService.getCurrentUser();
 
-    console.log('user', user);
-
     if (!user) {
         return (
             <div className="bg-white shadow rounded-lg p-6">

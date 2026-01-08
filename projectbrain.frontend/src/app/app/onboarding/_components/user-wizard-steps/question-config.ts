@@ -12,35 +12,90 @@ export interface FollowOnTrigger {
 
 export const FOLLOW_ON_TRIGGERS: FollowOnTrigger[] = [
     // Strengths trigger
-    { section: 'profile', field: 'strengths', value: [], followOnCategory: 'strengths' },
-    
+    {
+        section: 'profile',
+        field: 'strengths',
+        value: [],
+        followOnCategory: 'strengths',
+    },
+
     // Challenges trigger
-    { section: 'aboutYou', field: 'challenge', value: [], followOnCategory: 'challenges' },
-    { section: 'profile', field: 'supportAreas', value: [], followOnCategory: 'challenges' },
-    
+    {
+        section: 'aboutYou',
+        field: 'challenge',
+        value: [],
+        followOnCategory: 'challenges',
+    },
+    {
+        section: 'profile',
+        field: 'supportAreas',
+        value: [],
+        followOnCategory: 'challenges',
+    },
+
     // Learning preferences trigger
-    { section: 'preferences', field: 'learningStyle', value: '', followOnCategory: 'learning' },
-    
+    {
+        section: 'preferences',
+        field: 'learningStyle',
+        value: '',
+        followOnCategory: 'learning',
+    },
+
     // Motivation trigger
-    { section: 'profile', field: 'motivationStyle', value: '', followOnCategory: 'motivation' },
-    
-    // Coping strategies trigger (if challenge includes organization, focus, or energy)
-    { section: 'aboutYou', field: 'challenge', value: ['organization', 'focus', 'energy-management'], followOnCategory: 'coping' },
-    
+    {
+        section: 'profile',
+        field: 'motivationStyle',
+        value: '',
+        followOnCategory: 'motivation',
+    },
+
+    // Coping strategies trigger (if challenge includes organisation, focus, or energy)
+    {
+        section: 'aboutYou',
+        field: 'challenge',
+        value: ['organisation', 'focus', 'energy-management'],
+        followOnCategory: 'coping',
+    },
+
     // Support needs trigger
-    { section: 'profile', field: 'supportAreas', value: [], followOnCategory: 'support' },
-    
+    {
+        section: 'profile',
+        field: 'supportAreas',
+        value: [],
+        followOnCategory: 'support',
+    },
+
     // Coaching buddy trigger
-    { section: 'coachingBuddy', field: 'tasks', value: [], followOnCategory: 'coachingBuddy' },
-    
+    {
+        section: 'coachingBuddy',
+        field: 'tasks',
+        value: [],
+        followOnCategory: 'coachingBuddy',
+    },
+
     // Emotional well-being trigger (if current feeling is overwhelmed, stuck, or uncertain)
-    { section: 'welcome', field: 'currentFeeling', value: ['overwhelmed', 'stuck', 'uncertain'], followOnCategory: 'emotional' },
-    
+    {
+        section: 'welcome',
+        field: 'currentFeeling',
+        value: ['overwhelmed', 'stuck', 'uncertain'],
+        followOnCategory: 'emotional',
+    },
+
     // Celebrating wins trigger
-    { section: 'preferences', field: 'celebrationStyle', value: '', followOnCategory: 'celebrating' },
-    
-    // Customization trigger
-    { section: 'coachingBuddy', field: 'toolsIntegration', value: '', followOnCategory: 'customization' },
+    {
+        section: 'preferences',
+        field: 'celebrationStyle',
+        value: '',
+        followOnCategory: 'celebrating',
+    },
+
+    // Customisation trigger
+    {
+        section: 'coachingBuddy',
+        field: 'toolsIntegration',
+        value: '',
+        followOnCategory: 'customization',
+    },
 ];
 
 /**
@@ -51,27 +106,29 @@ export function shouldShowFollowOn(
     formData: Record<string, any>
 ): boolean {
     const triggers = FOLLOW_ON_TRIGGERS.filter(
-        trigger => trigger.followOnCategory === category
+        (trigger) => trigger.followOnCategory === category
     );
-    
+
     for (const trigger of triggers) {
         const sectionData = formData[trigger.section];
         if (!sectionData) continue;
-        
+
         const fieldValue = sectionData[trigger.field];
         if (!fieldValue) continue;
-        
+
         // Handle different combinations of trigger value and field value
         if (Array.isArray(trigger.value)) {
             if (trigger.value.length === 0) {
                 // Empty array means "if field has any value"
-                if (Array.isArray(fieldValue) && fieldValue.length > 0) return true;
+                if (Array.isArray(fieldValue) && fieldValue.length > 0)
+                    return true;
                 if (!Array.isArray(fieldValue) && fieldValue) return true;
             } else {
                 // Non-empty array means "if any of these values are in field"
                 if (Array.isArray(fieldValue)) {
                     // Check if any trigger value is in field array
-                    if (trigger.value.some(val => fieldValue.includes(val))) return true;
+                    if (trigger.value.some((val) => fieldValue.includes(val)))
+                        return true;
                 } else {
                     // Field is single value, check if it's in trigger array
                     if (trigger.value.includes(fieldValue)) return true;
@@ -92,7 +149,7 @@ export function shouldShowFollowOn(
             }
         }
     }
-    
+
     return false;
 }
 
@@ -101,13 +158,12 @@ export function shouldShowFollowOn(
  */
 export function getFollowOnCategories(formData: Record<string, any>): string[] {
     const categories = new Set<string>();
-    
+
     for (const trigger of FOLLOW_ON_TRIGGERS) {
         if (shouldShowFollowOn(trigger.followOnCategory, formData)) {
             categories.add(trigger.followOnCategory);
         }
     }
-    
+
     return Array.from(categories);
 }
-

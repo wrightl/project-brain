@@ -5,9 +5,6 @@ import { NextRequest, NextResponse } from 'next/server';
 export const POST = createApiRoute(async (req: NextRequest) => {
     const fileData = await req.formData();
 
-    console.log('Received file upload request');
-    console.log('Request body:', fileData);
-
     // Loop through all received files and append them.
     // Use the same key 'file' to send an array of files.
     const formData = new FormData();

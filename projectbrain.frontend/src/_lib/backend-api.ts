@@ -87,6 +87,8 @@ export async function callBackendApi(
         // Make request to backend
         const response = await fetch(`${API_URL}${endpoint}`, fetchOptions);
 
+        // console.log('token: ', accessToken);
+
         // Handle non-2xx responses
         if (!response.ok) {
             console.error(

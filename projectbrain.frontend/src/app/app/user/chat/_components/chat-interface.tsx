@@ -2,7 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Conversation, ChatMessage, Citation, ToolExecution } from '@/_lib/types';
+import {
+    Conversation,
+    ChatMessage,
+    Citation,
+    ToolExecution,
+} from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { PaperAirplaneIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -10,7 +15,6 @@ import VoiceRecorder from '@/_components/VoiceRecorder';
 import FeatureGate from '@/_components/feature-gate';
 import ConversationsDrawer from './conversations-drawer';
 import { useAgentFeatureEnabled } from '@/_hooks/use-feature-flag';
-import { ChatService } from '@/_services/chat-service';
 import ToolExecutionBadge from './tool-execution-badge';
 import toast from 'react-hot-toast';
 
@@ -34,7 +38,9 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
     const [transcribedText, setTranscribedText] = useState('');
     const [isProcessingVoice, setIsProcessingVoice] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [currentToolExecutions, setCurrentToolExecutions] = useState<ToolExecution[]>([]);
+    const [currentToolExecutions, setCurrentToolExecutions] = useState<
+        ToolExecution[]
+    >([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const streamingMessageRef = useRef<string>('');
@@ -199,59 +205,146 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
             // Check if agent feature is enabled
             if (agentFeatureEnabled) {
                 // Use agent endpoint with tool execution support
-                let toolExecutions: ToolExecution[] = [];
+                const requestBody: Record<string, unknown> = {
+                    content: userMessage.content,
+                };
+                if (conversationId) {
+                    requestBody.conversationId = conversationId;
+                }
+                if (workflowId) {
+                    requestBody.workflowId = workflowId;
+                }
+
+                const response = await fetchWithAuth('/api/agent/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Failed to stream agent chat');
+                }
+
+                // Get conversation ID and workflow ID from response headers
+                const newConversationId =
+                    response.headers.get('X-Conversation-Id');
+                if (newConversationId) {
+                    setConversationId(newConversationId);
+                }
+
+                const newWorkflowIdHeader =
+                    response.headers.get('X-Workflow-Id');
+                if (newWorkflowIdHeader) {
+                    setWorkflowId(newWorkflowIdHeader);
+                }
+
+                // Stream response using ReadableStream
+                const reader = response.body?.getReader();
+                const decoder = new TextDecoder();
+                if (!reader) throw new Error('No response body');
+
                 let citations: Citation[] = [];
-                let newWorkflowId: string | undefined = undefined;
+                let toolExecutions: ToolExecution[] = [];
+                let done = false;
 
-                await ChatService.streamAgentChat(
-                    userMessage.content,
-                    conversationId,
-                    workflowId,
-                    (text) => {
-                        streamingMessageRef.current += text;
-                        setStreamingMessage(streamingMessageRef.current);
-                    },
-                    (id) => {
-                        setConversationId(id);
-                    },
-                    (id) => {
-                        newWorkflowId = id;
-                        setWorkflowId(id);
-                    },
-                    (cits) => {
-                        citations = cits;
-                    },
-                    (tools) => {
-                        toolExecutions = [...toolExecutions, ...tools];
-                        setCurrentToolExecutions([...toolExecutions]);
+                while (!done) {
+                    const { value, done: streamDone } = await reader.read();
+                    done = streamDone;
+                    if (value) {
+                        const text = decoder.decode(value, { stream: true });
+                        // Assume SSE format: lines starting with 'data: '
+                        const lines = text.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                const data = line.slice(6);
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (
+                                        parsed.type === 'citations' &&
+                                        parsed.value
+                                    ) {
+                                        // Handle citations metadata
+                                        citations = parsed.value;
+                                    } else if (
+                                        parsed.type === 'text' &&
+                                        parsed.value
+                                    ) {
+                                        // Handle text chunks
+                                        streamingMessageRef.current +=
+                                            parsed.value;
+                                        setStreamingMessage(
+                                            streamingMessageRef.current
+                                        );
+                                    } else if (
+                                        parsed.type === 'tools_executed' &&
+                                        parsed.value &&
+                                        Array.isArray(parsed.value)
+                                    ) {
+                                        // Handle tool execution results
+                                        toolExecutions =
+                                            parsed.value as ToolExecution[];
+                                        setCurrentToolExecutions([
+                                            ...toolExecutions,
+                                        ]);
 
-                        // Show toast notification if goals were created
-                        const goalsCreated = tools.some(
-                            (tool) =>
-                                tool.toolName === 'create_daily_goals' &&
-                                tool.success
-                        );
-                        if (goalsCreated) {
-                            toast.success('Daily goals created successfully!', {
-                                icon: '🎯',
-                            });
+                                        // Show toast notification if goals were created
+                                        const goalsCreated =
+                                            toolExecutions.some(
+                                                (tool) =>
+                                                    tool.toolName ===
+                                                        'create_daily_goals' &&
+                                                    tool.success
+                                            );
+                                        if (goalsCreated) {
+                                            toast.success(
+                                                'Daily goals created successfully!',
+                                                {
+                                                    icon: '🎯',
+                                                }
+                                            );
+                                        }
+                                    } else if (
+                                        parsed.type === 'workflow' &&
+                                        parsed.value?.id
+                                    ) {
+                                        // Handle workflow ID
+                                        setWorkflowId(parsed.value.id);
+                                    } else if (
+                                        parsed.type === 'error' &&
+                                        parsed.value
+                                    ) {
+                                        // Handle errors
+                                        console.error(
+                                            'Agent error:',
+                                            parsed.value
+                                        );
+                                        toast.error(
+                                            `Agent error: ${parsed.value}`
+                                        );
+                                    }
+                                } catch {
+                                    // Ignore parse errors
+                                }
+                            }
                         }
-                    },
-                    (error) => {
-                        console.error('Agent error:', error);
-                        toast.error(`Agent error: ${error}`);
                     }
-                );
+                }
 
                 // Add complete assistant message with tool executions
                 if (streamingMessageRef.current || toolExecutions.length > 0) {
                     const assistantMessage: ChatMessage = {
                         role: 'assistant',
-                        content: streamingMessageRef.current || 'Action completed.',
+                        content:
+                            streamingMessageRef.current || 'Action completed.',
                         citations: citations.length > 0 ? citations : undefined,
                         toolExecutions:
-                            toolExecutions.length > 0 ? toolExecutions : undefined,
-                        workflowId: newWorkflowId,
+                            toolExecutions.length > 0
+                                ? toolExecutions
+                                : undefined,
+                        workflowId: newWorkflowIdHeader || workflowId,
                     };
                     setMessages((prev) => [...prev, assistantMessage]);
                 }
@@ -274,7 +367,8 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                 }
 
                 // Get conversation ID from response header
-                const newConversationId = response.headers.get('X-Conversation-Id');
+                const newConversationId =
+                    response.headers.get('X-Conversation-Id');
                 if (newConversationId) {
                     setConversationId(newConversationId);
                 }
@@ -309,7 +403,8 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                         parsed.type !== 'citations'
                                     ) {
                                         // Handle text chunks
-                                        streamingMessageRef.current += parsed.value;
+                                        streamingMessageRef.current +=
+                                            parsed.value;
                                         setStreamingMessage(
                                             streamingMessageRef.current
                                         );

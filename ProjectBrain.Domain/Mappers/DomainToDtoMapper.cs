@@ -70,6 +70,35 @@ public static class DomainToDtoMapper
     //     };
     // }
 
+    public static UserDto ToUserDto(this UserProfile userProfile)
+    {
+        if (userProfile.User == null)
+        {
+            throw new InvalidOperationException("UserProfile must include User to convert to UserDto");
+        }
+        return new UserDto
+        {
+            Id = userProfile.User.Id,
+            Email = userProfile.User.Email,
+            FullName = userProfile.User.FullName,
+            IsOnboarded = userProfile.User.IsOnboarded,
+            LastActivityAt = userProfile.User.LastActivityAt,
+            StreetAddress = userProfile.User.StreetAddress,
+            AddressLine2 = userProfile.User.AddressLine2,
+            City = userProfile.User.City,
+            StateProvince = userProfile.User.StateProvince,
+            PostalCode = userProfile.User.PostalCode,
+            Country = userProfile.User.Country,
+            Connection = userProfile.User.Connection,
+            EmailVerified = userProfile.User.EmailVerified,
+            Roles = userProfile.User.UserRoles?.Select(ur => ur.RoleName)?.ToList() ?? new List<string>(),
+            DoB = userProfile.DoB,
+            PreferredPronoun = userProfile.PreferredPronoun,
+            NeurodiverseTraits = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>(),
+            Preferences = userProfile.Preference?.Preferences
+        };
+    }
+
     public static CoachDto ToCoachDto(this CoachProfile coachProfile)
     {
         if (coachProfile.User == null)

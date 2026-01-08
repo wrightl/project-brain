@@ -310,23 +310,21 @@ public static class UserEndpoints
             // Set online status (30-minute window for coaches)
             await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
 
-            return Results.Ok(user);
+            return Results.Ok(coachDto);
         }
         else
         {
             // Return user profile data
             var userProfile = await services.UserProfileService.GetByUserId(userId);
-            var userDto = user as UserDto;
-            if (userDto is not null && userProfile is not null)
-            {
-                // Populate UserDto with profile data
-                userDto.DoB = userProfile.DoB;
-                userDto.PreferredPronoun = userProfile.PreferredPronoun;
-                userDto.NeurodiverseTraits = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>();
-                userDto.Preferences = userProfile.Preference?.Preferences;
-            }
 
-            return Results.Ok(user);
+            if (userProfile is null)
+            {
+                // User has user role but no user profile - return basic user data
+                return Results.Ok(user);
+            }
+            var userDto = userProfile.ToUserDto();
+
+            return Results.Ok(userDto);
         }
     }
 

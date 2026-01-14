@@ -1,10 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/_lib/api-client';
-import {
-    Quiz,
-    QuizResponse,
-    PagedResponse,
-} from '@/_services/quiz-service';
+import { Quiz, QuizResponse } from '@/_services/quiz-service';
+import { PagedResponse } from '@/_lib/types';
 
 export const quizKeys = {
     all: ['quizzes'] as const,
@@ -20,10 +17,7 @@ export const quizKeys = {
     insights: () => [...quizKeys.all, 'insights'] as const,
 };
 
-export function useQuizzes(options?: {
-    page?: number;
-    pageSize?: number;
-}) {
+export function useQuizzes(options?: { page?: number; pageSize?: number }) {
     return useQuery<PagedResponse<Quiz>>({
         queryKey: quizKeys.list(options?.page, options?.pageSize),
         queryFn: () => {
@@ -55,7 +49,10 @@ export function useQuiz(quizId: string) {
 export function useQuizResponse(responseId: string) {
     return useQuery<QuizResponse>({
         queryKey: [...quizKeys.responses(), 'detail', responseId],
-        queryFn: () => apiClient<QuizResponse>(`/api/user/quizzes/responses/${responseId}`),
+        queryFn: () =>
+            apiClient<QuizResponse>(
+                `/api/user/quizzes/responses/${responseId}`
+            ),
         enabled: !!responseId,
         staleTime: 2 * 60 * 1000, // 2 minutes
     });
@@ -87,7 +84,8 @@ export function useQuizResponses(options?: {
 export function useQuizResponseCount() {
     return useQuery<{ count: number }>({
         queryKey: quizKeys.responsesCount(),
-        queryFn: () => apiClient<{ count: number }>('/api/user/quizzes/responses/count'),
+        queryFn: () =>
+            apiClient<{ count: number }>('/api/user/quizzes/responses/count'),
         staleTime: 5 * 60 * 1000, // 5 minutes
     });
 }
@@ -155,7 +153,9 @@ export function useSubmitQuizResponse() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: quizKeys.responses() });
             queryClient.invalidateQueries({ queryKey: quizKeys.insights() });
-            queryClient.invalidateQueries({ queryKey: quizKeys.responsesCount() });
+            queryClient.invalidateQueries({
+                queryKey: quizKeys.responsesCount(),
+            });
         },
     });
 }
@@ -209,9 +209,10 @@ export function useDeleteQuizResponse() {
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: quizKeys.responses() });
-            queryClient.invalidateQueries({ queryKey: quizKeys.responsesCount() });
+            queryClient.invalidateQueries({
+                queryKey: quizKeys.responsesCount(),
+            });
             queryClient.invalidateQueries({ queryKey: quizKeys.insights() });
         },
     });
 }
-

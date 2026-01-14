@@ -1,20 +1,23 @@
 import { createApiRoute } from '@/_lib/api-route-handler';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { PagedResponse } from '@/_lib/types';
 import { Quiz, QuizService } from '@/_services/quiz-service';
+import { callBackendApi } from '@/_lib/backend-api';
 
-export const GET = createApiRoute<PagedResponse<Quiz>>(async (req: NextRequest) => {
-    const { searchParams } = new URL(req.url);
-    const pageParam = searchParams.get('page');
-    const pageSizeParam = searchParams.get('pageSize');
+export const GET = createApiRoute<PagedResponse<Quiz>>(
+    async (req: NextRequest) => {
+        const { searchParams } = new URL(req.url);
+        const pageParam = searchParams.get('page');
+        const pageSizeParam = searchParams.get('pageSize');
 
-    const options = {
-        page: pageParam ? parseInt(pageParam, 10) : undefined,
-        pageSize: pageSizeParam ? parseInt(pageSizeParam, 10) : undefined,
-    };
+        const options = {
+            page: pageParam ? parseInt(pageParam, 10) : undefined,
+            pageSize: pageSizeParam ? parseInt(pageSizeParam, 10) : undefined,
+        };
 
-    return await QuizService.getAllQuizzes(options);
-});
+        return await QuizService.getAllQuizzes(options);
+    }
+);
 
 export async function POST(request: NextRequest) {
     try {
@@ -37,4 +40,3 @@ export async function POST(request: NextRequest) {
         );
     }
 }
-

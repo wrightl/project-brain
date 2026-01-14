@@ -1,5 +1,7 @@
 using Aspire.Hosting.Pipelines;
+using Azure.Core;
 using Azure.Provisioning.AppConfiguration;
+using Azure.Provisioning.CognitiveServices;
 using Azure.Provisioning.Search;
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -9,9 +11,10 @@ var apiName = "api";
 var frontendName = "frontend";
 var documentstorageName = "documentstorage";
 var cacheName = "cache";
-var searchName = "search";
+var searchName = "ai-search";
 var openaiName = "openai";
 var speechName = "speech";
+var speechRegion = "westeurope";
 var sqlServerName = $"{appName}";
 var sqlDbName = $"{appName}db";
 var defaultSearchSku = "Free";
@@ -23,16 +26,17 @@ var defaultModelSkuName = "GlobalStandard";
 var blobName = "blobs";
 
 // Parameters
+var environmentName = builder.AddParameter("deploymentEnvironment");
 var replicas = builder.AddParameter("minReplicas");
-var useNewSearchService = (builder.Configuration["USE_NEW_SEARCH_SERVICE"] ?? "true").ToLower() == "true";
+// var useNewSearchService = (builder.Configuration["USE_NEW_SEARCH_SERVICE"] ?? "true").ToLower() == "true";
 var sqlPassword = builder.AddParameter($"{sqlServerName}-password", secret: true);
 
 // Parameters - Azure AI Search
-var existingSearchName = builder.AddParameter("searchName");
-var existingAIResourceGroup = builder.AddParameter("searchResourceGroup");
+// var existingSearchName = builder.AddParameter("searchName");
+// var existingAIResourceGroup = builder.AddParameter("searchResourceGroup");
 // Parameters - Azure OpenAPI
 var searchSku = builder.Configuration["AI_SEARCH_SKU"] ?? defaultSearchSku;
-var existingOpenAIName = builder.AddParameter("existingOpenAIName");
+// var existingOpenAIName = builder.AddParameter("existingOpenAIName");
 var chatModelName = builder.Configuration["CHAT_MODEL_NAME"] ?? defaultChatModelName;
 var chatModelVersion = builder.Configuration["CHAT_MODEL_VERSION"] ?? defaultChatModelVersion;
 var embedModelName = builder.Configuration["EMBED_MODEL_NAME"] ?? defaultEmbedModelName;
@@ -44,9 +48,11 @@ var auth0ManagementApiClientSecret = builder.AddParameter("auth0-managementapicl
 var auth0ManagementApiClientId = builder.AddParameter("auth0-managementapiclientid", secret: true);
 var auth0ClientId = builder.AddParameter("auth0-clientid", secret: true);
 var auth0Domain = builder.AddParameter("auth0-domain", secret: true);
+var auth0WebhookToken = builder.AddParameter("auth0-webhook-token", secret: true);
 var launchDarklySdkKey = builder.AddParameter("launchdarkly-sdk-key", secret: true);
 var mailgunApiKey = builder.AddParameter("mailgun-api-key", secret: true);
 var mailgunDomain = builder.AddParameter("mailgun-domain", secret: true);
+var firebaseCredentialsJson = builder.AddParameter("firebase-credentials-json", secret: true);
 
 // custom domain and certificate for container app - these are only needed for the deployment to azure
 var certificateNameApiFromConfig = builder.Configuration["CERTIFICATE_NAME_API"] ?? "";
@@ -59,22 +65,28 @@ var customDomainApp = builder.AddParameter("customDomainApp", customDomainAppFro
 var certificateNameApp = builder.AddParameter("certificateNameApp", value: certificateNameAppFromConfig, publishValueAsDefault: true);
 
 var search = builder.AddAzureSearch(searchName);
-if (!useNewSearchService)
-    search.RunAsExisting(existingSearchName, existingAIResourceGroup);
-else
-    search.ConfigureInfrastructure(infra =>
-    {
-        var searchService = infra.GetProvisionableResources()
-                                 .OfType<SearchService>()
-                                 .Single();
+// if (!useNewSearchService)
+//     search.RunAsExisting(existingSearchName, existingAIResourceGroup);
+// else
+search.ConfigureInfrastructure(infra =>
+{
+    var searchService = infra.GetProvisionableResources()
+                             .OfType<SearchService>()
+                             .Single();
 
-        searchService.SearchSkuName = Enum.Parse<SearchServiceSkuName>(searchSku);
-    });
+    searchService.SearchSkuName = Enum.Parse<SearchServiceSkuName>(searchSku);
+});
 
 // Azure OpenAI
-var openai = builder.AddAzureOpenAI(openaiName);
-if (!useNewSearchService)
-    openai.RunAsExisting(existingOpenAIName, existingAIResourceGroup);
+var openai = builder.AddAzureOpenAI(openaiName).ConfigureInfrastructure(infra =>
+{
+    var openaiService = infra.GetProvisionableResources()
+                             .OfType<CognitiveServicesAccount>()
+                             .Single();
+    openaiService.Location = new AzureLocation(speechRegion);
+});
+// if (!useNewSearchService)
+// openai.RunAsExisting(existingOpenAIName, existingAIResourceGroup);
 
 // Chat deployment
 openai.AddDeployment(
@@ -96,16 +108,23 @@ openai.AddDeployment(
         deployment.SkuName = modelSkuName;
     });
 
-// // speech deployment
-// openai.AddDeployment(
-//     name: $"{openaiName}-{speechName}-deployment",
-//     modelVersion: "001",
-//     modelName: "whisper");
+var speechResource = builder.AddBicepTemplate(speechName, "Bicep/azureaispeech.bicep")
+    .WithParameter("name", speechName)
+    .WithParameter("location", speechRegion);
+var speechConnectionString = speechResource.GetOutput("connectionString");
 
-// var speechResource = builder.AddBicepTemplate(speechName, "Bicep/azureaispeech.bicep")
-//     .WithParameter("name", speechName);
-// var speechConnectionString = speechResource.GetOutput("connectionString");
+// speech deployment
+openai.AddDeployment(
+    name: $"{openaiName}-{speechName}-deployment",
+    modelVersion: "001",
+    modelName: "whisper")
+    .WithProperties(deployment =>
+    {
+        deployment.SkuName = "Standard"; // Whisper uses Standard, not GlobalStandard
+        deployment.SkuCapacity = 3; // Match your quota limit
+    });
 
+// App Container Environment
 builder.AddAzureContainerAppEnvironment($"{appName}-environment");
 
 // azure app config
@@ -127,7 +146,7 @@ else
                                   .Single();
 
         appConfigStore.SkuName = "Free";
-        appConfigStore.EnablePurgeProtection = true;
+        appConfigStore.EnablePurgeProtection = false;
     });
 }
 
@@ -151,8 +170,10 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("Auth0__ManagementApiClientId", auth0ManagementApiClientId)
                         .WithEnvironment("Auth0__ClientId", auth0ClientId)
                         .WithEnvironment("Auth0__Domain", auth0Domain)
+                        .WithEnvironment("Auth0__WebhookToken", auth0WebhookToken)
+                        .WithEnvironment("Firebase__CredentialsJson", firebaseCredentialsJson)
                         .WithEnvironment("LaunchDarkly__SdkKey", launchDarklySdkKey)
-                        .WithEnvironment("AI__UseNewSearchService", useNewSearchService.ToString())
+                        // .WithEnvironment("AI__UseNewSearchService", "true")
                         .WithEnvironment("Mailgun__ApiKey", mailgunApiKey)
                         .WithEnvironment("Mailgun__Domain", mailgunDomain)
                         .WithHttpHealthCheck("/health")
@@ -166,21 +187,21 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         });
 
 // azure storage
-if (useNewSearchService)
-{
-    var documentStorage = builder.AddAzureStorage(documentstorageName)
-                                .RunAsEmulator(azurite =>
-                                {
-                                    azurite.WithDataVolume();
-                                })
-                                .AddBlobs(blobName);
-    apiService.WithReference(documentStorage);
-}
-else
-{
-    var blobs = builder.AddConnectionString(blobName);
-    apiService.WithReference(blobs);
-}
+// if (useNewSearchService)
+// {
+var documentStorage = builder.AddAzureStorage(documentstorageName)
+                            .RunAsEmulator(azurite =>
+                            {
+                                azurite.WithDataVolume();
+                            })
+                            .AddBlobs(blobName);
+apiService.WithReference(documentStorage);
+// }
+// else
+// {
+//     var blobs = builder.AddConnectionString(blobName);
+//     apiService.WithReference(blobs);
+// }
 
 if (builder.ExecutionContext.IsPublishMode)
 {
@@ -192,9 +213,10 @@ if (builder.ExecutionContext.IsPublishMode)
     apiService.WithReference(azureDb)
               .WaitFor(azureDb);
 
-
     // Use Docker container for production frontend
+    // Pass DEPLOY_ENV as build argument to select the correct .env file
     var frontend = builder.AddDockerfile(frontendName, $"../{appName}.{frontendName}")
+        .WithBuildArg("DEPLOY_ENV", environmentName)
         .WaitFor(apiService)
         .WithReference(apiService)
         .WaitFor(cache)

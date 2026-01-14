@@ -664,7 +664,7 @@ public static class AzureOpenAIExtensions
 {
     public static void AddAzureOpenAI(this WebApplicationBuilder builder)
     {
-        builder.AddAzureSearchClient(connectionName: "search");
+        builder.AddAzureSearchClient(connectionName: "ai-search");
         builder.AddAzureOpenAIClient(connectionName: "openai")
                .AddChatClient(deploymentName: Constants.CHAT_CLIENT_DEPLOYMENT);
 

@@ -34,6 +34,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IOnboardingDataRepository, OnboardingDataRepository>();
         builder.Services.AddScoped<IAgentWorkflowRepository, AgentWorkflowRepository>();
         builder.Services.AddScoped<IAgentActionRepository, AgentActionRepository>();
+        builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
@@ -70,7 +71,14 @@ public static class ProgramExtensions
         // Register mail provider
         builder.Services.AddScoped<IEmailService, MailgunEmailService>();
 
-        // Register background service for syncing activity data
+        // Register push notification service
+        builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+
+        // Register device token cleanup service
+        builder.Services.AddScoped<IDeviceTokenCleanupService, DeviceTokenCleanupService>();
+
+        // Register background services
         builder.Services.AddHostedService<UserActivitySyncService>();
+        builder.Services.AddHostedService<DeviceTokenCleanupBackgroundService>();
     }
 }

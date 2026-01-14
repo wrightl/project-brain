@@ -378,6 +378,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasIndex(od => od.UserId)
             .IsUnique();
 
+        // Configure DeviceToken relationships
+        modelBuilder.Entity<DeviceToken>()
+            .HasOne(dt => dt.User)
+            .WithMany()
+            .HasForeignKey(dt => dt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Unique index on Token
+        modelBuilder.Entity<DeviceToken>()
+            .HasIndex(dt => dt.Token)
+            .IsUnique();
+
+        // Index on UserId and IsActive for efficient queries
+        modelBuilder.Entity<DeviceToken>()
+            .HasIndex(dt => new { dt.UserId, dt.IsActive });
+
+        // Index on LastValidatedAt for cleanup queries
+        modelBuilder.Entity<DeviceToken>()
+            .HasIndex(dt => dt.LastValidatedAt);
+
         logger.LogInformation("OnModelCreating completed");
     }
 
@@ -416,4 +436,5 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<OnboardingData> OnboardingData => Set<OnboardingData>();
     public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
     public DbSet<AgentAction> AgentActions => Set<AgentAction>();
+    public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
 }

@@ -15,13 +15,8 @@ export default async function DashboardPage() {
         // Check if user is onboarded
         const user = await UserService.getCurrentUser();
         const session = await auth0.getSession();
-        // const roles = await getUserRoles();
 
         const role = user?.roles?.[0];
-
-        console.log('session', session);
-        console.log('user', user);
-        console.log('role', role);
 
         if (!session) {
             redirect('/auth/login?returnTo=/app');

@@ -66,8 +66,7 @@ export default function CoachRatingsPage() {
         );
     }
 
-    // TODO: Sort out the response from the API. Should be a paged response.
-    const ratings = data || [];
+    const ratings = data?.items || [];
     const totalPages = data?.totalPages || 0;
     const totalCount = data?.totalCount || 0;
 

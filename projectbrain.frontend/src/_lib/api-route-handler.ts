@@ -9,11 +9,11 @@ type RouteHandler<T> = (
 
 export function createApiRoute<T>(handler: RouteHandler<T>) {
     const wrapped = auth0.withApiAuthRequired(async function (
-        req: NextRequest,
+        req: Request | NextRequest,
         context?: unknown
     ): Promise<NextResponse> {
         try {
-            const result = await handler(req, context);
+            const result = await handler(req as NextRequest, context);
             // If result is already a Response, return it directly
             if (result instanceof NextResponse) {
                 return result;
@@ -30,11 +30,11 @@ export function createApiRoute<T>(handler: RouteHandler<T>) {
             if (error instanceof SessionExpiredError) {
                 return NextResponse.json(
                     { error: 'Session expired', code: 'SESSION_EXPIRED' },
-                    { 
+                    {
                         status: 401,
                         headers: {
-                            'X-Session-Expired': 'true'
-                        }
+                            'X-Session-Expired': 'true',
+                        },
                     }
                 );
             }
@@ -52,7 +52,10 @@ export function createApiRoute<T>(handler: RouteHandler<T>) {
             );
         }
     });
-    
+
     // Type assertion to satisfy Next.js route handler types
-    return wrapped as (req: NextRequest, context?: unknown) => Promise<NextResponse>;
+    return wrapped as (
+        req: NextRequest,
+        context?: unknown
+    ) => Promise<NextResponse>;
 }

@@ -2,10 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/_lib/api-client';
 import {
     JournalEntry,
-    PagedResponse,
     CreateJournalEntryRequest,
     UpdateJournalEntryRequest,
 } from '@/_services/journal-service';
+import { PagedResponse } from '@/_lib/types';
 
 export const journalKeys = {
     all: ['journals'] as const,
@@ -125,7 +125,7 @@ export function useUpdateJournalEntry() {
                 return response.json() as Promise<JournalEntry>;
             });
         },
-        onSuccess: (updatedEntry) => {
+        onSuccess: (updatedEntry: JournalEntry) => {
             queryClient.invalidateQueries({ queryKey: journalKeys.all });
             queryClient.invalidateQueries({
                 queryKey: journalKeys.detail(updatedEntry.id),

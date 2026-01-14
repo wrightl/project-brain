@@ -13,12 +13,12 @@ using TickerQ.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
-if (builder.Configuration["AI:UseNewSearchService"]?.ToLower() == "true")
-{
-    // Register AISeeding for background index seeding
-    builder.Services.AddSingleton<AISeeding>();
-    builder.Services.AddHostedService<AISeedingBackgroundTask>();
-}
+// if (builder.Configuration["AI:UseNewSearchService"]?.ToLower() == "true")
+// {
+// Register AISeeding for background index seeding
+builder.Services.AddSingleton<AISeeding>();
+builder.Services.AddHostedService<AISeedingBackgroundTask>();
+// }
 
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
@@ -191,6 +191,7 @@ app.MapTagEndpoints();
 app.MapGoalEndpoints();
 app.MapFeatureFlagEndpoints();
 app.MapAgentEndpoints();
+app.MapPushNotificationEndpoints();
 
 // Map SignalR hub
 app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").RequireAuthorization();

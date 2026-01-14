@@ -20,9 +20,26 @@ RUN \
 
 # Rebuild the source code only when needed
 FROM base AS builder
+ARG DEPLOY_ENV=production
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# Copy the appropriate .env file based on DEPLOY_ENV
+# Next.js requires .env.production when NODE_ENV=production, so we copy the staging file to that name if needed
+RUN if [ "$DEPLOY_ENV" = "staging" ] && [ -f .env.staging ]; then \
+      cp .env.staging .env.production && \
+      echo "Using .env.staging for build"; \
+    elif [ "$DEPLOY_ENV" = "production" ] && [ -f .env.production ]; then \
+      echo "Using .env.production for build"; \
+    else \
+      echo "Warning: No .env file found for environment: $DEPLOY_ENV"; \
+    fi
+
+# Remove .env.development to prevent Next.js from accidentally loading it
+RUN rm -f .env.development .env.local
+
+ENV NODE_ENV=production
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
@@ -41,6 +58,7 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED=1
 

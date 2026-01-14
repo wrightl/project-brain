@@ -30,7 +30,7 @@ export function useTag(id: string) {
 export function useCreateTag() {
     const queryClient = useQueryClient();
 
-    return useMutation({
+    return useMutation<Tag, Error, CreateTagRequest>({
         mutationFn: (request: CreateTagRequest) => {
             const { fetchWithAuth } = require('@/_lib/fetch-with-auth');
             return fetchWithAuth('/api/user/tag', {
@@ -61,7 +61,9 @@ export function useGetOrCreateTag() {
         mutationFn: async (name: string): Promise<Tag> => {
             // First try to get existing tag
             try {
-                const { fetchWithAuth } = await import('@/_lib/fetch-with-auth');
+                const { fetchWithAuth } = await import(
+                    '@/_lib/fetch-with-auth'
+                );
                 const response = await fetchWithAuth(
                     `/api/user/tag/name/${encodeURIComponent(name)}`
                 );
@@ -87,4 +89,3 @@ export function useGetOrCreateTag() {
         },
     });
 }
-

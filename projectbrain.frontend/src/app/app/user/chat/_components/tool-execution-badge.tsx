@@ -20,7 +20,7 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
     const getToolDisplayName = (toolName: string): string => {
         const displayNames: Record<string, string> = {
             create_daily_goals: 'Created daily goals',
-            get_todays_goals: 'Retrieved today\'s goals',
+            get_todays_goals: "Retrieved today's goals",
             complete_goal: 'Updated goal',
         };
         return displayNames[toolName] || toolName;
@@ -38,7 +38,9 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
                 return String(result.message);
             }
             if (result.success !== undefined) {
-                return result.success ? 'Action completed successfully' : 'Action failed';
+                return result.success
+                    ? 'Action completed successfully'
+                    : 'Action failed';
             }
         }
 
@@ -46,11 +48,18 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
     };
 
     const hasGoalsResult = (): boolean => {
-        if (!tool.success || typeof tool.result !== 'object' || tool.result === null) {
+        if (
+            !tool.success ||
+            typeof tool.result !== 'object' ||
+            tool.result === null
+        ) {
             return false;
         }
         const result = tool.result as Record<string, unknown>;
-        return tool.toolName === 'create_daily_goals' && Array.isArray(result.goals);
+        return (
+            tool.toolName === 'create_daily_goals' &&
+            Array.isArray(result.goals)
+        );
     };
 
     const formatDate = (dateString: string): string => {
@@ -104,7 +113,8 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
 
                     {tool.errorMessage && (
                         <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-                            <span className="font-medium">Error:</span> {tool.errorMessage}
+                            <span className="font-medium">Error:</span>{' '}
+                            {tool.errorMessage}
                         </div>
                     )}
 
@@ -119,7 +129,7 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
                         </details>
                     )}
 
-                    {tool.result && (
+                    {tool.result != null && (
                         <details className="text-xs">
                             <summary className="cursor-pointer text-purple-700 font-medium mb-1">
                                 Result
@@ -151,4 +161,3 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
         </div>
     );
 }
-

@@ -123,13 +123,63 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         {
             logger.LogInformation("Seeding subscription settings...");
 
-            // Get first admin user or use a default system user ID
+            // Get first admin user
             var adminUser = await context.Users
                 .Include(u => u.UserRoles)
                 .Where(u => u.UserRoles.Any(ur => ur.RoleName == "admin"))
                 .FirstOrDefaultAsync(cancellationToken);
 
-            var updatedBy = adminUser?.Id ?? "system";
+            // If no admin user exists, create a system user
+            if (adminUser == null)
+            {
+                logger.LogInformation("No admin user found. Creating system user...");
+
+                // Check if system user already exists
+                var systemUser = await context.Users.FindAsync(new object[] { "system" }, cancellationToken);
+
+                if (systemUser == null)
+                {
+                    // Get the admin role
+                    var adminRole = await context.Roles
+                        .FirstOrDefaultAsync(r => r.Name == "admin", cancellationToken);
+
+                    if (adminRole == null)
+                    {
+                        logger.LogError("Admin role not found. Cannot create system user.");
+                        throw new InvalidOperationException("Admin role must exist before creating system user.");
+                    }
+
+                    // Create system user
+                    systemUser = new User
+                    {
+                        Id = "system",
+                        Email = "system@projectbrain.internal",
+                        FullName = "System",
+                        EmailVerified = true,
+                        IsOnboarded = true
+                    };
+
+                    await context.Users.AddAsync(systemUser, cancellationToken);
+                    await context.SaveChangesAsync(cancellationToken);
+
+                    // Assign admin role to system user
+                    var systemUserRole = new UserRole
+                    {
+                        UserId = "system",
+                        RoleName = "admin",
+                        AssignedAt = DateTime.UtcNow
+                    };
+
+                    await context.UserRoles.AddAsync(systemUserRole, cancellationToken);
+                    await context.SaveChangesAsync(cancellationToken);
+
+                    logger.LogInformation("System user created successfully with admin role");
+                }
+
+                adminUser = systemUser;
+            }
+
+            var updatedBy = adminUser.Id;
             var updatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
 
             // Use raw SQL to insert with explicit ID (IDENTITY_INSERT)

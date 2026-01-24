@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../ProjectBrain.Domain/ProjectBrain.Domain.csproj" />
+    <ProjectReference Include="../ProjectBrain.Database/ProjectBrain.Database.csproj" />
     <ProjectReference Include="../ProjectBrain.ServiceDefaults/ProjectBrain.ServiceDefaults.csproj" />
     <ProjectReference Include="../ProjectBrain.Shared.Dtos/ProjectBrain.Shared.Dtos.csproj" />
   </ItemGroup>

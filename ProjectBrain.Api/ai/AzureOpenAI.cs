@@ -9,6 +9,7 @@ using OpenAI;
 using OpenAI.Audio;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
+using ProjectBrain.Domain;
 using _shared = Models;
 
 // public interface IChatService
@@ -20,12 +21,14 @@ public class AzureOpenAIServices(
         OpenAIClient openAIClient,
         ISearchIndexService searchIndexService,
         IConfiguration configuration,
+        IApplicationSettingsService applicationSettingsService,
         ILogger<AzureOpenAIServices> logger)
 {
 
     public ILogger<AzureOpenAIServices> Logger { get; } = logger;
     public OpenAIClient OpenAIClient { get; } = openAIClient;
     public IConfiguration Configuration { get; } = configuration;
+    public IApplicationSettingsService ApplicationSettingsService { get; } = applicationSettingsService;
     public ISearchIndexService SearchIndexService { get; } = searchIndexService;
 }
 
@@ -86,199 +89,37 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         }
     }
 
-    // public async Task<AsyncCollectionResult<StreamingChatCompletionUpdate>> GetResponse(string userQuery, string userId, string userName, List<_shared.ChatMessage> history)
-    // {
-    //     return await getChatResponse(userQuery, userId, userName, history);
-    // }
-
     public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)
     {
         return await getChatResponseWithCitations(userQuery, userId, userInformation, userName, history);
     }
 
-    // private async Task<AsyncCollectionResult<StreamingChatCompletionUpdate>> getChatResponse(string userQuery, string userId, string userName, List<_shared.ChatMessage> history)
-    // {
-    //     _logger.LogInformation("Starting getNewChatResponse for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
-
-    //     // Get configurable limits from configuration
-    //     var maxSearchResults = int.Parse(_configuration["AI:MaxSearchResults"] ?? "5");
-    //     var maxContentLengthPerSource = int.Parse(_configuration["AI:MaxContentLengthPerSource"] ?? "800");
-    //     var maxHistoryMessages = int.Parse(_configuration["AI:MaxHistoryMessages"] ?? "10");
-    //     var maxTotalTokens = int.Parse(_configuration["AI:MaxTotalTokens"] ?? "7000"); // Leave buffer for response
-
-    //     // Vectorize the query
-    //     var embedClient = _openAIClient.GetEmbeddingClient("openai-embed-deployment");
-    //     var embeddingOptions = new EmbeddingGenerationOptions { Dimensions = 1536 };
-    //     var embedResponse = await embedClient.GenerateEmbeddingAsync(userQuery, embeddingOptions);
-    //     var queryVector = embedResponse.Value.ToFloats();
-
-    //     // Configure search options for user-specific documents
-    //     var searchOptions = new SearchOptions
-    //     {
-    //         Size = maxSearchResults,
-    //         VectorSearch = new()
-    //         {
-    //             Queries =
-    //             {
-    //                 new VectorizedQuery(queryVector)
-    //                 {
-    //                     KNearestNeighborsCount = maxSearchResults,
-    //                     Fields = { "embedding" }
-    //                 }
-    //             }
-    //         },
-    //         Filter = $"ownerId eq '{userId.Replace("'", "''")}' or ownerId eq '' or ownerId eq null" // Filter to user's documents only
-    //     };
-    //     // Select specific fields
-    //     searchOptions.Select.Add("id");
-    //     searchOptions.Select.Add("content");
-    //     searchOptions.Select.Add("sourcefile");
-    //     searchOptions.Select.Add("sourcepage");
-    //     searchOptions.Select.Add("storageUrl");
-    //     searchOptions.Select.Add("category");
-
-    //     _logger.LogInformation("Executing vector search for user {UserId} with query: {UserQuery}", userId, userQuery);
-
-    //     // Execute the search
-    //     var searchClient = _searchIndexClient.GetSearchClient(SEARCH_INDEX_NAME);
-    //     var searchResults = await searchClient.SearchAsync<SearchDocument>(userQuery, searchOptions);
-
-    //     _logger.LogInformation("Search results received, processing...");
-
-    //     // Build formatted sources with citations
-    //     var sourcesFormatted = new StringBuilder();
-    //     var citations = new List<CitationInfo>();
-    //     int citationIndex = 1;
-
-    //     await foreach (var result in searchResults.Value.GetResultsAsync())
-    //     {
-    //         var doc = result.Document;
-    //         var content = doc.ContainsKey("content") ? doc["content"]?.ToString() ?? "" : "";
-    //         var sourceFile = doc.ContainsKey("sourcefile") ? doc["sourcefile"]?.ToString() ?? "Unknown" : "Unknown";
-    //         var sourcePage = doc.ContainsKey("sourcepage") ? doc["sourcepage"]?.ToString() ?? "" : "";
-    //         var storageUrl = doc.ContainsKey("storageUrl") ? doc["storageUrl"]?.ToString() ?? "" : "";
-    //         var category = doc.ContainsKey("category") ? doc["category"]?.ToString() ?? "" : "";
-
-    //         if (string.IsNullOrWhiteSpace(content))
-    //             continue;
-
-    //         // Truncate content to limit tokens
-    //         if (content.Length > maxContentLengthPerSource)
-    //         {
-    //             content = content.Substring(0, maxContentLengthPerSource) + "... [truncated]";
-    //         }
-
-    //         // Store citation information
-    //         citations.Add(new CitationInfo
-    //         {
-    //             Index = citationIndex,
-    //             SourceFile = sourceFile,
-    //             SourcePage = sourcePage,
-    //             StorageUrl = storageUrl,
-    //             Category = category,
-    //             Content = content
-    //         });
-
-    //         // Format source with citation number
-    //         sourcesFormatted.AppendLine($"[{citationIndex}] Source: {sourceFile}");
-    //         if (!string.IsNullOrEmpty(sourcePage))
-    //         {
-    //             sourcesFormatted.AppendLine($"    Page/Section: {sourcePage}");
-    //         }
-    //         sourcesFormatted.AppendLine($"    Content: {content}");
-    //         sourcesFormatted.AppendLine();
-
-    //         citationIndex++;
-    //     }
-
-    //     _logger.LogInformation("Found {CitationCount} relevant sources for query", citations.Count);
-
-    //     // Build system prompt with instructions
-    //     var systemPrompt = BuildSystemPrompt(userName, citations.Count > 0);
-
-    //     // Limit conversation history to most recent messages
-    //     var limitedHistory = history.TakeLast(maxHistoryMessages).ToList();
-
-    //     // Build the user prompt with context, sources, and instructions
-    //     var userPrompt = BuildUserPrompt(userQuery, sourcesFormatted.ToString(), citations.Count, limitedHistory);
-
-    //     _logger.LogInformation("Formatted prompt with {SourceCount} sources and {HistoryCount} history messages (limited from {OriginalHistoryCount})",
-    //         citations.Count, limitedHistory.Count, history.Count);
-
-    //     // Create chat messages using limited history
-    //     var messages = ToChatMessages(limitedHistory);
-
-    //     // Combine system prompt with user prompt and add as final user message
-    //     var combinedPrompt = $"{systemPrompt}\n\n{userPrompt}";
-
-    //     // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-    //     var estimatedTokens = combinedPrompt.Length / 4;
-
-    //     // Also estimate tokens from history messages
-    //     foreach (var msg in messages)
-    //     {
-    //         estimatedTokens += msg.Content.Count / 4;
-    //     }
-
-    //     _logger.LogInformation("Sending {MessageCount} messages to ChatClient", messages.Count);
-    //     _logger.LogInformation("Prompt Length: {PromptLength}", combinedPrompt.Length);
-    //     _logger.LogInformation("Estimated Total Tokens: {Tokens}", estimatedTokens);
-
-    //     // If still over limit, truncate sources further
-    //     if (estimatedTokens > maxTotalTokens)
-    //     {
-    //         _logger.LogWarning("Estimated tokens ({EstimatedTokens}) exceed limit ({MaxTokens}). Truncating sources further.",
-    //             estimatedTokens, maxTotalTokens);
-
-    //         // Reduce content length per source
-    //         var reductionFactor = (double)maxTotalTokens / estimatedTokens;
-    //         var newMaxContentLength = (int)(maxContentLengthPerSource * reductionFactor * 0.9); // 90% to be safe
-
-    //         sourcesFormatted.Clear();
-    //         citationIndex = 1;
-
-    //         foreach (var citation in citations)
-    //         {
-    //             var truncatedContent = citation.Content.Length > newMaxContentLength
-    //                 ? citation.Content.Substring(0, newMaxContentLength) + "... [truncated]"
-    //                 : citation.Content;
-
-    //             sourcesFormatted.AppendLine($"[{citationIndex}] Source: {citation.SourceFile}");
-    //             if (!string.IsNullOrEmpty(citation.SourcePage))
-    //             {
-    //                 sourcesFormatted.AppendLine($"    Page/Section: {citation.SourcePage}");
-    //             }
-    //             sourcesFormatted.AppendLine($"    Content: {truncatedContent}");
-    //             sourcesFormatted.AppendLine();
-    //             citationIndex++;
-    //         }
-
-    //         // Rebuild user prompt with truncated sources
-    //         userPrompt = BuildUserPrompt(userQuery, sourcesFormatted.ToString(), citations.Count, limitedHistory);
-    //         combinedPrompt = $"{systemPrompt}\n\n{userPrompt}";
-
-    //         estimatedTokens = (combinedPrompt.Length / 4) + (messages.Sum(m => m.Content.Count) / 4);
-    //         _logger.LogInformation("After truncation - Estimated Total Tokens: {Tokens}", estimatedTokens);
-    //     }
-
-    //     messages.Add(new UserChatMessage(combinedPrompt));
-
-    //     // Get streaming response using the same pattern as the working getChatResponse method
-    //     var chatClient = _openAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
-    //     var response = chatClient.CompleteChatStreamingAsync(messages);
-
-    //     return response;
-    // }
-
     private async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> getChatResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)
     {
         Services.Logger.LogInformation("Starting getNewChatResponseWithCitations for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
 
-        // Get configurable limits from configuration
-        var maxSearchResults = int.Parse(Services.Configuration["AI:MaxSearchResults"] ?? "5");
-        var maxContentLengthPerSource = int.Parse(Services.Configuration["AI:MaxContentLengthPerSource"] ?? "800");
-        var maxHistoryMessages = int.Parse(Services.Configuration["AI:MaxHistoryMessages"] ?? "10");
-        var maxTotalTokens = int.Parse(Services.Configuration["AI:MaxTotalTokens"] ?? "7000");
+        // Get configurable limits from application settings (with fallback to configuration)
+        AISettings aiSettings;
+        try
+        {
+            aiSettings = await Services.ApplicationSettingsService.GetAISettingsAsync();
+        }
+        catch
+        {
+            // Fallback to configuration if service fails
+            aiSettings = new AISettings
+            {
+                MaxSearchResults = int.Parse(Services.Configuration["AI:MaxSearchResults"] ?? "5"),
+                MaxContentLengthPerSource = int.Parse(Services.Configuration["AI:MaxContentLengthPerSource"] ?? "800"),
+                MaxHistoryMessages = int.Parse(Services.Configuration["AI:MaxHistoryMessages"] ?? "10"),
+                MaxTotalTokens = int.Parse(Services.Configuration["AI:MaxTotalTokens"] ?? "7000")
+            };
+        }
+
+        var maxSearchResults = aiSettings.MaxSearchResults;
+        var maxContentLengthPerSource = aiSettings.MaxContentLengthPerSource;
+        var maxHistoryMessages = aiSettings.MaxHistoryMessages;
+        var maxTotalTokens = aiSettings.MaxTotalTokens;
 
         // Vectorize the query
         var embedClient = Services.OpenAIClient.GetEmbeddingClient("openai-embed-deployment");
@@ -452,14 +293,6 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         return (response, citations);
     }
 
-    // private async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> getChatResponseWithCitations(string userQuery, string userId, string userName, List<_shared.ChatMessage> history)
-    // {
-    //     // For the old method, return empty citations for now
-    //     // You could implement similar logic if needed
-    //     var response = await getChatResponse(userQuery, userId, userName, history);
-    //     return (response, new List<CitationInfo>());
-    // }
-
     private string BuildSystemPrompt(string userName, bool hasSources)
     {
         var prompt = new StringBuilder();
@@ -548,99 +381,6 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         public bool IsShared { get; set; } = false;
     }
 
-    // private async Task<AsyncCollectionResult<StreamingChatCompletionUpdate>> getChatResponse(string userQuery, string userId, string userName, List<_shared.ChatMessage> history)
-    // {
-    //     // Vectorise query
-    //     var embedClient = _openAIClient.GetEmbeddingClient("openai-embed-deployment");
-    //     var embeddingOptions = new EmbeddingGenerationOptions { Dimensions = 1536 };
-    //     var embedResponse = await embedClient.GenerateEmbeddingAsync(userQuery, embeddingOptions);
-    //     var queryVector = embedResponse.Value.ToFloats();
-
-    //     _logger.LogInformation("Starting GetResponse for userQuery: {UserQuery}", userQuery);
-
-    //     // Get configurable limits
-    //     var maxSearchResults = int.Parse(_configuration["AI:MaxSearchResults"] ?? "5");
-    //     var maxContentLengthPerSource = int.Parse(_configuration["AI:MaxContentLengthPerSource"] ?? "800");
-    //     var maxHistoryMessages = int.Parse(_configuration["AI:MaxHistoryMessages"] ?? "10");
-
-    //     // Configure search options
-    //     var searchOptions = new SearchOptions
-    //     {
-    //         Size = maxSearchResults,
-    //         VectorSearch = new()
-    //         {
-    //             Queries =
-    //             {
-    //                 new VectorizedQuery(queryVector)
-    //                 {
-    //                     KNearestNeighborsCount = maxSearchResults,
-    //                     Fields = { "embedding" }
-    //                 }
-    //             }
-    //         },
-    //         Filter = $"ownerId eq '{userId}'",
-    //     };
-
-    //     _logger.LogInformation("Executing search with options: {SearchOptions}", JsonSerializer.Serialize(searchOptions));
-
-    //     // Execute the search
-    //     var searchClient = _searchIndexClient.GetSearchClient(SEARCH_INDEX_NAME);
-    //     var searchResults = await searchClient.SearchAsync<SearchDocument>(userQuery, searchOptions);
-
-    //     _logger.LogInformation("Search results received, processing...");
-
-    //     StringBuilder sourcesFormatted = new StringBuilder();
-    //     await foreach (var result in searchResults.Value.GetResultsAsync())
-    //     {
-    //         var doc = result.Document;
-    //         var title = doc.ContainsKey("sourcefile") ? doc["sourcefile"]?.ToString() ?? "Unknown" : "Unknown";
-    //         var content = doc.ContainsKey("content") ? doc["content"]?.ToString() ?? "" : "";
-
-    //         // Truncate content to limit tokens
-    //         if (!string.IsNullOrEmpty(content) && content.Length > maxContentLengthPerSource)
-    //         {
-    //             content = content.Substring(0, maxContentLengthPerSource) + "... [truncated]";
-    //         }
-
-    //         sourcesFormatted.AppendLine($"Title: {title}");
-    //         sourcesFormatted.AppendLine($"Content: {content}");
-    //         sourcesFormatted.AppendLine("---");
-    //         _logger.LogInformation("Search hit: {Document}", JsonSerializer.Serialize(result.Document));
-    //     }
-
-    //     // Prompt template for grounding the LLM response in search results
-    //     // string GROUNDED_PROMPT_V1 = @"You are a friendly assistant that gives advice to neurodiverse individuals.
-    //     //     Answer the query using only the sources provided below in a friendly and concise bulleted manner
-    //     //     Answer ONLY with the facts listed in the list of sources below.
-    //     //     If there isn't enough information below, say you don't know.
-    //     //     Do not generate answers that don't use the sources below.
-    //     //     Query: {0}
-    //     //     Sources: {1}";
-    //     string GROUNDED_PROMPT_V2 = @"You are a friendly assistant that gives advice to neurodiverse individuals.
-    //         Answer the query using the sources provided below in a friendly to give a more accurate and contextually relevant response.
-    //         If there isn't enough information below, say you don't know.
-    //         Personalize the answer by using the individuals name {2}.
-    //         Query: {0}
-    //         Sources: {1}";
-
-
-    //     string formattedPrompt = string.Format(GROUNDED_PROMPT_V2, userQuery, sourcesFormatted, userName);
-
-    //     _logger.LogInformation("Formatted prompt for LLM: {FormattedPrompt}", formattedPrompt);
-
-    //     ChatClient chatClient = _openAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
-
-    //     // Limit conversation history
-    //     var limitedHistory = history.TakeLast(maxHistoryMessages).ToList();
-    //     var messages = ToChatMessages(limitedHistory);
-    //     messages.Add(new UserChatMessage(formattedPrompt));
-
-    //     _logger.LogInformation($"Sending {messages.Count} messages to ChatClient: {JsonSerializer.Serialize(messages)}");
-
-    //     var response = chatClient.CompleteChatStreamingAsync(messages);
-    //     return response;
-    // }
-
     private List<ChatMessage> ToChatMessages(List<_shared.ChatMessage> history)
     {
         var messages = new List<ChatMessage>();
@@ -688,6 +428,7 @@ public static class AzureOpenAIExtensions
                 sp.GetRequiredService<OpenAIClient>(),
                 sp.GetRequiredService<ISearchIndexService>(),
                 sp.GetRequiredService<IConfiguration>(),
+                sp.GetRequiredService<IApplicationSettingsService>(),
                 sp.GetRequiredService<ILogger<AzureOpenAIServices>>());
             return new AgentOpenAIService(services);
         });

@@ -7,6 +7,7 @@ using ProjectBrain.AI;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Middlewares;
 using ProjectBrain.Api.Validators;
+using ProjectBrain.Database.Interfaces;
 using Scalar.AspNetCore;
 using TickerQ.Dashboard.DependencyInjection;
 using TickerQ.DependencyInjection;
@@ -89,6 +90,7 @@ builder.AddAzureOpenAI();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
+builder.Services.AddScoped<IIdentitySeedingService, IdentitySeedingService>();
 
 builder.AddAuth0ManagementApi();
 
@@ -104,7 +106,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // Add services to the container.
 builder.Services.AddProblemDetails();
 
-// // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi 
 // builder.Services.AddOpenApi(options =>
 // {
 //     options.AddDocumentTransformer((document, context, cancellationToken) =>
@@ -186,6 +188,7 @@ app.MapStripeWebhookEndpoints();
 app.MapAuth0WebhookEndpoints();
 app.MapSubscriptionManagementEndpoints();
 app.MapSubscriptionAnalyticsEndpoints();
+app.MapApplicationSettingsEndpoints();
 app.MapJournalEndpoints();
 app.MapTagEndpoints();
 app.MapGoalEndpoints();

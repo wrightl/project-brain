@@ -1,7 +1,4 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Auth0.AuthenticationApi;
-using Auth0.AuthenticationApi.Models;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;

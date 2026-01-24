@@ -279,6 +279,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasForeignKey(ss => ss.UpdatedBy)
             .OnDelete(DeleteBehavior.NoAction);
 
+        // Configure ApplicationSetting relationships
+        modelBuilder.Entity<ApplicationSetting>()
+            .HasOne(as_ => as_.UpdatedByUser)
+            .WithMany()
+            .HasForeignKey(as_ => as_.UpdatedBy)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // Index for efficient category queries
+        modelBuilder.Entity<ApplicationSetting>()
+            .HasIndex(as_ => as_.Category);
+
         // Configure AvailabilityStatus enum to be stored as string
         modelBuilder.Entity<CoachProfile>()
             .Property(cp => cp.AvailabilityStatus)
@@ -428,6 +439,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<CoachMessage> CoachMessages => Set<CoachMessage>();
     public DbSet<SubscriptionExclusion> SubscriptionExclusions => Set<SubscriptionExclusion>();
     public DbSet<SubscriptionSettings> SubscriptionSettings => Set<SubscriptionSettings>();
+    public DbSet<ApplicationSetting> ApplicationSettings => Set<ApplicationSetting>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<JournalEntryTag> JournalEntryTags => Set<JournalEntryTag>();

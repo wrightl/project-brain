@@ -175,6 +175,11 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             label: 'Quizzes',
             icon: DocumentTextIcon,
         },
+        {
+            href: '/app/admin/settings',
+            label: 'Settings',
+            icon: CogIcon,
+        },
     ];
 
     const coachLinks = [

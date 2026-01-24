@@ -15,20 +15,123 @@ public class Auth0UserManagementServices(
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
 }
-
 public interface IAuth0UserManagement
 {
+    Task<string?> CreateUser(string email, string password, string fullName, string connection, bool emailVerified);
     Task<bool> UpdateUserRoles(string userId, List<string> roles);
     Task<bool> UpdateUser(string userId, BaseUserDto user);
     Task<bool> DeleteUserById(string id);
+    Task<string?> GetUserIdByEmail(string email);
 }
-
 public class Auth0UserManagement : IAuth0UserManagement
 {
     private readonly Auth0UserManagementServices _services;
     public Auth0UserManagement(Auth0UserManagementServices services)
     {
         _services = services;
+    }
+
+    public async Task<string?> CreateUser(string email, string password, string fullName, string connection, bool emailVerified)
+    {
+        var token = await getAuth0Token();
+        var client = new HttpClient();
+
+        // Create user payload for Auth0 Management API
+        // Auth0 expects snake_case in the request
+        var userPayload = new Dictionary<string, object>
+        {
+            { "email", email },
+            { "password", password },
+            { "name", fullName },
+            { "connection", connection },
+            { "email_verified", emailVerified }
+        };
+
+        var userJson = JsonSerializer.Serialize(userPayload);
+
+        try
+        {
+            var config = _services.Configuration.GetSection("Auth0");
+            var domain = config["Domain"];
+            var request = new HttpRequestMessage(HttpMethod.Post, $"https://{domain}/api/v2/users");
+            request.Headers.Add("Accept", "application/json");
+            request.Headers.Add("Authorization", $"Bearer {token}");
+            request.Content = new StringContent(userJson, null, "application/json");
+
+            var response = await client.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                // Auth0 returns snake_case in responses
+                var createdUser = JsonSerializer.Deserialize<JsonElement>(responseContent);
+
+                // Auth0 returns "user_id" in snake_case
+                if (createdUser.TryGetProperty("user_id", out var userIdElement))
+                {
+                    var userId = userIdElement.GetString();
+                    _services.Logger.LogInformation("Created user in Auth0 with ID: {UserId}", userId);
+                    return userId;
+                }
+                else
+                {
+                    _services.Logger.LogError("Auth0 user creation response missing user_id. Response: {ResponseContent}", responseContent);
+                    return null;
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _services.Logger.LogError("Failed to create user in Auth0. Status: {StatusCode}, Response: {ErrorContent}", response.StatusCode, errorContent);
+
+                // If user already exists (409 Conflict), try to get the user by email
+                if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+                {
+                    _services.Logger.LogWarning("User already exists in Auth0, attempting to retrieve by email: {Email}", email);
+                    return await getUserIdByEmail(email, token, client);
+                }
+
+                return null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _services.Logger.LogError(ex, "HTTP exception while creating user in Auth0");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _services.Logger.LogError(ex, "Exception while creating user in Auth0");
+            throw;
+        }
+    }
+
+    public async Task<string?> GetUserIdByEmail(string email)
+    {
+        var token = await getAuth0Token();
+        var client = new HttpClient();
+        return await getUserIdByEmail(email, token, client);
+    }
+
+    private async Task<string?> getUserIdByEmail(string email, string token, HttpClient client)
+    {
+        var response = await getResponse($"/users-by-email?email={Uri.EscapeDataString(email)}", token, client, HttpMethod.Get);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var users = JsonSerializer.Deserialize<JsonElement[]>(responseContent);
+
+        if (users != null && users.Length > 0)
+        {
+            var firstUser = users[0];
+            if (firstUser.TryGetProperty("user_id", out var userIdElement))
+            {
+                var userId = userIdElement.GetString();
+                _services.Logger.LogInformation("Found existing user in Auth0 with ID: {UserId}", userId);
+                return userId;
+            }
+        }
+
+        return null;
     }
 
     public async Task<bool> UpdateUser(string userId, BaseUserDto user)
@@ -52,7 +155,6 @@ public class Auth0UserManagement : IAuth0UserManagement
             }
 
             var userJson = BaseUserDto.ToJson(user);
-
             var result = await getResponse($"/users/{userId}", token, client, HttpMethod.Patch, new StringContent(userJson, null, "application/json"));
             return result.IsSuccessStatusCode;
         }
@@ -61,6 +163,23 @@ public class Auth0UserManagement : IAuth0UserManagement
             _services.Logger.LogError("Failed to get user {userId} from Auth0", userId);
             return false;
         }
+    }
+
+    // Keep the original method for backward compatibility with existing code
+    public async Task<bool> UpdateUser(string userId, string userJson)
+    {
+        // Parse the JSON to check if update is needed
+        var user = JsonSerializer.Deserialize<BaseUserDto>(userJson, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        if (user == null)
+        {
+            _services.Logger.LogError("Invalid user JSON provided for update");
+            return false;
+        }
+        return await UpdateUser(userId, user);
     }
 
     public async Task<bool> UpdateUserRoles(string userId, List<string> roles)

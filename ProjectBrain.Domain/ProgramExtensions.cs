@@ -64,6 +64,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICoachRatingService, CoachRatingService>();
         builder.Services.AddScoped<IGoalService, GoalService>();
         builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
+        builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
         builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
         builder.Services.AddScoped<IAgentService, AgentService>();
         builder.Services.AddScoped<IAgentActionTrackingService, AgentActionTrackingService>();

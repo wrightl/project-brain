@@ -8,10 +8,10 @@ using Microsoft.EntityFrameworkCore.Storage;
 /// </summary>
 public class UnitOfWork : IUnitOfWork
 {
-    private readonly DbContext _context;
+    private readonly AppDbContext _context;
     private IDbContextTransaction? _transaction;
 
-    public UnitOfWork(DbContext context)
+    public UnitOfWork(AppDbContext context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
     }

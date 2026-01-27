@@ -6,11 +6,13 @@ using ProjectBrain.Shared.Dtos.Settings;
 public class ApplicationSettingsServices(
     ILogger<ApplicationSettingsServices> logger,
     IIdentityService identityService,
-    IApplicationSettingsService applicationSettingsService)
+    IApplicationSettingsService applicationSettingsService,
+    ISubscriptionService subscriptionService)
 {
     public ILogger<ApplicationSettingsServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public IApplicationSettingsService ApplicationSettingsService { get; } = applicationSettingsService;
+    public ISubscriptionService SubscriptionService { get; } = subscriptionService;
 }
 
 public static class ApplicationSettingsEndpoints
@@ -23,8 +25,10 @@ public static class ApplicationSettingsEndpoints
         group.MapGet("", GetAllSettings).WithName("GetAllSettings");
         group.MapGet("/category/{category}", GetSettingsByCategory).WithName("GetSettingsByCategory");
         group.MapGet("/ai", GetAISettings).WithName("GetAISettings");
+        group.MapGet("/subscription", GetSubscriptionSettings).WithName("GetSubscriptionSettings");
         group.MapPut("/{key}", UpdateSetting).WithName("UpdateSetting");
         group.MapPut("/ai", UpdateAISettings).WithName("UpdateAISettings");
+        group.MapPut("/subscription", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
     }
 
     private static async Task<IResult> GetAllSettings([AsParameters] ApplicationSettingsServices services)
@@ -179,6 +183,62 @@ public static class ApplicationSettingsEndpoints
         {
             services.Logger.LogError(ex, "Error updating AI settings");
             return Results.Problem("An error occurred while updating AI settings");
+        }
+    }
+
+    private static async Task<IResult> GetSubscriptionSettings([AsParameters] ApplicationSettingsServices services)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var settings = await services.SubscriptionService.GetSubscriptionSettingsAsync();
+            var dto = new SubscriptionSettingsDto
+            {
+                EnableUserSubscriptions = settings.EnableUserSubscriptions,
+                EnableCoachSubscriptions = settings.EnableCoachSubscriptions
+            };
+
+            return Results.Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving subscription settings");
+            return Results.Problem("An error occurred while retrieving subscription settings");
+        }
+    }
+
+    private static async Task<IResult> UpdateSubscriptionSettings(
+        [AsParameters] ApplicationSettingsServices services,
+        UpdateSubscriptionSettingsRequestDto request)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var adminId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            await services.SubscriptionService.UpdateSubscriptionSettingsAsync(
+                request.EnableUserSubscriptions,
+                request.EnableCoachSubscriptions,
+                adminId);
+
+            return Results.Ok(new { message = "Subscription settings updated successfully" });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error updating subscription settings");
+            return Results.Problem("An error occurred while updating subscription settings");
         }
     }
 }

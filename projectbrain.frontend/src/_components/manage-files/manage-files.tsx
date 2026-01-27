@@ -53,6 +53,7 @@ export default function ManageFilesComponent({
                         You can upload reference materials, notes, or any
                         documents you want the AI to know about
                     </li>
+                    <li>Files are limited to 100mb in total</li>
                 </ul>
             </div>
 

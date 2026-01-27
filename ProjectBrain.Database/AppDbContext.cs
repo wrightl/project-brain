@@ -272,13 +272,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasIndex(se => new { se.UserId, se.UserType })
             .IsUnique();
 
-        // Configure SubscriptionSettings relationships
-        modelBuilder.Entity<SubscriptionSettings>()
-            .HasOne(ss => ss.UpdatedByUser)
-            .WithMany()
-            .HasForeignKey(ss => ss.UpdatedBy)
-            .OnDelete(DeleteBehavior.NoAction);
-
         // Configure ApplicationSetting relationships
         modelBuilder.Entity<ApplicationSetting>()
             .HasOne(as_ => as_.UpdatedByUser)
@@ -438,7 +431,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<ExternalIntegration> ExternalIntegrations => Set<ExternalIntegration>();
     public DbSet<CoachMessage> CoachMessages => Set<CoachMessage>();
     public DbSet<SubscriptionExclusion> SubscriptionExclusions => Set<SubscriptionExclusion>();
-    public DbSet<SubscriptionSettings> SubscriptionSettings => Set<SubscriptionSettings>();
     public DbSet<ApplicationSetting> ApplicationSettings => Set<ApplicationSetting>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Tag> Tags => Set<Tag>();

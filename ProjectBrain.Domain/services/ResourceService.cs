@@ -48,6 +48,11 @@ public class ResourceService : IResourceService
         return resources;
     }
 
+    public async Task<int> GetFileCountForUser(string userId)
+    {
+        return await _repository.CountForUserAsync(userId);
+    }
+
     public async Task<Resource?> GetSharedById(Guid id)
     {
         return await _repository.GetSharedByIdAsync(id);
@@ -90,6 +95,7 @@ public interface IResourceService
     Task<Resource?> GetForUserByLocation(string location, string userId);
     Task<Resource?> GetForUserByFilename(string filename, string userId);
     Task<IEnumerable<Resource>> GetAllForUser(string userId, int? limit = null);
+    Task<int> GetFileCountForUser(string userId);
     Task<Resource?> GetSharedById(Guid id);
     Task<Resource?> GetSharedByFilename(string filename);
     Task<Resource?> GetSharedByLocation(string location);

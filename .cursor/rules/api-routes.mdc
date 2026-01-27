@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+When creating or amending a react client component, always use api routes. Create these routes if necessary

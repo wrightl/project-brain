@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AISettingsSection from './ai-settings-section';
+import SubscriptionSettingsSection from './subscription-settings-section';
 
 export default function SettingsComponent() {
     return (
@@ -13,6 +14,7 @@ export default function SettingsComponent() {
                 </p>
             </div>
 
+            <SubscriptionSettingsSection />
             <AISettingsSection />
         </div>
     );

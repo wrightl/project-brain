@@ -55,6 +55,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserActivityService, UserActivityService>();
         builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
         builder.Services.AddScoped<IUsageTrackingService, UsageTrackingService>();
+        builder.Services.AddScoped<IAdminUserUsageService, AdminUserUsageService>();
         builder.Services.AddScoped<IFeatureGateService, FeatureGateService>();
         builder.Services.AddScoped<IStripeService, StripeService>();
         builder.Services.AddScoped<ISubscriptionAnalyticsService, SubscriptionAnalyticsService>();

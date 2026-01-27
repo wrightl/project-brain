@@ -276,6 +276,9 @@ export interface Usage {
     researchReports: {
         monthly: number;
     };
+    files: {
+        totalCount: number;
+    };
 }
 
 // Voice note types

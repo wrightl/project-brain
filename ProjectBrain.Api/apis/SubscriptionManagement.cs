@@ -1,16 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 
 public class SubscriptionManagementServices(
     ILogger<SubscriptionManagementServices> logger,
     IIdentityService identityService,
-    ISubscriptionService subscriptionService)
+    ISubscriptionService subscriptionService,
+    IAdminUserUsageService adminUserUsageService)
 {
     public ILogger<SubscriptionManagementServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
+    public IAdminUserUsageService AdminUserUsageService { get; } = adminUserUsageService;
 }
 
 public static class SubscriptionManagementEndpoints
@@ -19,9 +20,9 @@ public static class SubscriptionManagementEndpoints
     {
         var group = app.MapGroup("admin/subscriptions").RequireAuthorization("AdminOnly");
 
-        // Subscription settings
-        group.MapGet("/settings", GetSubscriptionSettings).WithName("GetSubscriptionSettings");
-        group.MapPut("/settings", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
+        // // Subscription settings
+        // group.MapGet("/settings", GetSubscriptionSettings).WithName("GetSubscriptionSettings");
+        // group.MapPut("/settings", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
 
         // User exclusions
         group.MapGet("/exclusions", GetExclusions).WithName("GetExclusions");
@@ -33,48 +34,51 @@ public static class SubscriptionManagementEndpoints
 
         // Get user subscription (admin only)
         group.MapGet("/user/{userId}", GetUserSubscription).WithName("GetUserSubscription");
+
+        // Get user usage stats (admin only)
+        group.MapGet("/user/{userId}/usage", GetUserUsage).WithName("GetUserUsage");
     }
 
-    private static async Task<IResult> GetSubscriptionSettings([AsParameters] SubscriptionManagementServices services)
-    {
-        try
-        {
-            var settings = await services.SubscriptionService.GetSubscriptionSettingsAsync();
-            return Results.Ok(new
-            {
-                enableUserSubscriptions = settings.EnableUserSubscriptions,
-                enableCoachSubscriptions = settings.EnableCoachSubscriptions,
-                updatedAt = settings.UpdatedAt,
-                updatedBy = settings.UpdatedBy
-            });
-        }
-        catch (Exception ex)
-        {
-            services.Logger.LogError(ex, "Error retrieving subscription settings");
-            return Results.Problem("An error occurred while retrieving subscription settings");
-        }
-    }
+    // private static async Task<IResult> GetSubscriptionSettings([AsParameters] SubscriptionManagementServices services)
+    // {
+    //     try
+    //     {
+    //         var settings = await services.SubscriptionService.GetSubscriptionSettingsAsync();
+    //         return Results.Ok(new
+    //         {
+    //             enableUserSubscriptions = settings.EnableUserSubscriptions,
+    //             enableCoachSubscriptions = settings.EnableCoachSubscriptions,
+    //             updatedAt = settings.UpdatedAt,
+    //             updatedBy = settings.UpdatedBy
+    //         });
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         services.Logger.LogError(ex, "Error retrieving subscription settings");
+    //         return Results.Problem("An error occurred while retrieving subscription settings");
+    //     }
+    // }
 
-    private static async Task<IResult> UpdateSubscriptionSettings(
-        [AsParameters] SubscriptionManagementServices services,
-        UpdateSubscriptionSettingsRequest request)
-    {
-        var adminId = services.IdentityService.UserId!;
-        try
-        {
-            await services.SubscriptionService.UpdateSubscriptionSettingsAsync(
-                request.EnableUserSubscriptions,
-                request.EnableCoachSubscriptions,
-                adminId);
+    // private static async Task<IResult> UpdateSubscriptionSettings(
+    //     [AsParameters] SubscriptionManagementServices services,
+    //     UpdateSubscriptionSettingsRequest request)
+    // {
+    //     var adminId = services.IdentityService.UserId!;
+    //     try
+    //     {
+    //         await services.SubscriptionService.UpdateSubscriptionSettingsAsync(
+    //             request.EnableUserSubscriptions,
+    //             request.EnableCoachSubscriptions,
+    //             adminId);
 
-            return Results.Ok(new { message = "Settings updated successfully" });
-        }
-        catch (Exception ex)
-        {
-            services.Logger.LogError(ex, "Error updating subscription settings");
-            return Results.Problem("An error occurred while updating subscription settings");
-        }
-    }
+    //         return Results.Ok(new { message = "Settings updated successfully" });
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         services.Logger.LogError(ex, "Error updating subscription settings");
+    //         return Results.Problem("An error occurred while updating subscription settings");
+    //     }
+    // }
 
     private static async Task<IResult> GetExclusions([AsParameters] SubscriptionManagementServices services)
     {
@@ -189,6 +193,34 @@ public static class SubscriptionManagementEndpoints
         {
             services.Logger.LogError(ex, "Error retrieving subscription for user {UserId}", userId);
             return Results.Problem("An error occurred while retrieving subscription");
+        }
+    }
+
+    private static async Task<IResult> GetUserUsage(
+        [AsParameters] SubscriptionManagementServices services,
+        string userId)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var resolvedUserId = Uri.UnescapeDataString(userId);
+
+        try
+        {
+            var result = await services.AdminUserUsageService.GetUserUsageAsync(resolvedUserId);
+            if (result == null)
+            {
+                return Results.NotFound(new { error = "User not found" });
+            }
+
+            return Results.Ok(result);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving usage for user {UserId}", resolvedUserId);
+            return Results.Problem("An error occurred while retrieving user usage");
         }
     }
 }

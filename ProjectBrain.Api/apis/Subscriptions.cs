@@ -1,19 +1,22 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
 
 public class SubscriptionServices(
     ILogger<SubscriptionServices> logger,
     IIdentityService identityService,
     ISubscriptionService subscriptionService,
     IUsageTrackingService usageTrackingService,
-    IFeatureGateService featureGateService)
+    IFeatureGateService featureGateService,
+    IResourceRepository resourceRepository)
 {
     public ILogger<SubscriptionServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
+    public IResourceRepository ResourceRepository { get; } = resourceRepository;
 }
 
 public static class SubscriptionEndpoints
@@ -169,9 +172,6 @@ public static class SubscriptionEndpoints
             return Results.Unauthorized();
         }
 
-        var isCoach = services.IdentityService.IsCoach;
-        var userType = isCoach ? UserType.Coach : UserType.User;
-
         try
         {
             var dailyAIQueries = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "daily");
@@ -180,6 +180,7 @@ public static class SubscriptionEndpoints
             var monthlyClientMessages = await services.UsageTrackingService.GetUsageCountAsync(userId, "client_message", "monthly");
             var fileStorage = await services.UsageTrackingService.GetFileStorageUsageAsync(userId);
             var monthlyResearchReports = await services.UsageTrackingService.GetUsageCountAsync(userId, "research_report", "monthly");
+            var fileCount = await services.ResourceRepository.CountForUserAsync(userId);
 
             return Results.Ok(new
             {
@@ -204,6 +205,10 @@ public static class SubscriptionEndpoints
                 researchReports = new
                 {
                     monthly = monthlyResearchReports
+                },
+                files = new
+                {
+                    totalCount = fileCount
                 }
             });
         }

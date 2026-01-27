@@ -104,8 +104,7 @@ public class FeatureGateService : IFeatureGateService
 
         if (maxFiles >= 0) // Check file count limit
         {
-            var userResources = await _resourceService.GetAllForUser(userId);
-            var fileCount = userResources.Count(r => !r.IsShared);
+            var fileCount = await _resourceService.GetFileCountForUser(userId);
             if (fileCount >= maxFiles)
             {
                 return (false, $"You have reached the maximum of {maxFiles} files. Please upgrade to upload more files.");

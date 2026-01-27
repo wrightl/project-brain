@@ -181,93 +181,152 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             adminUser = systemUser;
         }
 
-        // Seed subscription settings (singleton)
-        if (!context.SubscriptionSettings.Any())
+        // // Seed application settings (AI settings)
+        // if (!context.ApplicationSettings.Any())
+        // {
+        //     logger.LogInformation("Seeding application settings...");
+
+        //     var updatedBy = adminUser.Id;
+        //     var updatedAt = DateTime.UtcNow;
+
+        //     // Seed AI settings with default values from appsettings.json
+        //     var aiSettings = new List<ApplicationSetting>
+        //     {
+        //         new()
+        //         {
+        //             Key = "AI:MaxSearchResults",
+        //             Value = "5",
+        //             Category = "AI",
+        //             Description = "Maximum number of search results to return",
+        //             UpdatedAt = updatedAt,
+        //             UpdatedBy = updatedBy
+        //         },
+        //         new()
+        //         {
+        //             Key = "AI:MaxContentLengthPerSource",
+        //             Value = "800",
+        //             Category = "AI",
+        //             Description = "Maximum content length per source in characters",
+        //             UpdatedAt = updatedAt,
+        //             UpdatedBy = updatedBy
+        //         },
+        //         new()
+        //         {
+        //             Key = "AI:MaxHistoryMessages",
+        //             Value = "10",
+        //             Category = "AI",
+        //             Description = "Maximum number of history messages to include",
+        //             UpdatedAt = updatedAt,
+        //             UpdatedBy = updatedBy
+        //         },
+        //         new()
+        //         {
+        //             Key = "AI:MaxTotalTokens",
+        //             Value = "7000",
+        //             Category = "AI",
+        //             Description = "Maximum total tokens allowed",
+        //             UpdatedAt = updatedAt,
+        //             UpdatedBy = updatedBy
+        //         }
+        //     };
+
+        //     await context.ApplicationSettings.AddRangeAsync(aiSettings, cancellationToken);
+        //     await context.SaveChangesAsync(cancellationToken);
+
+        //     logger.LogInformation("Application settings seeded successfully");
+        // }
+        // else
+        // {
+        //     logger.LogInformation("Application settings already exist, skipping seed");
+        // }
+
+        // Seed subscription settings into ApplicationSettings (always ensure keys exist)
+
+        var settingsKeysAndDefaultValues = new List<SettingsKeysAndDefaultValues>
         {
-            logger.LogInformation("Seeding subscription settings...");
+            new()
+            {
+                Key = "Subscription:EnableUserSubscriptions",
+                Value = "true",
+                Category = "Subscription",
+                Description = "Enable/disable subscriptions for regular users"
+            },
+            new()
+            {
+                Key = "Subscription:EnableCoachSubscriptions",
+                Value = "true",
+                Category = "Subscription",
+                Description = "Enable/disable subscriptions for coaches"
+            },
+            new()
+            {
+                Key = "AI:MaxSearchResults",
+                Value = "5",
+                Category = "AI",
+                Description = "Maximum number of search results to return"
+            },
+            new()
+            {
+                Key = "AI:MaxContentLengthPerSource",
+                Value = "800",
+                Category = "AI",
+                Description = "Maximum content length per source in characters"
+            },
+            new()
+            {
+                Key = "AI:MaxHistoryMessages",
+                Value = "10",
+                Category = "AI",
+                Description = "Maximum number of history messages to include"
+            },
+            new()
+            {
+                Key = "AI:MaxTotalTokens",
+                Value = "7000",
+                Category = "AI",
+                Description = "Maximum total tokens allowed"
+            }
+        };
 
-            var updatedBy = adminUser.Id;
-            var updatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+        var existingKeys = await context.ApplicationSettings
+            .Select(s => s.Key)
+            .ToListAsync(cancellationToken);
 
-            // Use raw SQL to insert with explicit ID (IDENTITY_INSERT)
-            // Escape single quotes in the UpdatedBy value to prevent SQL injection
-            var escapedUpdatedBy = updatedBy.Replace("'", "''");
-            var sql = $@"
-                SET IDENTITY_INSERT [SubscriptionSettings] ON;
-                
-                INSERT INTO [SubscriptionSettings] ([Id], [EnableUserSubscriptions], [EnableCoachSubscriptions], [UpdatedAt], [UpdatedBy])
-                VALUES (1, 1, 1, N'{updatedAt}', N'{escapedUpdatedBy}');
-                
-                SET IDENTITY_INSERT [SubscriptionSettings] OFF;
-            ";
+        var addedSettingsAny = false;
 
-            await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+        foreach (var setting in settingsKeysAndDefaultValues)
+        {
+            if (!existingKeys.Contains(setting.Key))
+            {
+                context.ApplicationSettings.Add(new ApplicationSetting
+                {
+                    Key = setting.Key,
+                    Value = setting.Value,
+                    Category = setting.Category,
+                    Description = setting.Description,
+                    UpdatedAt = DateTime.Now,
+                    UpdatedBy = adminUser.Id
+                });
+                addedSettingsAny = true;
+            }
+        }
 
-            logger.LogInformation("Subscription settings seeded successfully");
+        if (addedSettingsAny)
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Subscription settings ensured successfully");
         }
         else
         {
             logger.LogInformation("Subscription settings already exist, skipping seed");
         }
-
-        // Seed application settings (AI settings)
-        if (!context.ApplicationSettings.Any())
-        {
-            logger.LogInformation("Seeding application settings...");
-
-            var updatedBy = adminUser.Id;
-            var updatedAt = DateTime.UtcNow;
-
-            // Seed AI settings with default values from appsettings.json
-            var aiSettings = new List<ApplicationSetting>
-            {
-                new()
-                {
-                    Key = "AI:MaxSearchResults",
-                    Value = "5",
-                    Category = "AI",
-                    Description = "Maximum number of search results to return",
-                    UpdatedAt = updatedAt,
-                    UpdatedBy = updatedBy
-                },
-                new()
-                {
-                    Key = "AI:MaxContentLengthPerSource",
-                    Value = "800",
-                    Category = "AI",
-                    Description = "Maximum content length per source in characters",
-                    UpdatedAt = updatedAt,
-                    UpdatedBy = updatedBy
-                },
-                new()
-                {
-                    Key = "AI:MaxHistoryMessages",
-                    Value = "10",
-                    Category = "AI",
-                    Description = "Maximum number of history messages to include",
-                    UpdatedAt = updatedAt,
-                    UpdatedBy = updatedBy
-                },
-                new()
-                {
-                    Key = "AI:MaxTotalTokens",
-                    Value = "7000",
-                    Category = "AI",
-                    Description = "Maximum total tokens allowed",
-                    UpdatedAt = updatedAt,
-                    UpdatedBy = updatedBy
-                }
-            };
-
-            await context.ApplicationSettings.AddRangeAsync(aiSettings, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
-
-            logger.LogInformation("Application settings seeded successfully");
-        }
-        else
-        {
-            logger.LogInformation("Application settings already exist, skipping seed");
-        }
     }
 }
 
+public class SettingsKeysAndDefaultValues
+{
+    public required string Key { get; set; }
+    public required string Value { get; set; }
+    public required string Category { get; set; }
+    public required string Description { get; set; }
+}

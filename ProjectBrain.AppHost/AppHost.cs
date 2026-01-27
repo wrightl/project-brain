@@ -28,15 +28,10 @@ var blobName = "blobs";
 // Parameters
 var environmentName = builder.AddParameter("deploymentEnvironment");
 var replicas = builder.AddParameter("minReplicas");
-// var useNewSearchService = (builder.Configuration["USE_NEW_SEARCH_SERVICE"] ?? "true").ToLower() == "true";
 var sqlPassword = builder.AddParameter($"{sqlServerName}-password", secret: true);
 
 // Parameters - Azure AI Search
-// var existingSearchName = builder.AddParameter("searchName");
-// var existingAIResourceGroup = builder.AddParameter("searchResourceGroup");
-// Parameters - Azure OpenAPI
 var searchSku = builder.Configuration["AI_SEARCH_SKU"] ?? defaultSearchSku;
-// var existingOpenAIName = builder.AddParameter("existingOpenAIName");
 var chatModelName = builder.Configuration["CHAT_MODEL_NAME"] ?? defaultChatModelName;
 var chatModelVersion = builder.Configuration["CHAT_MODEL_VERSION"] ?? defaultChatModelVersion;
 var embedModelName = builder.Configuration["EMBED_MODEL_NAME"] ?? defaultEmbedModelName;
@@ -66,9 +61,6 @@ var customDomainApp = builder.AddParameter("customDomainApp", customDomainAppFro
 var certificateNameApp = builder.AddParameter("certificateNameApp", value: certificateNameAppFromConfig, publishValueAsDefault: true);
 
 var search = builder.AddAzureSearch(searchName);
-// if (!useNewSearchService)
-//     search.RunAsExisting(existingSearchName, existingAIResourceGroup);
-// else
 search.ConfigureInfrastructure(infra =>
 {
     var searchService = infra.GetProvisionableResources()
@@ -86,8 +78,6 @@ var openai = builder.AddAzureOpenAI(openaiName).ConfigureInfrastructure(infra =>
                              .Single();
     openaiService.Location = new AzureLocation(speechRegion);
 });
-// if (!useNewSearchService)
-// openai.RunAsExisting(existingOpenAIName, existingAIResourceGroup);
 
 // Chat deployment
 openai.AddDeployment(
@@ -174,7 +164,6 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("Auth0__WebhookToken", auth0WebhookToken)
                         .WithEnvironment("Firebase__CredentialsJson", firebaseCredentialsJson)
                         .WithEnvironment("LaunchDarkly__SdkKey", launchDarklySdkKey)
-                        // .WithEnvironment("AI__UseNewSearchService", "true")
                         .WithEnvironment("Mailgun__ApiKey", mailgunApiKey)
                         .WithEnvironment("Mailgun__Domain", mailgunDomain)
                         .WithEnvironment("AdminUser__Password", adminUserPassword)
@@ -189,8 +178,6 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         });
 
 // azure storage
-// if (useNewSearchService)
-// {
 var documentStorage = builder.AddAzureStorage(documentstorageName)
                             .RunAsEmulator(azurite =>
                             {
@@ -198,12 +185,6 @@ var documentStorage = builder.AddAzureStorage(documentstorageName)
                             })
                             .AddBlobs(blobName);
 apiService.WithReference(documentStorage);
-// }
-// else
-// {
-//     var blobs = builder.AddConnectionString(blobName);
-//     apiService.WithReference(blobs);
-// }
 
 if (builder.ExecutionContext.IsPublishMode)
 {

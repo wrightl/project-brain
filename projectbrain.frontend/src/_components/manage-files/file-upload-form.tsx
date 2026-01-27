@@ -5,6 +5,7 @@ import {
     CloudArrowUpIcon,
     XMarkIcon,
     CheckCircleIcon,
+    ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { apiClient } from '@/_lib/api-client';
@@ -16,6 +17,7 @@ interface UploadedFile {
     status: 'pending' | 'uploading' | 'success' | 'error';
     message?: string;
     chunks?: number;
+    errorType?: 'network' | 'limit' | 'other';
 }
 
 export default function FileUploadForm({
@@ -110,12 +112,11 @@ export default function FileUploadForm({
         const limits = getLimits(tier);
 
         // Check file count limit
-        const currentFileCount = usage?.fileStorage ? 0 : 0; // We don't track file count in usage, backend will check
-        const newFileCount = files.length + newFiles.length;
+        const newFileCount = (usage?.files?.totalCount || 0) + newFiles.length;
 
         if (limits.maxFiles >= 0 && newFileCount > limits.maxFiles) {
             setLimitError(
-                `You've reached your file limit (${limits.maxFiles} files). Upgrade to upload more files.`
+                `You've reached your file limit (${limits.maxFiles} files). Upgrade to upload more files.`,
             );
             return;
         }
@@ -130,7 +131,7 @@ export default function FileUploadForm({
             newStorageMB > limits.maxFileStorageMB
         ) {
             setLimitError(
-                `You've reached your storage limit (${limits.maxFileStorageMB} MB). Upgrade to upload more files.`
+                `You've reached your storage limit (${limits.maxFileStorageMB} MB). Upgrade to upload more files.`,
             );
             return;
         }
@@ -147,83 +148,239 @@ export default function FileUploadForm({
         setFiles((prev) => prev.filter((_, i) => i !== index));
     };
 
-    const handleUpload = async () => {
-        if (files.length === 0) return;
+    const handleUpload = async (fileIndices?: number[]) => {
+        // If fileIndices is provided, only upload those specific files
+        // Otherwise, upload all pending files
+        const filesToProcess = fileIndices
+            ? fileIndices.map((i) => files[i]).filter((f) => f)
+            : files.filter(
+                  (f) => f.status === 'pending' || f.status === 'error',
+              );
+
+        if (filesToProcess.length === 0) return;
 
         setIsUploading(true);
+        setLimitError(null);
 
         try {
-            // Update all files to uploading status
+            // Update files to uploading status
             setFiles((prev) =>
-                prev.map((f) => ({ ...f, status: 'uploading' as const }))
+                prev.map((f, i) => {
+                    const shouldUpload = fileIndices
+                        ? fileIndices.includes(i)
+                        : f.status === 'pending' || f.status === 'error';
+                    return shouldUpload
+                        ? {
+                              ...f,
+                              status: 'uploading' as const,
+                              message: undefined,
+                          }
+                        : f;
+                }),
             );
 
-            const filesToUpload = files.map((f) => f.file);
+            const filesToUpload = filesToProcess.map((f) => f.file);
             const formData = new FormData();
             filesToUpload.forEach((file) => {
                 formData.append('file', file, file.name);
             });
 
-            const response = await fetchWithAuth(
-                manageSharedFiles
-                    ? '/api/admin/uploadfiles'
-                    : '/api/user/uploadfiles',
-                {
-                    method: 'POST',
-                    body: formData,
+            let response: Response;
+            try {
+                response = await fetchWithAuth(
+                    manageSharedFiles
+                        ? '/api/admin/uploadfiles'
+                        : '/api/user/uploadfiles',
+                    {
+                        method: 'POST',
+                        body: formData,
+                    },
+                );
+            } catch (error) {
+                // Network error - fetch failed
+                const errorMessage =
+                    error instanceof Error
+                        ? error.message
+                        : 'Network error occurred';
+                setFiles((prev) =>
+                    prev.map((f, i) => {
+                        const shouldUpdate = fileIndices
+                            ? fileIndices.includes(i)
+                            : f.status === 'uploading';
+                        return shouldUpdate
+                            ? {
+                                  ...f,
+                                  status: 'error' as const,
+                                  message: errorMessage,
+                                  errorType: 'network' as const,
+                              }
+                            : f;
+                    }),
+                );
+                setIsUploading(false);
+                return;
+            }
+
+            const responseData = await response.json();
+
+            // Check if the entire request failed (e.g., feature gate check failed)
+            if (!response.ok || responseData.status === 'error') {
+                const errorMessage =
+                    responseData.error ||
+                    responseData.message ||
+                    'Upload failed';
+                const errorType = responseData.errorType || 'http';
+
+                // Check if it's a limit error
+                if (
+                    errorType === 'limit' ||
+                    errorMessage.toLowerCase().includes('limit') ||
+                    errorMessage.toLowerCase().includes('exceeded')
+                ) {
+                    setLimitError(errorMessage);
                 }
-            );
 
-            if (!response.ok) {
-                throw new Error('Upload failed');
+                // Mark all files being uploaded as error
+                setFiles((prev) =>
+                    prev.map((f, i) => {
+                        const shouldUpdate = fileIndices
+                            ? fileIndices.includes(i)
+                            : f.status === 'uploading';
+                        return shouldUpdate
+                            ? {
+                                  ...f,
+                                  status: 'error' as const,
+                                  message: errorMessage,
+                                  errorType:
+                                      (errorType as
+                                          | 'network'
+                                          | 'limit'
+                                          | 'other') || 'other',
+                              }
+                            : f;
+                    }),
+                );
+                setIsUploading(false);
+                return;
             }
 
-            const results = await response.json();
+            // Process per-file results from backend
+            // Backend returns an array of results: { status: "uploaded" | "error", filename, message?, ... }
+            if (Array.isArray(responseData)) {
+                setFiles((prev) =>
+                    prev.map((f, index) => {
+                        // Only process files that were being uploaded
+                        const wasUploading =
+                            fileIndices?.includes(index) ||
+                            f.status === 'uploading';
 
-            if (results.status === 'error') {
-                throw new Error(results.message);
-            }
+                        if (!wasUploading) {
+                            return f;
+                        }
 
-            // Update files with results
-            setFiles((prev) =>
-                prev.map((f, i) => {
-                    // const result = results[i];
-                    return {
-                        ...f,
-                        status: 'success',
-                    };
-                })
-            );
-            // clearCompleted();
+                        // Find matching result by filename
+                        const result = responseData.find(
+                            (r: { filename: string }) =>
+                                r.filename === f.file.name,
+                        );
 
-            onUploadComplete();
-            // Reload usage data after successful upload
-            if (!manageSharedFiles) {
-                await loadSubscriptionData();
+                        if (!result) {
+                            // No result found - might be a different file or error
+                            return {
+                                ...f,
+                                status: 'error' as const,
+                                message: 'No result from server',
+                                errorType: 'other' as const,
+                            };
+                        }
+
+                        if (result.status === 'uploaded') {
+                            return {
+                                ...f,
+                                status: 'success' as const,
+                                message: undefined,
+                                errorType: undefined,
+                            };
+                        } else if (result.status === 'error') {
+                            const errorMessage =
+                                result.message || 'Upload failed';
+                            const isLimitError =
+                                errorMessage.toLowerCase().includes('limit') ||
+                                errorMessage.toLowerCase().includes('exceeded');
+
+                            if (isLimitError) {
+                                setLimitError(errorMessage);
+                            }
+
+                            return {
+                                ...f,
+                                status: 'error' as const,
+                                message: errorMessage,
+                                errorType: isLimitError
+                                    ? ('limit' as const)
+                                    : ('other' as const),
+                            };
+                        }
+
+                        return f;
+                    }),
+                );
+
+                // Check if any files succeeded
+                const hasSuccess = responseData.some(
+                    (r: { status: string }) => r.status === 'uploaded',
+                );
+                if (hasSuccess) {
+                    onUploadComplete();
+                    // Reload usage data after successful upload
+                    if (!manageSharedFiles) {
+                        await loadSubscriptionData();
+                    }
+                }
+            } else {
+                // Unexpected response format
+                setFiles((prev) =>
+                    prev.map((f, i) => {
+                        const shouldUpdate = fileIndices
+                            ? fileIndices.includes(i)
+                            : f.status === 'uploading';
+                        return shouldUpdate
+                            ? {
+                                  ...f,
+                                  status: 'error' as const,
+                                  message: 'Unexpected response format',
+                                  errorType: 'other' as const,
+                              }
+                            : f;
+                    }),
+                );
             }
         } catch (error) {
-            console.error('Upload failed:', error);
+            // Unexpected error
             const errorMessage =
                 error instanceof Error ? error.message : 'Upload failed';
-
-            // Check if it's a limit error from backend
-            if (
-                errorMessage.includes('limit') ||
-                errorMessage.includes('exceeded')
-            ) {
-                setLimitError(errorMessage);
-            }
-
             setFiles((prev) =>
-                prev.map((f) => ({
-                    ...f,
-                    status: 'error',
-                    message: errorMessage,
-                }))
+                prev.map((f, i) => {
+                    const shouldUpdate = fileIndices
+                        ? fileIndices.includes(i)
+                        : f.status === 'uploading';
+                    return shouldUpdate
+                        ? {
+                              ...f,
+                              status: 'error' as const,
+                              message: errorMessage,
+                              errorType: 'other' as const,
+                          }
+                        : f;
+                }),
             );
         } finally {
             setIsUploading(false);
         }
+    };
+
+    const retryFile = async (index: number) => {
+        await handleUpload([index]);
     };
 
     const clearCompleted = () => {
@@ -305,7 +462,7 @@ export default function FileUploadForm({
                     <span className="text-gray-600"> or drag and drop</span>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                    PDF, DOC, DOCX, TXT up to 10MB each
+                    PDF, DOC, DOCX, TXT up to 10MB each, total of 100MB
                 </p>
             </div>
 
@@ -334,7 +491,7 @@ export default function FileUploadForm({
                                         </p>
                                         <p className="text-xs text-gray-500">
                                             {formatFileSize(
-                                                uploadedFile.file.size
+                                                uploadedFile.file.size,
                                             )}
                                             {uploadedFile.chunks &&
                                                 ` • ${uploadedFile.chunks} chunks`}
@@ -357,7 +514,20 @@ export default function FileUploadForm({
                                             <CheckCircleIcon className="h-5 w-5 text-green-500" />
                                         )}
                                         {uploadedFile.status === 'error' && (
-                                            <XMarkIcon className="h-5 w-5 text-red-500" />
+                                            <>
+                                                <XMarkIcon className="h-5 w-5 text-red-500" />
+                                                <button
+                                                    onClick={() =>
+                                                        retryFile(index)
+                                                    }
+                                                    disabled={isUploading}
+                                                    className="ml-2 text-sm text-indigo-600 hover:text-indigo-700 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center space-x-1"
+                                                    title="Retry upload"
+                                                >
+                                                    <ArrowPathIcon className="h-4 w-4" />
+                                                    <span>Retry</span>
+                                                </button>
+                                            </>
                                         )}
                                         {uploadedFile.status ===
                                             'uploading' && (
@@ -369,6 +539,7 @@ export default function FileUploadForm({
                                                     removeFile(index)
                                                 }
                                                 className="text-gray-400 hover:text-gray-600"
+                                                title="Remove file"
                                             >
                                                 <XMarkIcon className="h-5 w-5" />
                                             </button>
@@ -382,10 +553,14 @@ export default function FileUploadForm({
                     {/* Upload Button */}
                     <div className="flex justify-end">
                         <button
-                            onClick={handleUpload}
+                            onClick={() => handleUpload()}
                             disabled={
                                 isUploading ||
-                                files.every((f) => f.status !== 'pending')
+                                files.every(
+                                    (f) =>
+                                        f.status !== 'pending' &&
+                                        f.status !== 'error',
+                                )
                             }
                             className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                         >

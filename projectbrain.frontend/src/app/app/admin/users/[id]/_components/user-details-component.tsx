@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import ConfirmationDialog from '@/_components/confirmation-dialog';
+import { UsagePieCard } from './usage-pie-card';
 
 interface UserDetailsComponentProps {
     userId: string;
@@ -28,6 +29,34 @@ interface SubscriptionData {
     isExcluded?: boolean;
 }
 
+interface UserUsageResponse {
+    userId: string;
+    userType: 'user' | 'coach';
+    tier: string;
+    usage: {
+        aiQueries: { daily: number; monthly: number };
+        coachMessages: { monthly: number };
+        clientMessages: { monthly: number };
+        researchReports: { monthly: number };
+        fileUploads: { monthly: number };
+        fileStorage: { bytes: number; megabytes: number };
+        files: { totalCount: number };
+        connections: { coachAcceptedCount: number; clientAcceptedCount: number };
+    };
+    limits: {
+        dailyAIQueries?: number | null;
+        monthlyAIQueries?: number | null;
+        maxCoachConnections?: number | null;
+        monthlyCoachMessages?: number | null;
+        maxFiles?: number | null;
+        maxFileStorageMB?: number | null;
+        monthlyResearchReports?: number | null;
+        maxClientConnections?: number | null;
+        monthlyClientMessages?: number | null;
+        fileUploadsMonthly?: number | null;
+    };
+}
+
 export default function UserDetailsComponent({
     userId,
 }: UserDetailsComponentProps) {
@@ -36,6 +65,7 @@ export default function UserDetailsComponent({
     const [subscription, setSubscription] = useState<SubscriptionData | null>(
         null
     );
+    const [usageStats, setUsageStats] = useState<UserUsageResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [exclusionLoading, setExclusionLoading] = useState(false);
@@ -52,9 +82,11 @@ export default function UserDetailsComponent({
     const loadData = async () => {
         try {
             setLoading(true);
-            const [userResponse, subscriptionResponse] = await Promise.all([
+            const [userResponse, subscriptionResponse, usageResponse] =
+                await Promise.all([
                 fetchWithAuth(`/api/admin/users/${userId}`),
                 fetchWithAuth(`/api/admin/users/${userId}/subscription`),
+                fetchWithAuth(`/api/admin/users/${userId}/subscription/usage`),
             ]);
 
             if (!userResponse.ok) {
@@ -67,6 +99,13 @@ export default function UserDetailsComponent({
             if (subscriptionResponse.ok) {
                 const subscriptionData = await subscriptionResponse.json();
                 setSubscription(subscriptionData);
+            }
+
+            if (usageResponse.ok) {
+                const usageData = await usageResponse.json();
+                setUsageStats(usageData);
+            } else {
+                setUsageStats(null);
             }
         } catch (err) {
             setError(
@@ -334,6 +373,113 @@ export default function UserDetailsComponent({
                             </div>
                         )}
                     </div>
+
+                    {usageStats && (
+                        <div className="border-t border-gray-200 pt-4 mt-4">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">
+                                Usage
+                            </h3>
+
+                            {usageStats.userType === 'user' ? (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <UsagePieCard
+                                        title="AI queries (daily)"
+                                        used={usageStats.usage.aiQueries.daily}
+                                        limit={usageStats.limits.dailyAIQueries}
+                                    />
+                                    <UsagePieCard
+                                        title="AI queries (monthly)"
+                                        used={usageStats.usage.aiQueries.monthly}
+                                        limit={usageStats.limits.monthlyAIQueries}
+                                    />
+                                    <UsagePieCard
+                                        title="Coach messages (monthly)"
+                                        used={
+                                            usageStats.usage.coachMessages
+                                                .monthly
+                                        }
+                                        limit={
+                                            usageStats.limits.monthlyCoachMessages
+                                        }
+                                    />
+                                    <UsagePieCard
+                                        title="Coach connections (accepted)"
+                                        used={
+                                            usageStats.usage.connections
+                                                .coachAcceptedCount
+                                        }
+                                        limit={usageStats.limits.maxCoachConnections}
+                                    />
+                                    <UsagePieCard
+                                        title="Files (count)"
+                                        used={usageStats.usage.files.totalCount}
+                                        limit={usageStats.limits.maxFiles}
+                                    />
+                                    <UsagePieCard
+                                        title="File storage"
+                                        used={usageStats.usage.fileStorage.megabytes}
+                                        limit={usageStats.limits.maxFileStorageMB}
+                                        unit="MB"
+                                        decimals={1}
+                                    />
+                                    <UsagePieCard
+                                        title="Research reports (monthly)"
+                                        used={
+                                            usageStats.usage.researchReports
+                                                .monthly
+                                        }
+                                        limit={
+                                            usageStats.limits.monthlyResearchReports
+                                        }
+                                    />
+                                    <UsagePieCard
+                                        title="File uploads (monthly)"
+                                        used={
+                                            usageStats.usage.fileUploads.monthly
+                                        }
+                                        limit={usageStats.limits.fileUploadsMonthly}
+                                        helperText="No limit configured yet"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <UsagePieCard
+                                        title="Client messages (monthly)"
+                                        used={
+                                            usageStats.usage.clientMessages
+                                                .monthly
+                                        }
+                                        limit={
+                                            usageStats.limits.monthlyClientMessages
+                                        }
+                                    />
+                                    <UsagePieCard
+                                        title="Client connections (accepted)"
+                                        used={
+                                            usageStats.usage.connections
+                                                .clientAcceptedCount
+                                        }
+                                        limit={usageStats.limits.maxClientConnections}
+                                    />
+                                    <UsagePieCard
+                                        title="File uploads (monthly)"
+                                        used={
+                                            usageStats.usage.fileUploads.monthly
+                                        }
+                                        limit={usageStats.limits.fileUploadsMonthly}
+                                        helperText="No limit configured yet"
+                                    />
+                                    <UsagePieCard
+                                        title="File storage"
+                                        used={usageStats.usage.fileStorage.megabytes}
+                                        limit={usageStats.limits.maxFileStorageMB}
+                                        unit="MB"
+                                        decimals={1}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Exclusion Management */}
                     <div className="border-t border-gray-200 pt-4 mt-4">

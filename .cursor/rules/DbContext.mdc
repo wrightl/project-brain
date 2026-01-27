@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+When creating or amending a backend api, never use the DbContext directly. Always create the service classes and methods instead.

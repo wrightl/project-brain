@@ -25,6 +25,9 @@ public class SubscriptionService : ISubscriptionService
     private const string SettingsCacheKey = "subscription:settings";
     private static readonly TimeSpan TierCacheExpiration = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan SettingsCacheExpiration = TimeSpan.FromMinutes(30);
+    private const string EnableUserSubscriptionsKey = "Subscription:EnableUserSubscriptions";
+    private const string EnableCoachSubscriptionsKey = "Subscription:EnableCoachSubscriptions";
+    private const string SubscriptionSettingsCategory = "Subscription";
 
     public SubscriptionService(
         IUserSubscriptionRepository repository,
@@ -354,31 +357,43 @@ public class SubscriptionService : ISubscriptionService
         return await _repository.IsUserExcludedAsync(userId, userType);
     }
 
-    public async Task<SubscriptionSettings> GetSubscriptionSettingsAsync()
+    public async Task<SubscriptionSettingsInfo> GetSubscriptionSettingsAsync()
     {
         // Try cache first
-        var cachedSettings = await _cache.GetAsync<SubscriptionSettings>(SettingsCacheKey);
+        var cachedSettings = await _cache.GetAsync<SubscriptionSettingsInfo>(SettingsCacheKey);
         if (cachedSettings != null)
         {
             return cachedSettings;
         }
 
-        var settings = await _context.SubscriptionSettings.FirstOrDefaultAsync();
+        var settingsRows = await _context.ApplicationSettings
+            .AsNoTracking()
+            .Where(s => s.Key == EnableUserSubscriptionsKey || s.Key == EnableCoachSubscriptionsKey)
+            .ToListAsync();
 
-        if (settings == null)
+        var enableUserSubscriptions = true;
+        var enableCoachSubscriptions = true;
+
+        foreach (var row in settingsRows)
         {
-            // Create default settings if none exist
-            settings = new SubscriptionSettings
+            if (row.Key == EnableUserSubscriptionsKey)
             {
-                Id = 1,
-                EnableUserSubscriptions = true,
-                EnableCoachSubscriptions = true,
-                UpdatedAt = DateTime.UtcNow,
-                UpdatedBy = "system"
-            };
-            _context.SubscriptionSettings.Add(settings);
-            await _context.SaveChangesAsync();
+                enableUserSubscriptions = bool.TryParse(row.Value, out var parsed) ? parsed : true;
+            }
+            else if (row.Key == EnableCoachSubscriptionsKey)
+            {
+                enableCoachSubscriptions = bool.TryParse(row.Value, out var parsed) ? parsed : true;
+            }
         }
+
+        var latest = settingsRows.OrderByDescending(s => s.UpdatedAt).FirstOrDefault();
+        var settings = new SubscriptionSettingsInfo
+        {
+            EnableUserSubscriptions = enableUserSubscriptions,
+            EnableCoachSubscriptions = enableCoachSubscriptions,
+            UpdatedAt = latest?.UpdatedAt ?? DateTime.UtcNow,
+            UpdatedBy = latest?.UpdatedBy ?? "system"
+        };
 
         // Cache the settings
         await _cache.SetAsync(SettingsCacheKey, settings, SettingsCacheExpiration);
@@ -393,13 +408,59 @@ public class SubscriptionService : ISubscriptionService
         settings.UpdatedBy = updatedBy;
         settings.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await UpsertApplicationSettingAsync(
+            key: EnableUserSubscriptionsKey,
+            value: enableUsers.ToString().ToLowerInvariant(),
+            category: SubscriptionSettingsCategory,
+            description: "Enable/disable subscriptions for regular users",
+            updatedBy: updatedBy,
+            updatedAt: settings.UpdatedAt);
+
+        await UpsertApplicationSettingAsync(
+            key: EnableCoachSubscriptionsKey,
+            value: enableCoaches.ToString().ToLowerInvariant(),
+            category: SubscriptionSettingsCategory,
+            description: "Enable/disable subscriptions for coaches",
+            updatedBy: updatedBy,
+            updatedAt: settings.UpdatedAt);
+
+        await _unitOfWork.SaveChangesAsync();
 
         // Invalidate cache
         await _cache.RemoveAsync(SettingsCacheKey);
 
         _logger.LogInformation("Subscription settings updated by {UpdatedBy}: Users={EnableUsers}, Coaches={EnableCoaches}",
             updatedBy, enableUsers, enableCoaches);
+    }
+
+    private async Task UpsertApplicationSettingAsync(
+        string key,
+        string value,
+        string category,
+        string description,
+        string updatedBy,
+        DateTime updatedAt)
+    {
+        var existing = await _context.ApplicationSettings.FirstOrDefaultAsync(s => s.Key == key);
+        if (existing == null)
+        {
+            _context.ApplicationSettings.Add(new ApplicationSetting
+            {
+                Key = key,
+                Value = value,
+                Category = category,
+                Description = description,
+                UpdatedAt = updatedAt,
+                UpdatedBy = updatedBy
+            });
+            return;
+        }
+
+        existing.Value = value;
+        existing.Category ??= category;
+        existing.Description ??= description;
+        existing.UpdatedBy = updatedBy;
+        existing.UpdatedAt = updatedAt;
     }
 }
 
@@ -415,6 +476,14 @@ public interface ISubscriptionService
     Task ExcludeUserFromSubscriptionAsync(string userId, UserType userType, string excludedBy, string? notes);
     Task RemoveExclusionAsync(string userId, UserType userType);
     Task<bool> IsUserExcludedAsync(string userId, UserType userType);
-    Task<SubscriptionSettings> GetSubscriptionSettingsAsync();
+    Task<SubscriptionSettingsInfo> GetSubscriptionSettingsAsync();
     Task UpdateSubscriptionSettingsAsync(bool enableUsers, bool enableCoaches, string updatedBy);
+}
+
+public class SubscriptionSettingsInfo
+{
+    public bool EnableUserSubscriptions { get; set; } = true;
+    public bool EnableCoachSubscriptions { get; set; } = true;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public string UpdatedBy { get; set; } = "system";
 }

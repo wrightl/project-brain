@@ -68,11 +68,15 @@ export class SubscriptionService {
     /**
      * Create checkout session for subscription upgrade
      */
-    static async createCheckout(tier: string, isAnnual: boolean): Promise<{ url: string }> {
+    static async createCheckout(
+        tier: string,
+        isAnnual: boolean,
+        baseUrl?: string,
+    ): Promise<{ url: string }> {
         const response = await callBackendApi('/subscriptions/checkout', {
             method: 'POST',
             contentType: 'application/json',
-            body: { tier, isAnnual },
+            body: { tier, isAnnual, baseUrl },
         });
         if (!response.ok) {
             throw new Error('Failed to create checkout session');
@@ -108,4 +112,3 @@ export class SubscriptionService {
         return await response.json();
     }
 }
-

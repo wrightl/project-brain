@@ -29,6 +29,16 @@ public class UserSubscriptionRepository : Repository<UserSubscription, Guid>, IU
             .FirstOrDefaultAsync(us => us.StripeSubscriptionId == stripeSubscriptionId, cancellationToken);
     }
 
+    public async Task<UserSubscription?> GetByStripeCustomerIdAsync(string stripeCustomerId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Include(us => us.Tier)
+            .Where(us => us.StripeCustomerId == stripeCustomerId)
+            .OrderByDescending(us => us.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<bool> IsUserExcludedAsync(string userId, UserType userType, CancellationToken cancellationToken = default)
     {
         return await _context.SubscriptionExclusions

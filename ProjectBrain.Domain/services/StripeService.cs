@@ -48,13 +48,48 @@ public class StripeService : IStripeService
         }
     }
 
-    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? customerId = null)
+    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? customerId = null, string? baseUrl = null)
     {
         try
         {
-            var priceKey = $"{userType.ToString()}_{tier}_{(isAnnual ? "Annual" : "Monthly")}";
-            var priceId = _configuration[$"Stripe:PriceIds:{priceKey}"]
-                ?? throw new InvalidOperationException($"Stripe price ID not found for {priceKey}");
+            // Validate required configuration
+            if (string.IsNullOrEmpty(_secretKey))
+            {
+                throw new InvalidOperationException("Stripe:SecretKey is not configured. Please configure Stripe credentials in appsettings.json");
+            }
+
+            var priceKey = $"{userType}{tier}{(isAnnual ? "Annual" : "Monthly")}";
+            var priceId = _configuration[$"Stripe:PriceIds:{priceKey}"];
+
+            if (string.IsNullOrEmpty(priceId))
+            {
+                throw new InvalidOperationException(
+                    $"Stripe price ID not found for {priceKey}. " +
+                    $"Please configure Stripe:PriceIds:{priceKey} in appsettings.json. " +
+                    $"You need to create a product and price in Stripe Dashboard and add the price ID to configuration.");
+            }
+
+            // Use provided baseUrl or fallback to config or default
+            if (string.IsNullOrEmpty(baseUrl))
+            {
+                baseUrl = _configuration["Stripe:BaseUrl"];
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    // Final fallback
+                    baseUrl = "https://localhost:3000";
+                }
+            }
+
+            // Set URLs based on userType
+            var successPath = userType == UserType.Coach
+                ? "/app/coach/subscription/success?session_id={CHECKOUT_SESSION_ID}"
+                : "/app/user/subscription/success?session_id={CHECKOUT_SESSION_ID}";
+            var cancelPath = userType == UserType.Coach
+                ? "/app/coach/subscription/cancel"
+                : "/app/user/subscription/cancel";
+
+            var successUrl = $"{baseUrl}{successPath}";
+            var cancelUrl = $"{baseUrl}{cancelPath}";
 
             var trialPeriodDays = tier == "Pro" ? 7 : (int?)null;
 
@@ -71,8 +106,8 @@ public class StripeService : IStripeService
                     }
                 },
                 Mode = "subscription",
-                SuccessUrl = _configuration["Stripe:SuccessUrl"] ?? "https://localhost:3000/subscription/success?session_id={CHECKOUT_SESSION_ID}",
-                CancelUrl = _configuration["Stripe:CancelUrl"] ?? "https://localhost:3000/subscription/cancel",
+                SuccessUrl = successUrl,
+                CancelUrl = cancelUrl,
                 Metadata = new Dictionary<string, string>
                 {
                     { "userId", userId },
@@ -151,6 +186,16 @@ public class StripeService : IStripeService
                 }
             }
 
+            // Extract metadata from subscription
+            var metadata = new Dictionary<string, string>();
+            if (subscription.Metadata != null)
+            {
+                foreach (var kvp in subscription.Metadata)
+                {
+                    metadata[kvp.Key] = kvp.Value;
+                }
+            }
+
             return new StripeSubscriptionInfo
             {
                 Id = subscription.Id,
@@ -159,7 +204,8 @@ public class StripeService : IStripeService
                 TrialEnd = subscription.TrialEnd,
                 CurrentPeriodStart = periodStart,
                 CurrentPeriodEnd = periodEnd,
-                PriceId = subscription.Items?.Data?.FirstOrDefault()?.Price?.Id
+                PriceId = subscription.Items?.Data?.FirstOrDefault()?.Price?.Id,
+                Metadata = metadata
             };
         }
         catch (Exception ex)
@@ -184,14 +230,48 @@ public class StripeService : IStripeService
             throw;
         }
     }
+
+    public async Task<StripeCheckoutSessionInfo> GetCheckoutSessionAsync(string sessionId)
+    {
+        try
+        {
+            var service = new Stripe.Checkout.SessionService();
+            var session = await service.GetAsync(sessionId);
+
+            var metadata = new Dictionary<string, string>();
+            if (session.Metadata != null)
+            {
+                foreach (var kvp in session.Metadata)
+                {
+                    metadata[kvp.Key] = kvp.Value;
+                }
+            }
+
+            return new StripeCheckoutSessionInfo
+            {
+                Id = session.Id,
+                PaymentStatus = session.PaymentStatus,
+                Status = session.Status,
+                CustomerId = session.CustomerId,
+                SubscriptionId = session.SubscriptionId,
+                Metadata = metadata
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting Stripe checkout session {SessionId}", sessionId);
+            throw;
+        }
+    }
 }
 
 public interface IStripeService
 {
     Task<string> CreateCustomerAsync(string userId, string email, string name);
-    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? customerId = null);
+    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? customerId = null, string? baseUrl = null);
     Task<StripeSubscriptionInfo> GetSubscriptionAsync(string stripeSubscriptionId);
     Task CancelSubscriptionAsync(string stripeSubscriptionId);
+    Task<StripeCheckoutSessionInfo> GetCheckoutSessionAsync(string sessionId);
 }
 
 public class StripeSubscriptionInfo
@@ -203,4 +283,15 @@ public class StripeSubscriptionInfo
     public DateTime CurrentPeriodStart { get; set; }
     public DateTime CurrentPeriodEnd { get; set; }
     public string? PriceId { get; set; }
+    public Dictionary<string, string> Metadata { get; set; } = new();
+}
+
+public class StripeCheckoutSessionInfo
+{
+    public required string Id { get; set; }
+    public string? PaymentStatus { get; set; }
+    public string? Status { get; set; }
+    public string? CustomerId { get; set; }
+    public string? SubscriptionId { get; set; }
+    public Dictionary<string, string> Metadata { get; set; } = new();
 }

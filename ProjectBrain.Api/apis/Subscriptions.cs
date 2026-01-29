@@ -9,7 +9,8 @@ public class SubscriptionServices(
     ISubscriptionService subscriptionService,
     IUsageTrackingService usageTrackingService,
     IFeatureGateService featureGateService,
-    IResourceRepository resourceRepository)
+    IResourceRepository resourceRepository,
+    IStripeService stripeService)
 {
     public ILogger<SubscriptionServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -17,6 +18,7 @@ public class SubscriptionServices(
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
     public IResourceRepository ResourceRepository { get; } = resourceRepository;
+    public IStripeService StripeService { get; } = stripeService;
 }
 
 public static class SubscriptionEndpoints
@@ -42,6 +44,9 @@ public static class SubscriptionEndpoints
 
         // Get tier
         group.MapGet("/tier", GetTier).WithName("GetTier");
+
+        // Verify checkout session
+        group.MapGet("/verify-session", VerifySession).WithName("VerifySession");
     }
 
     private static async Task<IResult> GetMySubscription([AsParameters] SubscriptionServices services)
@@ -105,9 +110,18 @@ public static class SubscriptionEndpoints
         try
         {
             var checkoutUrl = await services.SubscriptionService.CreateCheckoutSessionAsync(
-                userId, userType, request.Tier, request.IsAnnual);
+                userId, userType, request.Tier, request.IsAnnual, request.BaseUrl);
 
             return Results.Ok(new { url = checkoutUrl });
+        }
+        catch (InvalidOperationException ex)
+        {
+            services.Logger.LogError(ex, "Configuration error creating checkout session for user {UserId}", userId);
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: 500,
+                title: "Subscription configuration error"
+            );
         }
         catch (Exception ex)
         {
@@ -241,12 +255,77 @@ public static class SubscriptionEndpoints
             return Results.Problem("An error occurred while retrieving tier");
         }
     }
+
+    private static async Task<IResult> VerifySession(
+        [AsParameters] SubscriptionServices services,
+        [FromQuery] string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId))
+        {
+            return Results.BadRequest("Session ID is required");
+        }
+
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            var session = await services.StripeService.GetCheckoutSessionAsync(sessionId);
+
+            // Verify the session belongs to the current user
+            if (session.Metadata.TryGetValue("userId", out var metadataUserId) && metadataUserId != userId)
+            {
+                services.Logger.LogWarning("Session {SessionId} does not belong to user {UserId}", sessionId, userId);
+                return Results.Unauthorized();
+            }
+
+            // Get subscription details if subscription was created
+            object? subscriptionData = null;
+            if (!string.IsNullOrEmpty(session.SubscriptionId))
+            {
+                var isCoach = services.IdentityService.IsCoach;
+                var userType = isCoach ? UserType.Coach : UserType.User;
+                var subscription = await services.SubscriptionService.GetUserSubscriptionAsync(userId, userType);
+
+                if (subscription != null)
+                {
+                    subscriptionData = new
+                    {
+                        id = subscription.Id,
+                        tier = subscription.Tier?.Name ?? "Free",
+                        status = subscription.Status,
+                        trialEndsAt = subscription.TrialEndsAt,
+                        currentPeriodStart = subscription.CurrentPeriodStart,
+                        currentPeriodEnd = subscription.CurrentPeriodEnd
+                    };
+                }
+            }
+
+            return Results.Ok(new
+            {
+                sessionId = session.Id,
+                paymentStatus = session.PaymentStatus,
+                status = session.Status,
+                subscription = subscriptionData,
+                tier = session.Metadata.TryGetValue("tier", out var tier) ? tier : null
+            });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error verifying checkout session {SessionId}", sessionId);
+            return Results.Problem("An error occurred while verifying checkout session");
+        }
+    }
 }
 
 public class CreateCheckoutRequest
 {
     public required string Tier { get; init; }
     public bool IsAnnual { get; init; }
+    public string? BaseUrl { get; init; }
 }
 
 public class StartTrialRequest

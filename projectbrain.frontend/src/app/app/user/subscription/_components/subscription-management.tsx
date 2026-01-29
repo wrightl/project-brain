@@ -30,7 +30,7 @@ export default function SubscriptionManagement() {
             setError(
                 err instanceof Error
                     ? err.message
-                    : 'Failed to load subscription data'
+                    : 'Failed to load subscription data',
             );
         } finally {
             setLoading(false);

@@ -104,7 +104,7 @@ public class SubscriptionService : ISubscriptionService
         return tierResult;
     }
 
-    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual)
+    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? baseUrl = null)
     {
         // Get or create Stripe customer
         var subscription = await GetUserSubscriptionAsync(userId, userType);
@@ -162,30 +162,133 @@ public class SubscriptionService : ISubscriptionService
         }
 
         // Create checkout session
-        var checkoutUrl = await _stripeService.CreateCheckoutSessionAsync(userId, userType, tier, isAnnual, customerId);
+        var checkoutUrl = await _stripeService.CreateCheckoutSessionAsync(userId, userType, tier, isAnnual, customerId, baseUrl);
         return checkoutUrl;
     }
 
     public async Task UpdateSubscriptionFromStripeAsync(string stripeSubscriptionId)
     {
+        // First, try to find by Stripe subscription ID
         var subscription = await _repository.GetByStripeSubscriptionIdAsync(stripeSubscriptionId);
-        if (subscription == null)
+
+        // Fetch subscription details from Stripe (we need this for customer ID and metadata)
+        var stripeSubscription = await _stripeService.GetSubscriptionAsync(stripeSubscriptionId);
+
+        // If not found by subscription ID, try to find by customer ID
+        if (subscription == null && !string.IsNullOrEmpty(stripeSubscription.CustomerId))
         {
-            _logger.LogWarning("Subscription not found for Stripe subscription ID {StripeSubscriptionId}", stripeSubscriptionId);
-            return;
+            subscription = await _repository.GetByStripeCustomerIdAsync(stripeSubscription.CustomerId);
+            _logger.LogInformation("Found subscription by customer ID {CustomerId} for Stripe subscription {StripeSubscriptionId}",
+                stripeSubscription.CustomerId, stripeSubscriptionId);
         }
 
-        // Get tracked entity for update
-        var trackedSubscription = await _context.UserSubscriptions
-            .FirstOrDefaultAsync(us => us.Id == subscription.Id);
+        // Get tracked entity for update or create new one
+        UserSubscription? trackedSubscription = null;
+        if (subscription != null)
+        {
+            trackedSubscription = await _context.UserSubscriptions
+                .FirstOrDefaultAsync(us => us.Id == subscription.Id);
+        }
+
+        // If still not found, try to create from metadata
         if (trackedSubscription == null)
         {
-            _logger.LogWarning("Tracked subscription not found for ID {SubscriptionId}", subscription.Id);
+            string? userId = null;
+            string? userTypeStr = null;
+            string? tierName = null;
+
+            // Try to get from metadata
+            if (stripeSubscription.Metadata.TryGetValue("userId", out var metadataUserId))
+            {
+                userId = metadataUserId;
+            }
+            if (stripeSubscription.Metadata.TryGetValue("userType", out var metadataUserType))
+            {
+                userTypeStr = metadataUserType;
+            }
+            if (stripeSubscription.Metadata.TryGetValue("tier", out var metadataTier))
+            {
+                tierName = metadataTier;
+            }
+
+            // If we have metadata, try to find or create subscription
+            if (!string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(userTypeStr))
+            {
+                var userTypeEnum = Enum.TryParse<UserType>(userTypeStr, true, out var parsed) ? parsed : UserType.User;
+                var existing = await GetUserSubscriptionAsync(userId, userTypeEnum);
+
+                if (existing != null)
+                {
+                    trackedSubscription = await _context.UserSubscriptions
+                        .FirstOrDefaultAsync(us => us.Id == existing.Id);
+                }
+                else
+                {
+                    // Create new subscription record
+                    if (string.IsNullOrEmpty(tierName))
+                    {
+                        tierName = "Free"; // Default if tier not in metadata
+                    }
+
+                    var tierEntity = await _context.SubscriptionTiers
+                        .FirstOrDefaultAsync(t => t.Name == tierName && t.UserType == userTypeStr);
+
+                    if (tierEntity == null)
+                    {
+                        _logger.LogWarning("Tier {TierName} not found for user type {UserType}, defaulting to Free", tierName, userTypeStr);
+                        tierEntity = await _context.SubscriptionTiers
+                            .FirstOrDefaultAsync(t => t.Name == "Free" && t.UserType == userTypeStr);
+                    }
+
+                    if (tierEntity != null)
+                    {
+                        trackedSubscription = new UserSubscription
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = userId,
+                            UserType = userTypeStr,
+                            TierId = tierEntity.Id,
+                            StripeCustomerId = stripeSubscription.CustomerId,
+                            StripeSubscriptionId = stripeSubscriptionId,
+                            Status = "incomplete",
+                            CurrentPeriodStart = stripeSubscription.CurrentPeriodStart,
+                            CurrentPeriodEnd = stripeSubscription.CurrentPeriodEnd,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _repository.Add(trackedSubscription);
+                        _logger.LogInformation("Created new subscription record for user {UserId}, type {UserType} from Stripe webhook",
+                            userId, userTypeStr);
+                    }
+                }
+            }
+        }
+
+        if (trackedSubscription == null)
+        {
+            _logger.LogWarning("Could not find or create subscription for Stripe subscription ID {StripeSubscriptionId}", stripeSubscriptionId);
             return;
         }
 
-        // Fetch subscription details from Stripe
-        var stripeSubscription = await _stripeService.GetSubscriptionAsync(stripeSubscriptionId);
+        // Determine tier from metadata
+        string? tierToSet = null;
+        if (stripeSubscription.Metadata.TryGetValue("tier", out var metadataTierValue))
+        {
+            tierToSet = metadataTierValue;
+        }
+
+        // Update tier if we determined it
+        if (!string.IsNullOrEmpty(tierToSet) && tierToSet != trackedSubscription.Tier?.Name)
+        {
+            var tierEntity = await _context.SubscriptionTiers
+                .FirstOrDefaultAsync(t => t.Name == tierToSet && t.UserType == trackedSubscription.UserType);
+
+            if (tierEntity != null)
+            {
+                trackedSubscription.TierId = tierEntity.Id;
+                _logger.LogInformation("Updated tier to {TierName} for subscription {SubscriptionId}", tierToSet, trackedSubscription.Id);
+            }
+        }
 
         // Update subscription status
         trackedSubscription.Status = stripeSubscription.Status switch
@@ -198,6 +301,8 @@ public class SubscriptionService : ISubscriptionService
             _ => trackedSubscription.Status
         };
 
+        trackedSubscription.StripeSubscriptionId = stripeSubscriptionId;
+        trackedSubscription.StripeCustomerId = stripeSubscription.CustomerId;
         trackedSubscription.TrialEndsAt = stripeSubscription.TrialEnd;
         trackedSubscription.CurrentPeriodStart = stripeSubscription.CurrentPeriodStart;
         trackedSubscription.CurrentPeriodEnd = stripeSubscription.CurrentPeriodEnd;
@@ -206,6 +311,11 @@ public class SubscriptionService : ISubscriptionService
 
         _repository.Update(trackedSubscription);
         await _unitOfWork.SaveChangesAsync();
+
+        // Invalidate tier cache for this user
+        var cacheKey = $"{TierCacheKeyPrefix}{trackedSubscription.UserId}:{trackedSubscription.UserType}";
+        await _cache.RemoveAsync(cacheKey);
+
         _logger.LogInformation("Updated subscription {SubscriptionId} from Stripe", trackedSubscription.Id);
     }
 
@@ -468,7 +578,7 @@ public interface ISubscriptionService
 {
     Task<UserSubscription?> GetUserSubscriptionAsync(string userId, UserType userType);
     Task<string> GetUserTierAsync(string userId, UserType userType);
-    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual);
+    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? baseUrl = null);
     Task UpdateSubscriptionFromStripeAsync(string stripeSubscriptionId);
     Task CancelSubscriptionAsync(string userId, UserType userType);
     Task StartTrialAsync(string userId, UserType userType, string tier);

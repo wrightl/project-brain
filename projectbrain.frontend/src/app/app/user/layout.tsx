@@ -6,6 +6,7 @@ import { Metadata } from 'next';
 import { UserService } from '@/_services/user-service';
 import { SessionExpiredError } from '@/_lib/backend-api';
 import { redirect } from 'next/navigation';
+import TimezoneInitializer from './_components/timezone-initializer';
 
 export const metadata: Metadata = {
     title: 'User',
@@ -29,6 +30,7 @@ export default async function UserLayout({
                 <div className="min-h-screen bg-gray-50">
                     <DashboardNav user={user as User | null} role={roles?.[0] ?? null} />
                     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <TimezoneInitializer />
                         {children}
                     </main>
                 </div>

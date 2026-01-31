@@ -2,6 +2,7 @@ namespace ProjectBrain.Domain.Mappers;
 
 using ProjectBrain.Shared.Dtos.Journal;
 using ProjectBrain.Shared.Dtos.Tags;
+using System.Text.Json;
 
 public static class JournalEntryMapper
 {
@@ -18,6 +19,35 @@ public static class JournalEntryMapper
             })
             .ToList();
 
+        var systemTags = journalEntry.JournalEntrySystemTags?
+            .Select(jest => new { jest.SystemTag, jest.ResponsesJson })
+            .Where(x => x.SystemTag != null)
+            .Select(x =>
+            {
+                Dictionary<string, JsonElement>? responses = null;
+                if (!string.IsNullOrWhiteSpace(x.ResponsesJson))
+                {
+                    try
+                    {
+                        responses = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(x.ResponsesJson!);
+                    }
+                    catch
+                    {
+                        // Ignore parse errors; responses will be omitted
+                        responses = null;
+                    }
+                }
+
+                return new JournalEntrySystemTagResponseDto
+                {
+                    Id = x.SystemTag!.Id.ToString(),
+                    Key = x.SystemTag.Key,
+                    Name = x.SystemTag.Name,
+                    Responses = responses
+                };
+            })
+            .ToList();
+
         return new JournalEntryResponseDto
         {
             Id = journalEntry.Id.ToString(),
@@ -26,7 +56,8 @@ public static class JournalEntryMapper
             Summary = journalEntry.Summary,
             CreatedAt = journalEntry.CreatedAt.ToString("O"),
             UpdatedAt = journalEntry.UpdatedAt.ToString("O"),
-            Tags = tags
+            Tags = tags,
+            SystemTags = systemTags
         };
     }
 

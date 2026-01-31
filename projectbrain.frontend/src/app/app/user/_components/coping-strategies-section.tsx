@@ -1,6 +1,7 @@
 'use client';
 
 import { LightBulbIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 import { useCopingStrategyLibrary } from '@/_hooks/queries/use-coping-strategies';
 
 function iconForKey(iconKey?: string) {
@@ -27,6 +28,20 @@ export default function CopingStrategiesSection() {
                     <p className="mt-1 text-sm text-gray-600">
                         Your saved strategies.
                     </p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                    <Link
+                        href="/app/user/chat/strategies"
+                        className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                        Get new strategies
+                    </Link>
+                    <Link
+                        href="/app/user/strategies"
+                        className="text-sm font-medium text-indigo-700 hover:text-indigo-900"
+                    >
+                        View library
+                    </Link>
                 </div>
             </div>
 

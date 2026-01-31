@@ -54,6 +54,10 @@ public static class UserEndpoints
         group.MapGet("/me/theme", GetTheme).WithName("GetTheme");
         group.MapPut("/me/theme", UpdateTheme).WithName("UpdateTheme");
 
+        // Timezone endpoints (stored in UserPreference.Preferences JSON)
+        group.MapGet("/me/timezone", GetTimezone).WithName("GetTimezone");
+        group.MapPut("/me/timezone", UpdateTimezone).WithName("UpdateTimezone");
+
         if (app.Environment.IsDevelopment())
         {
             group.MapGet("/{email}", GetUserByEmail).WithName("GetUserByEmail");
@@ -458,6 +462,41 @@ public static class UserEndpoints
         return Results.Ok(new { theme = request.Theme.ToLowerInvariant() });
     }
 
+    private static async Task<IResult> GetTimezone([AsParameters] UserServices services)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        var userProfile = await services.UserProfileService.GetByUserId(userId);
+        var preferences = userProfile?.Preference?.Preferences;
+        var preferencesObj = GetPreferencesObject(preferences);
+
+        if (preferencesObj.TryGetValue("timezone", out var timezoneObj) && timezoneObj is string timezoneStr)
+        {
+            return Results.Ok(new { timezone = timezoneStr });
+        }
+
+        return Results.Ok(new { timezone = (string?)null });
+    }
+
+    private static async Task<IResult> UpdateTimezone([AsParameters] UserServices services, UpdateTimezoneRequest request)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        if (string.IsNullOrWhiteSpace(request.Timezone))
+        {
+            return Results.BadRequest("Timezone is required");
+        }
+
+        // Update timezone in preferences (keep other preference keys)
+        var userProfile = await services.UserProfileService.GetByUserId(userId);
+        var preferencesObj = GetPreferencesObject(userProfile?.Preference?.Preferences);
+        preferencesObj["timezone"] = request.Timezone.Trim();
+
+        await services.UserProfileService.CreateOrUpdate(userId, preferences: preferencesObj);
+
+        return Results.Ok(new { timezone = request.Timezone.Trim() });
+    }
+
     private static Dictionary<string, object> GetPreferencesObject(string? preferences)
     {
         Dictionary<string, object> preferencesObj;
@@ -604,4 +643,9 @@ public class Auth0Role
 public class UpdateThemeRequest
 {
     public required string Theme { get; init; }
+}
+
+public class UpdateTimezoneRequest
+{
+    public required string Timezone { get; init; }
 }

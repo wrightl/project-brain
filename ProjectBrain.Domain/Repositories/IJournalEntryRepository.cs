@@ -34,5 +34,10 @@ public interface IJournalEntryRepository : IRepository<JournalEntry, Guid>
     /// Counts journal entries for a user
     /// </summary>
     Task<int> CountForUserAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all CreatedAt timestamps for a user (UTC), for streak calculations.
+    /// </summary>
+    Task<List<DateTime>> GetCreatedAtForUserAsync(string userId, CancellationToken cancellationToken = default);
 }
 

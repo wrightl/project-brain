@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/_lib/api-client';
 import { Tag, CreateTagRequest } from '@/_services/tag-service';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 export const tagKeys = {
     all: ['tags'] as const,
@@ -32,7 +33,6 @@ export function useCreateTag() {
 
     return useMutation<Tag, Error, CreateTagRequest>({
         mutationFn: (request: CreateTagRequest) => {
-            const { fetchWithAuth } = require('@/_lib/fetch-with-auth');
             return fetchWithAuth('/api/user/tag', {
                 method: 'POST',
                 headers: {
@@ -65,7 +65,7 @@ export function useGetOrCreateTag() {
                     '@/_lib/fetch-with-auth'
                 );
                 const response = await fetchWithAuth(
-                    `/api/user/tag/name/${encodeURIComponent(name)}`
+                    `/api/user/tag/name/${encodeURIComponent(name)}`,
                 );
                 if (response.ok) {
                     const tag = await response.json();

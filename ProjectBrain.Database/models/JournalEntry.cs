@@ -22,5 +22,8 @@ public class JournalEntry
 
     // Navigation property for many-to-many relationship with Tags
     public ICollection<JournalEntryTag> JournalEntryTags { get; set; } = new List<JournalEntryTag>();
+
+    // Navigation property for many-to-many relationship with SystemTags (global)
+    public ICollection<JournalEntrySystemTag> JournalEntrySystemTags { get; set; } = new List<JournalEntrySystemTag>();
 }
 

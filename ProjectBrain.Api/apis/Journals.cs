@@ -9,10 +9,14 @@ using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Journal;
 using ProjectBrain.Shared.Dtos.Pagination;
+using ProjectBrain.Shared.Dtos.SystemTags;
 
 public class JournalServices(
     IJournalEntryService journalEntryService,
     IJournalEntryRepository journalEntryRepository,
+    ISystemTagService systemTagService,
+    IUserProfileService userProfileService,
+    IJournalStreakService journalStreakService,
     IIdentityService identityService,
     ILogger<JournalServices> logger,
     IServiceScopeFactory serviceScopeFactory)
@@ -20,6 +24,9 @@ public class JournalServices(
     public ILogger<JournalServices> Logger { get; } = logger;
     public IJournalEntryService JournalEntryService { get; } = journalEntryService;
     public IJournalEntryRepository JournalEntryRepository { get; } = journalEntryRepository;
+    public ISystemTagService SystemTagService { get; } = systemTagService;
+    public IUserProfileService UserProfileService { get; } = userProfileService;
+    public IJournalStreakService JournalStreakService { get; } = journalStreakService;
     public IIdentityService IdentityService { get; } = identityService;
     public IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
 }
@@ -35,6 +42,8 @@ public static class JournalEndpoints
         group.MapGet("/", GetAllJournalEntriesForUser).WithName("GetAllJournalEntriesForUser");
         group.MapGet("/count", GetJournalEntryCount).WithName("GetJournalEntryCount");
         group.MapGet("/recent", GetRecentJournalEntries).WithName("GetRecentJournalEntries");
+        group.MapGet("/system-tags", GetSystemTags).WithName("GetSystemTags");
+        group.MapGet("/streak-summary", GetJournalStreakSummary).WithName("GetJournalStreakSummary");
         group.MapPut("/{id:guid}", UpdateJournalEntry).WithName("UpdateJournalEntry");
         group.MapDelete("/{id:guid}", DeleteJournalEntry).WithName("DeleteJournalEntry");
     }
@@ -59,7 +68,8 @@ public static class JournalEndpoints
             UpdatedAt = DateTime.UtcNow
         };
 
-        var createdEntry = await services.JournalEntryService.Add(journalEntry, request.TagIds);
+        var systemAssignments = BuildSystemTagAssignments(request.SystemTagIds, request.SystemTagResponses);
+        var createdEntry = await services.JournalEntryService.Add(journalEntry, request.TagIds, systemAssignments);
 
         // Fire-and-forget: Generate summary, upload blob, and index asynchronously
         var entryId = createdEntry.Id;
@@ -94,7 +104,7 @@ public static class JournalEndpoints
             {
                 entry.Summary = summary;
                 entry.UpdatedAt = DateTime.UtcNow;
-                await journalEntryService.Update(entry, null);
+                await journalEntryService.Update(entry, null, null);
             }
 
             // Upload to blob storage as JSON
@@ -242,7 +252,8 @@ public static class JournalEndpoints
         journalEntry.Summary = null; // Will be regenerated asynchronously
         journalEntry.UpdatedAt = DateTime.UtcNow;
 
-        var updatedEntry = await services.JournalEntryService.Update(journalEntry, request.TagIds);
+        var systemAssignments = BuildSystemTagAssignments(request.SystemTagIds, request.SystemTagResponses);
+        var updatedEntry = await services.JournalEntryService.Update(journalEntry, request.TagIds, systemAssignments);
 
         // Fire-and-forget: Generate summary, upload blob, and re-index asynchronously
         var entryId = updatedEntry.Id;
@@ -258,6 +269,100 @@ public static class JournalEndpoints
 
         var dto = JournalEntryMapper.ToDto(updatedEntry);
         return Results.Ok(dto);
+    }
+
+    private static async Task<IResult> GetSystemTags(
+        [AsParameters] JournalServices services)
+    {
+        var systemTags = await services.SystemTagService.GetAllWithFields();
+        var dtos = SystemTagService.ToDtoList(systemTags);
+        return Results.Ok(dtos);
+    }
+
+    private static async Task<IResult> GetJournalStreakSummary(
+        [AsParameters] JournalServices services)
+    {
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
+        }
+
+        var userProfile = await services.UserProfileService.GetByUserId(userId);
+        var timezoneId = TryGetTimezoneId(userProfile?.Preference?.Preferences);
+
+        var dto = await services.JournalStreakService.GetStreakSummary(userId, timezoneId);
+        return Results.Ok(dto);
+    }
+
+    private static string? TryGetTimezoneId(string? preferencesJson)
+    {
+        if (string.IsNullOrWhiteSpace(preferencesJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(preferencesJson);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("timezone", out var tzElement) &&
+                tzElement.ValueKind == JsonValueKind.String)
+            {
+                return tzElement.GetString();
+            }
+        }
+        catch
+        {
+            // Ignore invalid JSON; fall back to UTC
+        }
+
+        return null;
+    }
+
+    private static List<SystemTagAssignment>? BuildSystemTagAssignments(
+        List<Guid>? systemTagIds,
+        List<JournalEntrySystemTagRequestDto>? systemTagResponses)
+    {
+        var assignments = new List<SystemTagAssignment>();
+
+        if (systemTagResponses != null)
+        {
+            foreach (var item in systemTagResponses)
+            {
+                if (item.SystemTagId == Guid.Empty)
+                {
+                    continue;
+                }
+
+                string? responsesJson = null;
+                if (item.Responses != null && item.Responses.Count > 0)
+                {
+                    responsesJson = JsonSerializer.Serialize(item.Responses);
+                }
+
+                assignments.Add(new SystemTagAssignment(item.SystemTagId, responsesJson));
+            }
+        }
+
+        if (systemTagIds != null)
+        {
+            foreach (var id in systemTagIds)
+            {
+                if (id == Guid.Empty)
+                {
+                    continue;
+                }
+
+                if (assignments.All(a => a.SystemTagId != id))
+                {
+                    assignments.Add(new SystemTagAssignment(id, null));
+                }
+            }
+        }
+
+        return assignments.Count > 0 ? assignments : null;
     }
 
     private static async Task<IResult> DeleteJournalEntry(

@@ -24,6 +24,8 @@ public class JournalEntryRepository : Repository<JournalEntry, Guid>, IJournalEn
             .AsNoTracking()
             .Include(je => je.JournalEntryTags)
                 .ThenInclude(jet => jet.Tag)
+            .Include(je => je.JournalEntrySystemTags)
+                .ThenInclude(jest => jest.SystemTag)
             .FirstOrDefaultAsync(je => je.Id == id && je.UserId == userId, cancellationToken);
     }
 
@@ -33,6 +35,8 @@ public class JournalEntryRepository : Repository<JournalEntry, Guid>, IJournalEn
             .AsNoTracking()
             .Include(je => je.JournalEntryTags)
                 .ThenInclude(jet => jet.Tag)
+            .Include(je => je.JournalEntrySystemTags)
+                .ThenInclude(jest => jest.SystemTag)
             .Where(je => je.UserId == userId)
             .OrderByDescending(je => je.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -44,6 +48,8 @@ public class JournalEntryRepository : Repository<JournalEntry, Guid>, IJournalEn
             .AsNoTracking()
             .Include(je => je.JournalEntryTags)
                 .ThenInclude(jet => jet.Tag)
+            .Include(je => je.JournalEntrySystemTags)
+                .ThenInclude(jest => jest.SystemTag)
             .Where(je => je.UserId == userId)
             .OrderByDescending(je => je.CreatedAt)
             .Skip(skip)
@@ -57,6 +63,8 @@ public class JournalEntryRepository : Repository<JournalEntry, Guid>, IJournalEn
             .AsNoTracking()
             .Include(je => je.JournalEntryTags)
                 .ThenInclude(jet => jet.Tag)
+            .Include(je => je.JournalEntrySystemTags)
+                .ThenInclude(jest => jest.SystemTag)
             .Where(je => je.UserId == userId)
             .OrderByDescending(je => je.CreatedAt)
             .Take(count)
@@ -68,6 +76,15 @@ public class JournalEntryRepository : Repository<JournalEntry, Guid>, IJournalEn
         return await _dbSet
             .AsNoTracking()
             .CountAsync(je => je.UserId == userId, cancellationToken);
+    }
+
+    public async Task<List<DateTime>> GetCreatedAtForUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(je => je.UserId == userId)
+            .Select(je => je.CreatedAt)
+            .ToListAsync(cancellationToken);
     }
 }
 

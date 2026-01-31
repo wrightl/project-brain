@@ -2,6 +2,10 @@ import { callBackendApi } from '@/_lib/backend-api';
 import { Theme } from '@/_lib/theme-types';
 import { Coach, PagedResponse, User } from '@/_lib/types';
 
+export interface TimezoneResponse {
+    timezone: string | null;
+}
+
 export class UserService {
     /**
      * Get current user
@@ -89,6 +93,32 @@ export class UserService {
         if (!response.ok) {
             throw new Error('Failed to delete user');
         }
+    }
+
+    static async getTimezone(): Promise<TimezoneResponse> {
+        const response = await callBackendApi('/users/me/timezone', {
+            method: 'GET',
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch timezone');
+        }
+
+        return response.json();
+    }
+
+    static async updateTimezone(timezone: string): Promise<TimezoneResponse> {
+        const response = await callBackendApi('/users/me/timezone', {
+            method: 'PUT',
+            body: { timezone },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Failed to update timezone');
+        }
+
+        return response.json();
     }
 
     /**

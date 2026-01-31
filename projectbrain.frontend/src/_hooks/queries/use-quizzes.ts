@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/_lib/api-client';
 import { Quiz, QuizResponse } from '@/_services/quiz-service';
 import { PagedResponse } from '@/_lib/types';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 export const quizKeys = {
     all: ['quizzes'] as const,
@@ -30,7 +31,7 @@ export function useQuizzes(options?: { page?: number; pageSize?: number }) {
             }
             const queryParam = params.toString() ? `?${params.toString()}` : '';
             return apiClient<PagedResponse<Quiz>>(
-                `/api/user/quizzes${queryParam}`
+                `/api/user/quizzes${queryParam}`,
             );
         },
         staleTime: 2 * 60 * 1000, // 2 minutes
@@ -51,7 +52,7 @@ export function useQuizResponse(responseId: string) {
         queryKey: [...quizKeys.responses(), 'detail', responseId],
         queryFn: () =>
             apiClient<QuizResponse>(
-                `/api/user/quizzes/responses/${responseId}`
+                `/api/user/quizzes/responses/${responseId}`,
             ),
         enabled: !!responseId,
         staleTime: 2 * 60 * 1000, // 2 minutes
@@ -74,7 +75,7 @@ export function useQuizResponses(options?: {
             }
             const queryParam = params.toString() ? `?${params.toString()}` : '';
             return apiClient<PagedResponse<QuizResponse>>(
-                `/api/user/quizzes/responses${queryParam}`
+                `/api/user/quizzes/responses${queryParam}`,
             );
         },
         staleTime: 2 * 60 * 1000, // 2 minutes
@@ -95,7 +96,7 @@ export function useRecentQuizResponses(count: number = 3) {
         queryKey: [...quizKeys.responses(), 'recent', count],
         queryFn: async () => {
             const response = await apiClient<PagedResponse<QuizResponse>>(
-                `/api/user/quizzes/responses?pageSize=${count}`
+                `/api/user/quizzes/responses?pageSize=${count}`,
             );
             return response.items;
         },
@@ -133,8 +134,7 @@ export function useSubmitQuizResponse() {
             answers: Record<string, unknown>;
             completedAt?: string;
         }) => {
-            const { fetchWithAuth } = require('@/_lib/fetch-with-auth');
-            return fetchWithAuth(`/api/user/quizzes/${quizId}/responses`, {
+            return fetchWithAuth('/api/user/quizzes/${quizId}/responses', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -144,7 +144,7 @@ export function useSubmitQuizResponse() {
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(
-                        errorText || 'Failed to submit quiz response'
+                        errorText || 'Failed to submit quiz response',
                     );
                 }
                 return response.json() as Promise<QuizResponse>;
@@ -187,11 +187,11 @@ export function useDeleteQuizResponse() {
                             return {
                                 ...old,
                                 items: old.items.filter(
-                                    (response) => response.id !== responseId
+                                    (response) => response.id !== responseId,
                                 ),
                                 totalCount: old.totalCount - 1,
                             };
-                        }
+                        },
                     );
                 }
             });

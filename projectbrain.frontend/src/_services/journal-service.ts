@@ -9,6 +9,7 @@ export interface JournalEntry {
     createdAt: string;
     updatedAt: string;
     tags?: JournalTag[];
+    systemTags?: JournalEntrySystemTag[];
 }
 
 export interface JournalTag {
@@ -17,18 +18,62 @@ export interface JournalTag {
     createdAt: string;
 }
 
+export interface JournalEntrySystemTag {
+    id: string;
+    key: string;
+    name: string;
+    responses?: Record<string, unknown>;
+}
+
+export interface SystemTagFieldDefinition {
+    id: string;
+    fieldKey: string;
+    label: string;
+    inputType: string;
+    required: boolean;
+    fieldOrder: number;
+    placeholder?: string | null;
+    hint?: string | null;
+    options?: string[] | null;
+    minValue?: number | null;
+    maxValue?: number | null;
+    stepValue?: number | null;
+}
+
+export interface SystemTag {
+    id: string;
+    key: string;
+    name: string;
+    description?: string | null;
+    fieldDefinitions: SystemTagFieldDefinition[];
+}
+
+export interface JournalEntrySystemTagRequest {
+    systemTagId: string;
+    responses?: Record<string, unknown>;
+}
+
 export interface CreateJournalEntryRequest {
     content: string;
     tagIds?: string[];
+    systemTagIds?: string[];
+    systemTagResponses?: JournalEntrySystemTagRequest[];
 }
 
 export interface UpdateJournalEntryRequest {
     content: string;
     tagIds?: string[];
+    systemTagIds?: string[];
+    systemTagResponses?: JournalEntrySystemTagRequest[];
 }
 
 export interface JournalEntryCount {
     count: number;
+}
+
+export interface JournalStreakSummary {
+    currentStreak: number;
+    longestStreak: number;
 }
 
 export class JournalService {
@@ -104,6 +149,30 @@ export class JournalService {
 
         if (!response.ok) {
             throw new Error('Failed to fetch recent journal entries');
+        }
+
+        return response.json();
+    }
+
+    static async getJournalStreakSummary(): Promise<JournalStreakSummary> {
+        const response = await callBackendApi('/journal/streak-summary', {
+            method: 'GET',
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch journal streak summary');
+        }
+
+        return response.json();
+    }
+
+    static async getSystemTags(): Promise<SystemTag[]> {
+        const response = await callBackendApi('/journal/system-tags', {
+            method: 'GET',
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch system tags');
         }
 
         return response.json();

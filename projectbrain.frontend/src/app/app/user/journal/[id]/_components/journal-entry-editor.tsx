@@ -8,10 +8,9 @@ import {
     useCreateJournalEntry,
     useUpdateJournalEntry,
     useDeleteJournalEntry,
+    useJournalSystemTags,
 } from '@/_hooks/queries/use-journals';
 import { useTags, useGetOrCreateTag } from '@/_hooks/queries/use-tags';
-import { JournalEntry, JournalTag } from '@/_services/journal-service';
-import { Tag } from '@/_services/tag-service';
 import {
     TrashIcon,
     ClockIcon,
@@ -31,9 +30,10 @@ export default function JournalEntryEditor({
     const isNew = !entryId;
 
     const { data: entry, isLoading: loadingEntry } = useJournalEntry(
-        entryId || ''
+        entryId || '',
     );
     const { data: tags } = useTags();
+    const { data: systemTags } = useJournalSystemTags();
     const createMutation = useCreateJournalEntry();
     const updateMutation = useUpdateJournalEntry();
     const deleteMutation = useDeleteJournalEntry();
@@ -41,6 +41,12 @@ export default function JournalEntryEditor({
 
     const [content, setContent] = useState('');
     const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+    const [selectedSystemTagIds, setSelectedSystemTagIds] = useState<string[]>(
+        [],
+    );
+    const [systemTagResponses, setSystemTagResponses] = useState<
+        Record<string, Record<string, unknown>>
+    >({});
     const [newTagName, setNewTagName] = useState('');
     const [isEditing, setIsEditing] = useState(isNew);
     const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +55,16 @@ export default function JournalEntryEditor({
         if (entry) {
             setContent(entry.content);
             setSelectedTagIds(entry.tags?.map((t) => t.id) || []);
+            setSelectedSystemTagIds(entry.systemTags?.map((t) => t.id) || []);
+
+            const nextResponses: Record<string, Record<string, unknown>> = {};
+            entry.systemTags?.forEach((t) => {
+                nextResponses[t.id] = (t.responses ?? {}) as Record<
+                    string,
+                    unknown
+                >;
+            });
+            setSystemTagResponses(nextResponses);
         }
     }, [entry]);
 
@@ -69,16 +85,36 @@ export default function JournalEntryEditor({
             return;
         }
 
+        const systemTagResponsesPayload =
+            selectedSystemTagIds
+                .map((id) => ({
+                    systemTagId: id,
+                    responses: systemTagResponses[id],
+                }))
+                .filter(
+                    (item) =>
+                        item.responses &&
+                        Object.keys(item.responses).length > 0,
+                ) ?? [];
+
         setIsSaving(true);
         try {
             if (isNew) {
-                const newEntry = (await createMutation.mutateAsync({
+                const newEntry = await createMutation.mutateAsync({
                     content: content.trim(),
                     tagIds:
                         selectedTagIds.length > 0 ? selectedTagIds : undefined,
-                })) as JournalEntry;
+                    systemTagIds:
+                        selectedSystemTagIds.length > 0
+                            ? selectedSystemTagIds
+                            : undefined,
+                    systemTagResponses:
+                        systemTagResponsesPayload.length > 0
+                            ? systemTagResponsesPayload
+                            : undefined,
+                });
                 toast.success('Journal entry created successfully');
-                router.push(`/app/user/journal/${newEntry.id}`);
+                router.push(`/app/user/journal`);
             } else {
                 await updateMutation.mutateAsync({
                     id: entryId!,
@@ -87,6 +123,14 @@ export default function JournalEntryEditor({
                         tagIds:
                             selectedTagIds.length > 0
                                 ? selectedTagIds
+                                : undefined,
+                        systemTagIds:
+                            selectedSystemTagIds.length > 0
+                                ? selectedSystemTagIds
+                                : undefined,
+                        systemTagResponses:
+                            systemTagResponsesPayload.length > 0
+                                ? systemTagResponsesPayload
                                 : undefined,
                     },
                 });
@@ -97,7 +141,7 @@ export default function JournalEntryEditor({
             toast.error(
                 error instanceof Error
                     ? error.message
-                    : 'Failed to save journal entry'
+                    : 'Failed to save journal entry',
             );
         } finally {
             setIsSaving(false);
@@ -119,7 +163,7 @@ export default function JournalEntryEditor({
             toast.error(
                 error instanceof Error
                     ? error.message
-                    : 'Failed to delete journal entry'
+                    : 'Failed to delete journal entry',
             );
         }
     };
@@ -128,8 +172,45 @@ export default function JournalEntryEditor({
         setSelectedTagIds((prev) =>
             prev.includes(tagId)
                 ? prev.filter((id) => id !== tagId)
-                : [...prev, tagId]
+                : [...prev, tagId],
         );
+    };
+
+    const handleSystemTagToggle = (systemTagId: string) => {
+        setSelectedSystemTagIds((prev) => {
+            const isSelected = prev.includes(systemTagId);
+            const next = isSelected
+                ? prev.filter((id) => id !== systemTagId)
+                : [...prev, systemTagId];
+
+            setSystemTagResponses((current) => {
+                const copy = { ...current };
+                if (isSelected) {
+                    delete copy[systemTagId];
+                } else if (!copy[systemTagId]) {
+                    copy[systemTagId] = {};
+                }
+                return copy;
+            });
+
+            return next;
+        });
+    };
+
+    const updateSystemTagResponse = (
+        systemTagId: string,
+        fieldKey: string,
+        value: unknown,
+    ) => {
+        setSystemTagResponses((prev) => {
+            const tagResponses = { ...(prev[systemTagId] ?? {}) };
+            if (value === '' || value === null || value === undefined) {
+                delete tagResponses[fieldKey];
+            } else {
+                tagResponses[fieldKey] = value;
+            }
+            return { ...prev, [systemTagId]: tagResponses };
+        });
     };
 
     const handleCreateTag = async () => {
@@ -146,7 +227,7 @@ export default function JournalEntryEditor({
             }
         } catch (error) {
             toast.error(
-                error instanceof Error ? error.message : 'Failed to create tag'
+                error instanceof Error ? error.message : 'Failed to create tag',
             );
         }
     };
@@ -161,7 +242,16 @@ export default function JournalEntryEditor({
 
     const availableTags = tags || [];
     const selectedTags = availableTags.filter((t) =>
-        selectedTagIds.includes(t.id)
+        selectedTagIds.includes(t.id),
+    );
+
+    const availableSystemTags = systemTags || [];
+    const selectedSystemTags = availableSystemTags.filter((t) =>
+        selectedSystemTagIds.includes(t.id),
+    );
+
+    const unselectedSystemTags = availableSystemTags.filter(
+        (t) => !selectedSystemTagIds.includes(t.id),
     );
 
     return (
@@ -207,8 +297,25 @@ export default function JournalEntryEditor({
                                     if (entry) {
                                         setContent(entry.content);
                                         setSelectedTagIds(
-                                            entry.tags?.map((t) => t.id) || []
+                                            entry.tags?.map((t) => t.id) || [],
                                         );
+                                        setSelectedSystemTagIds(
+                                            entry.systemTags?.map(
+                                                (t) => t.id,
+                                            ) || [],
+                                        );
+                                        const nextResponses: Record<
+                                            string,
+                                            Record<string, unknown>
+                                        > = {};
+                                        entry.systemTags?.forEach((t) => {
+                                            nextResponses[t.id] =
+                                                (t.responses ?? {}) as Record<
+                                                    string,
+                                                    unknown
+                                                >;
+                                        });
+                                        setSystemTagResponses(nextResponses);
                                     }
                                 }
                             }}
@@ -228,10 +335,60 @@ export default function JournalEntryEditor({
             </Link>
 
             <div className="bg-white shadow rounded-lg p-6">
+                {/* Suggested System Tags */}
+                <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Suggested tags
+                    </label>
+                    <div className="space-y-3">
+                        {selectedSystemTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {selectedSystemTags.map((tag) => (
+                                    <span
+                                        key={tag.id}
+                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-800"
+                                    >
+                                        {tag.name}
+                                        {isEditing && (
+                                            <button
+                                                onClick={() =>
+                                                    handleSystemTagToggle(
+                                                        tag.id,
+                                                    )
+                                                }
+                                                className="ml-2 text-emerald-700 hover:text-emerald-900"
+                                                aria-label={`Remove ${tag.name}`}
+                                            >
+                                                <XMarkIcon className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {isEditing && unselectedSystemTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {unselectedSystemTags.map((tag) => (
+                                    <button
+                                        key={tag.id}
+                                        onClick={() =>
+                                            handleSystemTagToggle(tag.id)
+                                        }
+                                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                    >
+                                        {tag.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Tags Section */}
                 <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tags
+                        Custom tags
                     </label>
                     <div className="space-y-3">
                         {/* Selected Tags */}
@@ -265,7 +422,7 @@ export default function JournalEntryEditor({
                                     {availableTags
                                         .filter(
                                             (t) =>
-                                                !selectedTagIds.includes(t.id)
+                                                !selectedTagIds.includes(t.id),
                                         )
                                         .map((tag) => (
                                             <button
@@ -309,6 +466,316 @@ export default function JournalEntryEditor({
                         )}
                     </div>
                 </div>
+
+                {/* Follow-up fields for selected system tags */}
+                {selectedSystemTags.length > 0 && (
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Details
+                        </label>
+                        <div className="space-y-4">
+                            {selectedSystemTags.map((tag) => {
+                                const fields = [
+                                    ...(tag.fieldDefinitions ?? []),
+                                ].sort((a, b) => a.fieldOrder - b.fieldOrder);
+                                const responses =
+                                    systemTagResponses[tag.id] ?? {};
+
+                                return (
+                                    <div
+                                        key={tag.id}
+                                        className="rounded-md border border-gray-200 p-4"
+                                    >
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-900">
+                                                {tag.name}
+                                            </h3>
+                                            {tag.description && (
+                                                <p className="mt-1 text-sm text-gray-600">
+                                                    {tag.description}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {fields.length > 0 && (
+                                            <div className="mt-4 space-y-4">
+                                                {fields.map((field) => {
+                                                    const rawValue =
+                                                        responses[
+                                                            field.fieldKey
+                                                        ];
+
+                                                    const valueAsString =
+                                                        rawValue ===
+                                                            undefined ||
+                                                        rawValue === null
+                                                            ? ''
+                                                            : String(rawValue);
+
+                                                    const commonLabel = (
+                                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                            {field.label}
+                                                            {field.required && (
+                                                                <span className="text-gray-400">
+                                                                    {' '}
+                                                                    (required)
+                                                                </span>
+                                                            )}
+                                                        </label>
+                                                    );
+
+                                                    return (
+                                                        <div key={field.id}>
+                                                            {commonLabel}
+
+                                                            {isEditing ? (
+                                                                field.inputType ===
+                                                                'textarea' ? (
+                                                                    <textarea
+                                                                        value={
+                                                                            valueAsString
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            updateSystemTagResponse(
+                                                                                tag.id,
+                                                                                field.fieldKey,
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            )
+                                                                        }
+                                                                        rows={3}
+                                                                        placeholder={
+                                                                            field.placeholder ??
+                                                                            undefined
+                                                                        }
+                                                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                    />
+                                                                ) : field.inputType ===
+                                                                  'select' ? (
+                                                                    <select
+                                                                        value={
+                                                                            valueAsString
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            updateSystemTagResponse(
+                                                                                tag.id,
+                                                                                field.fieldKey,
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            )
+                                                                        }
+                                                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                    >
+                                                                        <option value="">
+                                                                            Select…
+                                                                        </option>
+                                                                        {(
+                                                                            field.options ??
+                                                                            []
+                                                                        ).map(
+                                                                            (
+                                                                                opt,
+                                                                            ) => (
+                                                                                <option
+                                                                                    key={
+                                                                                        opt
+                                                                                    }
+                                                                                    value={
+                                                                                        opt
+                                                                                    }
+                                                                                >
+                                                                                    {
+                                                                                        opt
+                                                                                    }
+                                                                                </option>
+                                                                            ),
+                                                                        )}
+                                                                    </select>
+                                                                ) : field.inputType ===
+                                                                  'time' ? (
+                                                                    <input
+                                                                        type="time"
+                                                                        value={
+                                                                            valueAsString
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            updateSystemTagResponse(
+                                                                                tag.id,
+                                                                                field.fieldKey,
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            )
+                                                                        }
+                                                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                    />
+                                                                ) : field.inputType ===
+                                                                  'number' ? (
+                                                                    <input
+                                                                        type="number"
+                                                                        value={
+                                                                            valueAsString
+                                                                        }
+                                                                        min={
+                                                                            field.minValue ??
+                                                                            undefined
+                                                                        }
+                                                                        max={
+                                                                            field.maxValue ??
+                                                                            undefined
+                                                                        }
+                                                                        step={
+                                                                            field.stepValue ??
+                                                                            undefined
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) => {
+                                                                            const v =
+                                                                                e
+                                                                                    .target
+                                                                                    .value;
+                                                                            updateSystemTagResponse(
+                                                                                tag.id,
+                                                                                field.fieldKey,
+                                                                                v ===
+                                                                                    ''
+                                                                                    ? ''
+                                                                                    : Number(
+                                                                                          v,
+                                                                                      ),
+                                                                            );
+                                                                        }}
+                                                                        placeholder={
+                                                                            field.placeholder ??
+                                                                            undefined
+                                                                        }
+                                                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                    />
+                                                                ) : field.inputType ===
+                                                                  'rating' ? (
+                                                                    <select
+                                                                        value={
+                                                                            valueAsString
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            updateSystemTagResponse(
+                                                                                tag.id,
+                                                                                field.fieldKey,
+                                                                                e
+                                                                                    .target
+                                                                                    .value ===
+                                                                                    ''
+                                                                                    ? ''
+                                                                                    : Number(
+                                                                                          e
+                                                                                              .target
+                                                                                              .value,
+                                                                                      ),
+                                                                            )
+                                                                        }
+                                                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                    >
+                                                                        <option value="">
+                                                                            Select…
+                                                                        </option>
+                                                                        {Array.from(
+                                                                            {
+                                                                                length:
+                                                                                    (field.maxValue ??
+                                                                                        5) -
+                                                                                    (field.minValue ??
+                                                                                        1) +
+                                                                                    1,
+                                                                            },
+                                                                            (
+                                                                                _,
+                                                                                i,
+                                                                            ) =>
+                                                                                (field.minValue ??
+                                                                                    1) +
+                                                                                i,
+                                                                        ).map(
+                                                                            (
+                                                                                n,
+                                                                            ) => (
+                                                                                <option
+                                                                                    key={
+                                                                                        n
+                                                                                    }
+                                                                                    value={
+                                                                                        n
+                                                                                    }
+                                                                                >
+                                                                                    {
+                                                                                        n
+                                                                                    }
+                                                                                </option>
+                                                                            ),
+                                                                        )}
+                                                                    </select>
+                                                                ) : (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={
+                                                                            valueAsString
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            updateSystemTagResponse(
+                                                                                tag.id,
+                                                                                field.fieldKey,
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            )
+                                                                        }
+                                                                        placeholder={
+                                                                            field.placeholder ??
+                                                                            undefined
+                                                                        }
+                                                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                                    />
+                                                                )
+                                                            ) : valueAsString ? (
+                                                                <p className="text-sm text-gray-800">
+                                                                    {
+                                                                        valueAsString
+                                                                    }
+                                                                </p>
+                                                            ) : (
+                                                                <p className="text-sm text-gray-500">
+                                                                    —
+                                                                </p>
+                                                            )}
+
+                                                            {field.hint && (
+                                                                <p className="mt-1 text-xs text-gray-500">
+                                                                    {field.hint}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Content Section */}
                 <div>

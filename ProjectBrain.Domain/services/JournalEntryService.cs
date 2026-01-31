@@ -1,5 +1,7 @@
 namespace ProjectBrain.Domain;
 
+using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;
 
@@ -22,7 +24,10 @@ public class JournalEntryService : IJournalEntryService
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
-    public async Task<JournalEntry> Add(JournalEntry journalEntry, IEnumerable<Guid>? tagIds = null)
+    public async Task<JournalEntry> Add(
+        JournalEntry journalEntry,
+        IEnumerable<Guid>? tagIds = null,
+        IEnumerable<SystemTagAssignment>? systemTagAssignments = null)
     {
         _repository.Add(journalEntry);
         await _unitOfWork.SaveChangesAsync();
@@ -43,6 +48,48 @@ public class JournalEntryService : IJournalEntryService
                 _context.JournalEntryTags.Add(journalEntryTag);
             }
             await _unitOfWork.SaveChangesAsync();
+        }
+
+        // Add system tags (global) if provided
+        if (systemTagAssignments != null)
+        {
+            var assignments = systemTagAssignments
+                .Where(a => a.SystemTagId != Guid.Empty)
+                .GroupBy(a => a.SystemTagId)
+                .Select(g => g.First())
+                .ToList();
+
+            if (assignments.Count > 0)
+            {
+                var ids = assignments.Select(a => a.SystemTagId).ToList();
+                var existingIds = await _context.SystemTags
+                    .AsNoTracking()
+                    .Where(st => ids.Contains(st.Id))
+                    .Select(st => st.Id)
+                    .ToListAsync();
+
+                var missing = ids.Except(existingIds).ToList();
+                if (missing.Count > 0)
+                {
+                    throw new AppException("INVALID_SYSTEM_TAG", $"Unknown system tag(s): {string.Join(", ", missing)}", 400);
+                }
+
+                foreach (var assignment in assignments)
+                {
+                    var jest = new JournalEntrySystemTag
+                    {
+                        Id = Guid.NewGuid(),
+                        JournalEntryId = journalEntry.Id,
+                        SystemTagId = assignment.SystemTagId,
+                        ResponsesJson = assignment.ResponsesJson,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.JournalEntrySystemTags.Add(jest);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+            }
         }
 
         return journalEntry;
@@ -78,7 +125,10 @@ public class JournalEntryService : IJournalEntryService
         return await _repository.CountForUserAsync(userId);
     }
 
-    public async Task<JournalEntry> Update(JournalEntry journalEntry, IEnumerable<Guid>? tagIds = null)
+    public async Task<JournalEntry> Update(
+        JournalEntry journalEntry,
+        IEnumerable<Guid>? tagIds = null,
+        IEnumerable<SystemTagAssignment>? systemTagAssignments = null)
     {
         // Remove existing tags
         var existingTags = _context.JournalEntryTags
@@ -103,6 +153,52 @@ public class JournalEntryService : IJournalEntryService
             }
         }
 
+        // Remove existing system tags
+        var existingSystemTags = _context.JournalEntrySystemTags
+            .Where(jest => jest.JournalEntryId == journalEntry.Id)
+            .ToList();
+        _context.JournalEntrySystemTags.RemoveRange(existingSystemTags);
+
+        // Add new system tags if provided
+        if (systemTagAssignments != null)
+        {
+            var assignments = systemTagAssignments
+                .Where(a => a.SystemTagId != Guid.Empty)
+                .GroupBy(a => a.SystemTagId)
+                .Select(g => g.First())
+                .ToList();
+
+            if (assignments.Count > 0)
+            {
+                var ids = assignments.Select(a => a.SystemTagId).ToList();
+                var existingIds = await _context.SystemTags
+                    .AsNoTracking()
+                    .Where(st => ids.Contains(st.Id))
+                    .Select(st => st.Id)
+                    .ToListAsync();
+
+                var missing = ids.Except(existingIds).ToList();
+                if (missing.Count > 0)
+                {
+                    throw new AppException("INVALID_SYSTEM_TAG", $"Unknown system tag(s): {string.Join(", ", missing)}", 400);
+                }
+
+                foreach (var assignment in assignments)
+                {
+                    var jest = new JournalEntrySystemTag
+                    {
+                        Id = Guid.NewGuid(),
+                        JournalEntryId = journalEntry.Id,
+                        SystemTagId = assignment.SystemTagId,
+                        ResponsesJson = assignment.ResponsesJson,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.JournalEntrySystemTags.Add(jest);
+                }
+            }
+        }
+
         journalEntry.UpdatedAt = DateTime.UtcNow;
         _repository.Update(journalEntry);
         await _unitOfWork.SaveChangesAsync();
@@ -117,6 +213,12 @@ public class JournalEntryService : IJournalEntryService
             .ToList();
         _context.JournalEntryTags.RemoveRange(existingTags);
 
+        // Remove associated system tags
+        var existingSystemTags = _context.JournalEntrySystemTags
+            .Where(jest => jest.JournalEntryId == journalEntry.Id)
+            .ToList();
+        _context.JournalEntrySystemTags.RemoveRange(existingSystemTags);
+
         _repository.Remove(journalEntry);
         await _unitOfWork.SaveChangesAsync();
         return journalEntry;
@@ -125,14 +227,20 @@ public class JournalEntryService : IJournalEntryService
 
 public interface IJournalEntryService
 {
-    Task<JournalEntry> Add(JournalEntry journalEntry, IEnumerable<Guid>? tagIds = null);
+    Task<JournalEntry> Add(
+        JournalEntry journalEntry,
+        IEnumerable<Guid>? tagIds = null,
+        IEnumerable<SystemTagAssignment>? systemTagAssignments = null);
     Task<JournalEntry?> GetById(Guid id, string userId);
     Task<JournalEntry?> GetByIdWithTags(Guid id, string userId);
     Task<IEnumerable<JournalEntry>> GetAllForUser(string userId);
     Task<IEnumerable<JournalEntry>> GetPagedForUser(string userId, int skip, int take);
     Task<IEnumerable<JournalEntry>> GetRecentForUser(string userId, int count);
     Task<int> CountForUser(string userId);
-    Task<JournalEntry> Update(JournalEntry journalEntry, IEnumerable<Guid>? tagIds = null);
+    Task<JournalEntry> Update(
+        JournalEntry journalEntry,
+        IEnumerable<Guid>? tagIds = null,
+        IEnumerable<SystemTagAssignment>? systemTagAssignments = null);
     Task<JournalEntry> Remove(JournalEntry journalEntry);
 }
 

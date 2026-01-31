@@ -3,6 +3,7 @@
 import { FireIcon, SparklesIcon, TrophyIcon } from '@heroicons/react/24/solid';
 import { FaceSmileIcon } from '@heroicons/react/24/outline';
 import { useStreakSummary } from '@/_hooks/queries/use-goals';
+import { useJournalStreakSummary } from '@/_hooks/queries/use-journals';
 
 export default function WelcomeSection({
     displayName,
@@ -10,11 +11,16 @@ export default function WelcomeSection({
     displayName: string;
 }) {
     const { data, isLoading } = useStreakSummary();
+    const { data: journalStreak, isLoading: journalStreakLoading } =
+        useJournalStreakSummary();
 
     const current = data?.currentStreak ?? 0;
     const longest = Math.max(data?.longestStreak ?? 0, current);
     const pct =
         longest > 0 ? Math.min(100, Math.round((current / longest) * 100)) : 0;
+
+    const journalCurrent = journalStreak?.currentStreak ?? 0;
+    const journalLongest = Math.max(journalStreak?.longestStreak ?? 0, journalCurrent);
 
     return (
         <section className="bg-white shadow rounded-lg p-6">
@@ -85,6 +91,47 @@ export default function WelcomeSection({
                           : `You’re ${Math.max(0, longest - current)} day${
                                 longest - current === 1 ? '' : 's'
                             } away from your best streak.`}
+                </p>
+            </div>
+
+            <div className="mt-6">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-gray-900">
+                        Journal streak
+                    </h2>
+                    {!journalStreakLoading && (
+                        <p className="text-sm text-gray-700">
+                            <span className="font-semibold text-gray-900">
+                                {journalCurrent}
+                            </span>{' '}
+                            day{journalCurrent === 1 ? '' : 's'}
+                            {journalLongest > 0 && (
+                                <>
+                                    {' '}
+                                    <span className="text-gray-500">
+                                        /
+                                    </span>{' '}
+                                    <span className="font-semibold text-gray-900">
+                                        {journalLongest}
+                                    </span>{' '}
+                                    best
+                                </>
+                            )}
+                        </p>
+                    )}
+                </div>
+
+                <p className="mt-2 text-xs text-gray-500">
+                    {journalStreakLoading
+                        ? 'Loading your journal streak…'
+                        : journalLongest === 0
+                          ? 'Write a journal entry today to start your streak.'
+                          : `You’re ${Math.max(
+                                0,
+                                journalLongest - journalCurrent
+                            )} day${
+                                journalLongest - journalCurrent === 1 ? '' : 's'
+                            } away from your best journal streak.`}
                 </p>
             </div>
         </section>

@@ -295,6 +295,44 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         modelBuilder.Entity<JournalEntry>()
             .HasIndex(je => je.CreatedAt);
 
+        // Configure SystemTag relationships (global/seeded)
+        modelBuilder.Entity<SystemTag>()
+            .HasIndex(st => st.Key)
+            .IsUnique();
+
+        modelBuilder.Entity<SystemTag>()
+            .HasIndex(st => st.Name);
+
+        modelBuilder.Entity<SystemTagFieldDefinition>()
+            .HasOne(stf => stf.SystemTag)
+            .WithMany(st => st.FieldDefinitions)
+            .HasForeignKey(stf => stf.SystemTagId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SystemTagFieldDefinition>()
+            .HasIndex(stf => new { stf.SystemTagId, stf.FieldKey })
+            .IsUnique();
+
+        modelBuilder.Entity<SystemTagFieldDefinition>()
+            .HasIndex(stf => new { stf.SystemTagId, stf.FieldOrder });
+
+        // Configure JournalEntrySystemTag join
+        modelBuilder.Entity<JournalEntrySystemTag>()
+            .HasOne(jest => jest.JournalEntry)
+            .WithMany(je => je.JournalEntrySystemTags)
+            .HasForeignKey(jest => jest.JournalEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<JournalEntrySystemTag>()
+            .HasOne(jest => jest.SystemTag)
+            .WithMany(st => st.JournalEntrySystemTags)
+            .HasForeignKey(jest => jest.SystemTagId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<JournalEntrySystemTag>()
+            .HasIndex(jest => new { jest.JournalEntryId, jest.SystemTagId })
+            .IsUnique();
+
         // Configure Tag relationships
         // Note: Using NO ACTION instead of CASCADE to avoid cascade path cycles
         // Tags are deleted via application logic since JournalEntryTags are cleaned up via JournalEntries
@@ -466,6 +504,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<JournalEntryTag> JournalEntryTags => Set<JournalEntryTag>();
+    public DbSet<SystemTag> SystemTags => Set<SystemTag>();
+    public DbSet<SystemTagFieldDefinition> SystemTagFieldDefinitions => Set<SystemTagFieldDefinition>();
+    public DbSet<JournalEntrySystemTag> JournalEntrySystemTags => Set<JournalEntrySystemTag>();
     public DbSet<CoachRating> CoachRatings => Set<CoachRating>();
     public DbSet<Goal> Goals => Set<Goal>();
     public DbSet<OnboardingData> OnboardingData => Set<OnboardingData>();

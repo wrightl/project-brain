@@ -1,0 +1,79 @@
+'use client';
+
+import Link from 'next/link';
+import { useCopingStrategyLibrary } from '@/_hooks/queries/use-coping-strategies';
+
+export default function StrategiesLibrary() {
+    const { data, isLoading, error } = useCopingStrategyLibrary();
+
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-red-800">
+                    {error instanceof Error
+                        ? error.message
+                        : 'Failed to load coping strategies'}
+                </p>
+            </div>
+        );
+    }
+
+    const items = data?.items ?? [];
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">
+                    Your library
+                </h2>
+                <Link
+                    href="/app/user/chat/strategies"
+                    className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                    Get new strategies
+                </Link>
+            </div>
+
+            {items.length === 0 ? (
+                <div className="bg-white shadow rounded-lg p-8 text-center">
+                    <p className="text-gray-500 text-lg">
+                        No strategies saved yet
+                    </p>
+                    <p className="text-gray-400 text-sm mt-2">
+                        Start by chatting to get some suggestions.
+                    </p>
+                    <Link
+                        href="/app/user/chat/strategies"
+                        className="mt-4 inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                        Get strategies
+                    </Link>
+                </div>
+            ) : (
+                <div className="bg-white shadow rounded-lg overflow-hidden">
+                    <ul className="divide-y divide-gray-200">
+                        {items.map((strategy) => (
+                            <li key={strategy.id} className="p-6">
+                                <p className="text-sm font-semibold text-gray-900">
+                                    {strategy.title}
+                                </p>
+                                <p className="mt-1 text-sm text-gray-600">
+                                    {strategy.description}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+

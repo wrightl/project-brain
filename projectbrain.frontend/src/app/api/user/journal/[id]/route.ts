@@ -17,7 +17,7 @@ export const GET = createApiRoute<JournalEntry>(
 export const PUT = createApiRoute<JournalEntry>(
     async (req: NextRequest, { params }: { params: { id: string } }) => {
         const body = await req.json();
-        const { content, tagIds } = body;
+        const { content, tagIds, systemTagIds, systemTagResponses } = body;
 
         if (!content || typeof content !== 'string') {
             throw new BackendApiError(400, 'Content is required');
@@ -30,6 +30,8 @@ export const PUT = createApiRoute<JournalEntry>(
             {
                 content,
                 tagIds,
+                systemTagIds,
+                systemTagResponses,
             }
         );
         return journalEntry;

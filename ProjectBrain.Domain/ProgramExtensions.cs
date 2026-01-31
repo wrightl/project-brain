@@ -29,6 +29,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICoachProfileRepository, CoachProfileRepository>();
         builder.Services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
         builder.Services.AddScoped<ITagRepository, TagRepository>();
+        builder.Services.AddScoped<ISystemTagRepository, SystemTagRepository>();
         builder.Services.AddScoped<ICoachRatingRepository, CoachRatingRepository>();
         builder.Services.AddScoped<IGoalRepository, GoalRepository>();
         builder.Services.AddScoped<IUserCopingStrategyRepository, UserCopingStrategyRepository>();
@@ -65,6 +66,8 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICoachMessageService, CoachMessageService>();
         builder.Services.AddScoped<IJournalEntryService, JournalEntryService>();
         builder.Services.AddScoped<ITagService, TagService>();
+        builder.Services.AddScoped<ISystemTagService, SystemTagService>();
+        builder.Services.AddScoped<IJournalStreakService, JournalStreakService>();
         builder.Services.AddScoped<ICoachRatingService, CoachRatingService>();
         builder.Services.AddScoped<IGoalService, GoalService>();
         builder.Services.AddScoped<ICopingStrategyService, CopingStrategyService>();

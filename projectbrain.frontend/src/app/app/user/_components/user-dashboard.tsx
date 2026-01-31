@@ -4,6 +4,7 @@ import TodaysGoalsSection from './todays-goals-section';
 import CopingStrategiesSection from './coping-strategies-section';
 import NetworkSection from './network-section';
 import AchievementsSection from './achievements-section';
+import JournalSummarySection from './journal-summary-section';
 
 export default async function UserDashboard() {
     const session = await getSession();
@@ -20,6 +21,7 @@ export default async function UserDashboard() {
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                 <TodaysGoalsSection />
                 <CopingStrategiesSection />
+                <JournalSummarySection />
             </div>
 
             <NetworkSection />

@@ -192,6 +192,8 @@ app.MapApplicationSettingsEndpoints();
 app.MapJournalEndpoints();
 app.MapTagEndpoints();
 app.MapGoalEndpoints();
+app.MapCopingStrategyEndpoints();
+app.MapAchievementEndpoints();
 app.MapFeatureFlagEndpoints();
 app.MapAgentEndpoints();
 app.MapPushNotificationEndpoints();

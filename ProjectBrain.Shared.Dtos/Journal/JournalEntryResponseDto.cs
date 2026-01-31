@@ -14,5 +14,6 @@ public class JournalEntryResponseDto
     public required string CreatedAt { get; init; }
     public required string UpdatedAt { get; init; }
     public List<TagResponseDto>? Tags { get; init; }
+    public List<JournalEntrySystemTagResponseDto>? SystemTags { get; init; }
 }
 

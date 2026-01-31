@@ -17,19 +17,42 @@ import ConversationsDrawer from './conversations-drawer';
 import { useAgentFeatureEnabled } from '@/_hooks/use-feature-flag';
 import ToolExecutionBadge from './tool-execution-badge';
 import toast from 'react-hot-toast';
+import { apiClient } from '@/_lib/api-client';
+import { useQueryClient } from '@tanstack/react-query';
+import { copingStrategyKeys } from '@/_hooks/queries/use-coping-strategies';
 
 interface ChatInterfaceProps {
     conversation?: Conversation;
+    mode?: 'default' | 'strategies';
+    displayName?: string;
 }
 
-export default function ChatInterface({ conversation }: ChatInterfaceProps) {
+type SuggestedStrategy = {
+    title: string;
+    description: string;
+    iconKey?: string | null;
+};
+
+type SseJsonMessage = {
+    type?: string;
+    value?: unknown;
+};
+
+export default function ChatInterface({
+    conversation,
+    mode = 'default',
+    displayName,
+}: ChatInterfaceProps) {
     const router = useRouter();
     const agentFeatureEnabled = useAgentFeatureEnabled();
+    const queryClient = useQueryClient();
+    const isStrategiesMode = mode === 'strategies';
+    const nameForGreeting = displayName || 'there';
     const [messages, setMessages] = useState<ChatMessage[]>(
-        conversation?.messages || []
+        conversation?.messages || [],
     );
     const [conversationId, setConversationId] = useState<string | undefined>(
-        conversation?.id
+        conversation?.id,
     );
     const [workflowId, setWorkflowId] = useState<string | undefined>(undefined);
     const [input, setInput] = useState('');
@@ -38,9 +61,13 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
     const [transcribedText, setTranscribedText] = useState('');
     const [isProcessingVoice, setIsProcessingVoice] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [currentToolExecutions, setCurrentToolExecutions] = useState<
-        ToolExecution[]
+    const [suggestedStrategies, setSuggestedStrategies] = useState<
+        SuggestedStrategy[]
     >([]);
+    const [selectedStrategyIndexes, setSelectedStrategyIndexes] = useState<
+        Set<number>
+    >(new Set());
+    const [isSavingStrategies, setIsSavingStrategies] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const streamingMessageRef = useRef<string>('');
@@ -72,6 +99,145 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
             setMessages([]);
         }
     }, [conversation]);
+
+    // In strategies mode, clear suggestions when switching threads (i.e. when the
+    // server-provided `conversation` prop changes). We do NOT want to clear on
+    // `conversationId` updates created by the current stream, otherwise we can
+    // wipe suggestions right after receiving them.
+    useEffect(() => {
+        if (isStrategiesMode) {
+            setSuggestedStrategies([]);
+            setSelectedStrategyIndexes(new Set());
+        }
+    }, [isStrategiesMode, conversation?.id]);
+
+    const processSseChunk = (
+        buffer: string,
+        chunkText: string,
+        onParsed: (parsed: SseJsonMessage) => void,
+    ) => {
+        // Normalize CRLF to LF so delimiters are consistent
+        let next = buffer + chunkText.replace(/\r\n/g, '\n');
+
+        // SSE events are separated by a blank line (\n\n).
+        // Each event can contain multiple `data:` lines.
+        while (true) {
+            const delimiterIndex = next.indexOf('\n\n');
+            if (delimiterIndex < 0) break;
+
+            const rawEvent = next.slice(0, delimiterIndex);
+            next = next.slice(delimiterIndex + 2);
+
+            const dataLines = rawEvent
+                .split('\n')
+                .filter((line) => line.startsWith('data:'));
+
+            if (dataLines.length === 0) continue;
+
+            const data = dataLines
+                .map((line) => line.replace(/^data:\s?/, ''))
+                .join('\n')
+                .trim();
+
+            if (!data) continue;
+
+            try {
+                onParsed(JSON.parse(data));
+            } catch {
+                // If parsing fails, ignore this event (rare once buffered).
+            }
+        }
+
+        return next;
+    };
+
+    const normalizeSuggestedStrategies = (
+        value: unknown,
+    ): SuggestedStrategy[] => {
+        if (!Array.isArray(value)) return [];
+
+        const normalized = value.map((item) => {
+            const obj =
+                typeof item === 'object' && item !== null
+                    ? (item as Record<string, unknown>)
+                    : {};
+
+            const title =
+                typeof obj.title === 'string'
+                    ? obj.title
+                    : String(obj.title ?? '');
+            const description =
+                typeof obj.description === 'string'
+                    ? obj.description
+                    : String(obj.description ?? '');
+
+            const rawIconKey = obj.iconKey;
+            const iconKey =
+                rawIconKey === null
+                    ? null
+                    : typeof rawIconKey === 'string'
+                    ? rawIconKey === 'null'
+                        ? null
+                        : rawIconKey
+                    : null;
+
+            return { title, description, iconKey };
+        });
+        return normalized;
+    };
+
+    const toggleStrategySelected = (index: number) => {
+        setSelectedStrategyIndexes((prev) => {
+            const next = new Set(prev);
+            if (next.has(index)) {
+                next.delete(index);
+            } else {
+                next.add(index);
+            }
+            return next;
+        });
+    };
+
+    const handleSaveSelectedStrategies = async () => {
+        if (selectedStrategyIndexes.size === 0) return;
+        if (isSavingStrategies) return;
+
+        try {
+            setIsSavingStrategies(true);
+
+            const selected = Array.from(selectedStrategyIndexes)
+                .map((i) => suggestedStrategies[i])
+                .filter(Boolean);
+
+            await Promise.all(
+                selected.map((s) =>
+                    apiClient('/api/strategies', {
+                        method: 'POST',
+                        body: {
+                            title: s.title,
+                            description: s.description,
+                            iconKey: s.iconKey ?? null,
+                        },
+                    }),
+                ),
+            );
+
+            await queryClient.invalidateQueries({
+                queryKey: copingStrategyKeys.library(),
+            });
+
+            toast.success('Saved to your library');
+            setSelectedStrategyIndexes(new Set());
+        } catch (err) {
+            toast.error(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to save strategies',
+            );
+        } finally {
+            setIsSavingStrategies(false);
+        }
+    };
 
     const handleVoiceRecording = async (audioBlob: Blob) => {
         if (isStreaming || isProcessingVoice) return;
@@ -110,7 +276,11 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                     newConversationId &&
                     (!conversationId || newConversationId !== conversationId)
                 ) {
-                    router.push(`/app/user/chat/${newConversationId}`);
+                    router.push(
+                        isStrategiesMode
+                            ? `/app/user/chat/strategies/${newConversationId}`
+                            : `/app/user/chat/${newConversationId}`,
+                    );
                 }
             }
 
@@ -120,39 +290,35 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
             if (!reader) throw new Error('No response body');
 
             let citations: Citation[] = [];
+            let sseBuffer = '';
             let done = false;
             while (!done) {
                 const { value, done: streamDone } = await reader.read();
                 done = streamDone;
                 if (value) {
                     const text = decoder.decode(value, { stream: true });
-                    const lines = text.split('\n');
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = line.slice(6);
-                            try {
-                                const parsed = JSON.parse(data);
-                                if (
-                                    parsed.type === 'citations' &&
-                                    parsed.value
-                                ) {
-                                    // Handle citations metadata
-                                    citations = parsed.value;
-                                } else if (
-                                    parsed.value &&
-                                    parsed.type !== 'citations'
-                                ) {
-                                    // Handle text chunks
-                                    streamingMessageRef.current += parsed.value;
-                                    setStreamingMessage(
-                                        streamingMessageRef.current
-                                    );
-                                }
-                            } catch {
-                                // Ignore parse errors
-                            }
+                    sseBuffer = processSseChunk(sseBuffer, text, (parsed) => {
+                        if (parsed.type === 'citations' && parsed.value) {
+                            citations = parsed.value as Citation[];
+                            return;
                         }
-                    }
+
+                        if (parsed.type === 'text' && parsed.value) {
+                            streamingMessageRef.current += String(parsed.value);
+                            setStreamingMessage(streamingMessageRef.current);
+                            return;
+                        }
+
+                        if (
+                            isStrategiesMode &&
+                            parsed.type === 'strategies' &&
+                            Array.isArray(parsed.value)
+                        ) {
+                            setSuggestedStrategies(
+                                normalizeSuggestedStrategies(parsed.value),
+                            );
+                        }
+                    });
                 }
             }
 
@@ -179,31 +345,37 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
             setIsStreaming(false);
             setStreamingMessage('');
             setTranscribedText('');
-            router.refresh();
+            if (!isStrategiesMode) {
+                router.refresh();
+            }
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isStreaming) return;
+    const sendMessage = async (messageContent: string) => {
+        const trimmed = messageContent.trim();
+        if (!trimmed || isStreaming) return;
 
         const userMessage: ChatMessage = {
             role: 'user',
-            content: input.trim(),
+            content: trimmed,
         };
+
+        if (isStrategiesMode) {
+            setSuggestedStrategies([]);
+            setSelectedStrategyIndexes(new Set());
+        }
 
         // Add user message immediately
         setMessages((prev) => [...prev, userMessage]);
         setInput('');
         setIsStreaming(true);
         setStreamingMessage('');
-        setCurrentToolExecutions([]);
 
         try {
             streamingMessageRef.current = '';
 
             // Check if agent feature is enabled
-            if (agentFeatureEnabled) {
+            if (agentFeatureEnabled && !isStrategiesMode) {
                 // Use agent endpoint with tool execution support
                 const requestBody: Record<string, unknown> = {
                     content: userMessage.content,
@@ -233,6 +405,14 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                     response.headers.get('X-Conversation-Id');
                 if (newConversationId) {
                     setConversationId(newConversationId);
+                    if (
+                        isStrategiesMode &&
+                        newConversationId !== conversationId
+                    ) {
+                        router.push(
+                            `/app/user/chat/strategies/${newConversationId}`,
+                        );
+                    }
                 }
 
                 const newWorkflowIdHeader =
@@ -276,7 +456,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                         streamingMessageRef.current +=
                                             parsed.value;
                                         setStreamingMessage(
-                                            streamingMessageRef.current
+                                            streamingMessageRef.current,
                                         );
                                     } else if (
                                         parsed.type === 'tools_executed' &&
@@ -286,9 +466,6 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                         // Handle tool execution results
                                         toolExecutions =
                                             parsed.value as ToolExecution[];
-                                        setCurrentToolExecutions([
-                                            ...toolExecutions,
-                                        ]);
 
                                         // Show toast notification if goals were created
                                         const goalsCreated =
@@ -296,14 +473,14 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                                 (tool) =>
                                                     tool.toolName ===
                                                         'create_daily_goals' &&
-                                                    tool.success
+                                                    tool.success,
                                             );
                                         if (goalsCreated) {
                                             toast.success(
                                                 'Daily goals created successfully!',
                                                 {
                                                     icon: '🎯',
-                                                }
+                                                },
                                             );
                                         }
                                     } else if (
@@ -319,10 +496,10 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                         // Handle errors
                                         console.error(
                                             'Agent error:',
-                                            parsed.value
+                                            parsed.value,
                                         );
                                         toast.error(
-                                            `Agent error: ${parsed.value}`
+                                            `Agent error: ${parsed.value}`,
                                         );
                                     }
                                 } catch {
@@ -350,15 +527,20 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                 }
             } else {
                 // Use regular chat endpoint (existing behavior)
+                const requestBody: Record<string, unknown> = {
+                    content: userMessage.content,
+                    conversationId,
+                };
+                if (isStrategiesMode) {
+                    requestBody.mode = 'strategies';
+                }
+
                 const response = await fetchWithAuth('/api/chat/stream', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        content: userMessage.content,
-                        conversationId,
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
 
                 if (!response.ok) {
@@ -379,41 +561,49 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                 if (!reader) throw new Error('No response body');
 
                 let citations: Citation[] = [];
+                let sseBuffer = '';
                 let done = false;
                 while (!done) {
                     const { value, done: streamDone } = await reader.read();
                     done = streamDone;
                     if (value) {
                         const text = decoder.decode(value, { stream: true });
-                        // Assume SSE format: lines starting with 'data: '
-                        const lines = text.split('\n');
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                const data = line.slice(6);
-                                try {
-                                    const parsed = JSON.parse(data);
-                                    if (
-                                        parsed.type === 'citations' &&
-                                        parsed.value
-                                    ) {
-                                        // Handle citations metadata
-                                        citations = parsed.value;
-                                    } else if (
-                                        parsed.value &&
-                                        parsed.type !== 'citations'
-                                    ) {
-                                        // Handle text chunks
-                                        streamingMessageRef.current +=
-                                            parsed.value;
-                                        setStreamingMessage(
-                                            streamingMessageRef.current
-                                        );
-                                    }
-                                } catch {
-                                    // Ignore parse errors
+                        sseBuffer = processSseChunk(
+                            sseBuffer,
+                            text,
+                            (parsed) => {
+                                if (
+                                    parsed.type === 'citations' &&
+                                    parsed.value
+                                ) {
+                                    citations = parsed.value as Citation[];
+                                    return;
                                 }
-                            }
-                        }
+
+                                if (parsed.type === 'text' && parsed.value) {
+                                    streamingMessageRef.current += String(
+                                        parsed.value,
+                                    );
+                                    setStreamingMessage(
+                                        streamingMessageRef.current,
+                                    );
+                                    return;
+                                }
+
+                                if (
+                                    isStrategiesMode &&
+                                    parsed.type === 'strategies' &&
+                                    Array.isArray(parsed.value)
+                                ) {
+                                    console.log('parsed.value', parsed.value);
+                                    setSuggestedStrategies(
+                                        normalizeSuggestedStrategies(
+                                            parsed.value,
+                                        ),
+                                    );
+                                }
+                            },
+                        );
                     }
                 }
 
@@ -438,9 +628,24 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
         } finally {
             setIsStreaming(false);
             setStreamingMessage('');
-            setCurrentToolExecutions([]);
-            router.refresh();
+            if (!isStrategiesMode) {
+                router.refresh();
+            }
         }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await sendMessage(input);
+    };
+
+    const submitExamplePrompt = (prompt: string) => {
+        if (isStreaming) return;
+        setInput(prompt);
+        // allow one render to show the populated input before sending
+        setTimeout(() => {
+            void sendMessage(prompt);
+        }, 0);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -457,7 +662,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
     // Function to render message content with clickable citations
     const renderMessageWithCitations = (
         content: string,
-        citations?: Citation[]
+        citations?: Citation[],
     ) => {
         if (!citations || citations.length === 0) {
             return content;
@@ -499,7 +704,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                         }`}
                     >
                         [{citationNum}]
-                    </Link>
+                    </Link>,
                 );
             } else {
                 // If no citation metadata, just render as text
@@ -534,7 +739,18 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                             {conversation?.title || 'Chat Assistant'}
                         </h1>
                     </div>
-                    <div className="w-10" />
+                    <div className="flex items-center justify-end w-44">
+                        {isStrategiesMode ? (
+                            <Link
+                                href="/app/user/strategies"
+                                className="text-sm font-medium text-indigo-700 hover:text-indigo-900"
+                            >
+                                Back to library
+                            </Link>
+                        ) : (
+                            <div className="w-10" />
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -558,12 +774,73 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                     />
                                 </svg>
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                Start a conversation
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                                Ask me anything! I&apos;m here to help.
-                            </p>
+                            {isStrategiesMode ? (
+                                <>
+                                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                        Hi there {nameForGreeting}! 💚 I&apos;m
+                                        here to help you find coping strategies
+                                        that work for you. Just tell me what
+                                        you&apos;re dealing with, and I&apos;ll
+                                        suggest some techniques you might find
+                                        helpful.
+                                    </h3>
+                                    <div className="mt-4 space-y-2">
+                                        <p className="text-sm text-gray-500">
+                                            Examples:
+                                        </p>
+                                        <div className="flex flex-col items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    submitExamplePrompt(
+                                                        "I'm feeling overwhelmed and overstimulated after work — what can I do right now?",
+                                                    )
+                                                }
+                                                className="inline-flex max-w-full items-center rounded-full border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                I&apos;m feeling overwhelmed and
+                                                overstimulated after work — what
+                                                can I do right now?
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    submitExamplePrompt(
+                                                        "I'm anxious about a social event later — can you give me a few coping strategies I can try beforehand?",
+                                                    )
+                                                }
+                                                className="inline-flex max-w-full items-center rounded-full border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                I&apos;m anxious about a social
+                                                event later — what can I try
+                                                beforehand?
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    submitExamplePrompt(
+                                                        "My brain won't switch off and I'm stuck in a spiral — what can I do in the next 5 minutes?",
+                                                    )
+                                                }
+                                                className="inline-flex max-w-full items-center rounded-full border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                My brain won&apos;t switch off —
+                                                what can I do in the next 5
+                                                minutes?
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                        Start a conversation
+                                    </h3>
+                                    <p className="text-sm text-gray-500">
+                                        Ask me anything! I&apos;m here to help.
+                                    </p>
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -594,7 +871,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                         message.citations
                                             ? renderMessageWithCitations(
                                                   message.content,
-                                                  message.citations
+                                                  message.citations,
                                               )
                                             : message.content}
                                     </div>
@@ -611,7 +888,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                                         key={toolIndex}
                                                         tool={tool}
                                                     />
-                                                )
+                                                ),
                                             )}
                                         </div>
                                     )}
@@ -648,6 +925,61 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                         </div>
                     )}
 
+                    {/* Strategy suggestions (strategies mode only) */}
+                    {isStrategiesMode && suggestedStrategies.length > 0 && (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-semibold text-gray-900">
+                                    Suggested strategies
+                                </h3>
+                                {selectedStrategyIndexes.size > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSelectedStrategies}
+                                        disabled={isSavingStrategies}
+                                        className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                                    >
+                                        {isSavingStrategies
+                                            ? 'Saving...'
+                                            : `Save (${selectedStrategyIndexes.size})`}
+                                    </button>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                {suggestedStrategies.slice(0, 3).map((s, i) => {
+                                    const selected =
+                                        selectedStrategyIndexes.has(i);
+                                    return (
+                                        <button
+                                            key={`${s.title}-${i}`}
+                                            type="button"
+                                            onClick={() =>
+                                                toggleStrategySelected(i)
+                                            }
+                                            className={`text-left rounded-lg border p-4 transition-colors ${
+                                                selected
+                                                    ? 'border-indigo-500 bg-indigo-50'
+                                                    : 'border-gray-200 bg-white hover:bg-gray-50'
+                                            }`}
+                                        >
+                                            <p className="text-sm font-semibold text-gray-900">
+                                                {s.title}
+                                            </p>
+                                            <p className="mt-1 text-sm text-gray-600">
+                                                {s.description}
+                                            </p>
+                                            <p className="mt-3 text-xs font-medium text-gray-500">
+                                                {selected
+                                                    ? 'Selected'
+                                                    : 'Click to select'}
+                                            </p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Loading indicator */}
                     {isStreaming && !streamingMessage && (
                         <div className="flex justify-start">
@@ -680,7 +1012,11 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Type or speak your message... (Press Enter to send, Shift+Enter for new line)"
+                                placeholder={
+                                    isStrategiesMode
+                                        ? "Tell me what you're dealing with... (Press Enter to send)"
+                                        : 'Type or speak your message... (Press Enter to send, Shift+Enter for new line)'
+                                }
                                 disabled={isStreaming}
                                 rows={1}
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -696,7 +1032,7 @@ export default function ChatInterface({ conversation }: ChatInterfaceProps) {
                                 onError={(error) =>
                                     console.error(
                                         'Voice recording error:',
-                                        error
+                                        error,
                                     )
                                 }
                                 disabled={isStreaming}

@@ -213,7 +213,18 @@ public static class ChatEndpoints
 
         // Get authenticated user from database
         var userId = services.IdentityService.UserId;
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            http.Response.StatusCode = 401; // Unauthorized
+            return;
+        }
+
         var user = await services.IdentityService.GetUserAsync();
+        if (user == null)
+        {
+            http.Response.StatusCode = 401; // Unauthorized
+            return;
+        }
 
         if (string.IsNullOrWhiteSpace(request.Content))
         {
@@ -234,7 +245,7 @@ public static class ChatEndpoints
             Thread.Sleep(2000); // Simulate processing delay
             http.Response.ContentType = contentType;
             http.Response.StatusCode = 200;
-            await http.Response.WriteAsync(new ChatMessageResponseChunk($"Hello! How can I assist you today {user.FirstName}?").ToResponse(contentType));
+            await http.Response.WriteAsync(new ChatMessageResponseChunk($"Hello! How can I assist you today {user.FirstName ?? "there"}?").ToResponse(contentType));
             return;
         }
 #endif
@@ -291,7 +302,7 @@ public static class ChatEndpoints
 
         services.Logger.LogInformation("Chat history for conversation {ConversationId}: {History}", conversation.Id, JsonSerializer.Serialize(history));
 
-        var userName = user.FirstName!;
+        var userName = user.FirstName ?? "there";
         services.Logger.LogInformation("Using user name {UserName} for conversation {ConversationId}", userName, conversation.Id);
 
         // Get the onboarding data for the user
@@ -304,6 +315,61 @@ public static class ChatEndpoints
             {
                 userInformation = await reader.ReadToEndAsync();
             }
+        }
+
+        if (string.Equals(request.Mode, "strategies", StringComparison.OrdinalIgnoreCase))
+        {
+            var suggestions = await services.AzureOpenAI.GetStrategySuggestionsAsync(
+                request.Content,
+                userId!,
+                userInformation,
+                userName,
+                history,
+                http.RequestAborted);
+
+            var assistantText =
+                "Thanks for sharing — that sounds really tough.\n\n" +
+                "Here are 3 coping strategies you can try. Tap any that feel helpful, then hit Save to add them to your library.";
+
+            if (contentType == "text/event-stream")
+            {
+                await http.Response.WriteAsync(new ChatMessageResponseChunk(assistantText, "text").ToResponse(contentType));
+
+                var strategyPayload = suggestions.Select(s => new
+                {
+                    title = s.Title,
+                    description = s.Description,
+                    iconKey = s.IconKey
+                }).ToList();
+
+                await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "strategies", value = strategyPayload })}\n\n");
+                await http.Response.Body.FlushAsync();
+            }
+            else
+            {
+                await http.Response.WriteAsync(assistantText);
+            }
+
+            await services.ChatService.Add(new ChatMessage
+            {
+                ConversationId = conversation.Id,
+                Role = "user",
+                Content = request.Content,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+
+            await services.ChatService.Add(new ChatMessage
+            {
+                ConversationId = conversation.Id,
+                Role = "assistant",
+                Content = assistantText,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+
+            await services.UsageTrackingService.TrackAIQueryAsync(userId);
+            return;
         }
 
         var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(request.Content, userId, userInformation, userName, history);
@@ -420,6 +486,7 @@ public class ChatRequest
     public string? ConversationId { get; set; }
     public string Content { get; set; } = string.Empty;
     public bool IsVoice { get; set; } = false;
+    public string? Mode { get; set; }
 }
 
 public class ChatMessageResponseChunk(string Value, string Type = "text")

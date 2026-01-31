@@ -17,11 +17,12 @@ public static class CopingStrategyEndpoints
 {
     public static void MapCopingStrategyEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("coping-strategies").RequireAuthorization("UserOnly");
+        var group = app.MapGroup("strategies").RequireAuthorization("UserOnly");
 
         group.MapGet("/library", GetLibrary).WithName("GetCopingStrategyLibrary");
         group.MapPost("", Create).WithName("CreateCopingStrategy");
         group.MapDelete("/{id:guid}", Delete).WithName("DeleteCopingStrategy");
+        group.MapPut("/{id:guid}/rating", UpdateRating).WithName("RateCopingStrategy");
     }
 
     private static async Task<IResult> GetLibrary([AsParameters] CopingStrategyServices services)
@@ -39,6 +40,7 @@ public static class CopingStrategyEndpoints
                     Title = x.Title,
                     Description = x.Description,
                     IconKey = x.IconKey,
+                    Rating = x.Rating,
                     SavedAt = x.SavedAt
                 })
                 .ToList();
@@ -73,6 +75,7 @@ public static class CopingStrategyEndpoints
                 Title = created.Title,
                 Description = created.Description,
                 IconKey = created.IconKey,
+                Rating = created.Rating,
                 SavedAt = created.SavedAt
             });
         }
@@ -100,6 +103,45 @@ public static class CopingStrategyEndpoints
             return Results.Problem("An error occurred while deleting coping strategy.");
         }
     }
+
+    private static async Task<IResult> UpdateRating(
+        [AsParameters] CopingStrategyServices services,
+        Guid id,
+        [FromBody] UpdateCopingStrategyRatingRequest request)
+    {
+        var userId = services.IdentityService.UserId!;
+
+        if (request.Rating < 1 || request.Rating > 5)
+        {
+            return Results.BadRequest("Rating must be between 1 and 5.");
+        }
+
+        try
+        {
+            var updated = await services.CopingStrategyService.UpdateRatingAsync(
+                userId,
+                id,
+                request.Rating,
+                CancellationToken.None);
+
+            if (updated == null) return Results.NotFound();
+
+            return Results.Ok(new CopingStrategyLibraryItemDto
+            {
+                Id = updated.Id.ToString(),
+                Title = updated.Title,
+                Description = updated.Description,
+                IconKey = updated.IconKey,
+                Rating = updated.Rating,
+                SavedAt = updated.SavedAt
+            });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error rating coping strategy {StrategyId} for user {UserId}", id, userId);
+            return Results.Problem("An error occurred while updating coping strategy rating.");
+        }
+    }
 }
 
 public class CreateCopingStrategyRequest
@@ -107,5 +149,10 @@ public class CreateCopingStrategyRequest
     public required string Title { get; init; }
     public required string Description { get; init; }
     public string? IconKey { get; init; }
+}
+
+public class UpdateCopingStrategyRatingRequest
+{
+    public required int Rating { get; init; }
 }
 

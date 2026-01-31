@@ -1,10 +1,14 @@
 'use client';
 
-import { LightBulbIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import {
+    LightBulbIcon,
+    PencilSquareIcon,
+    SparklesIcon,
+} from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useCopingStrategyLibrary } from '@/_hooks/queries/use-coping-strategies';
 
-function iconForKey(iconKey?: string) {
+function iconForKey(iconKey?: string | null) {
     switch (iconKey) {
         case 'sparkles':
             return SparklesIcon;
@@ -26,22 +30,23 @@ export default function CopingStrategiesSection() {
                         Coping strategies
                     </h2>
                     <p className="mt-1 text-sm text-gray-600">
-                        Your saved strategies.
+                        Your personalised strategies.
                     </p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-row items-end gap-2">
                     <Link
                         href="/app/user/chat/strategies"
-                        className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-indigo-700 hover:text-indigo-900"
                     >
-                        Get new strategies
+                        <PencilSquareIcon className="h-5 w-5" />
+                        Create new strategy
                     </Link>
-                    <Link
+                    {/* <Link
                         href="/app/user/strategies"
                         className="text-sm font-medium text-indigo-700 hover:text-indigo-900"
                     >
                         View library
-                    </Link>
+                    </Link> */}
                 </div>
             </div>
 
@@ -54,7 +59,7 @@ export default function CopingStrategiesSection() {
             ) : (data?.items?.length ?? 0) === 0 ? (
                 <div className="mt-6 rounded-md border border-dashed border-gray-300 p-6">
                     <p className="text-sm text-gray-700">
-                        You haven’t saved any coping strategies yet.
+                        You haven’t created any personalised strategies yet.
                     </p>
                 </div>
             ) : (
@@ -62,7 +67,8 @@ export default function CopingStrategiesSection() {
                     {data!.items.map((strategy) => {
                         const Icon = iconForKey(strategy.iconKey);
                         return (
-                            <div
+                            <Link
+                                href={`/app/user/strategies`}
                                 key={strategy.id}
                                 className="flex items-start gap-4 rounded-md border border-gray-200 p-4"
                             >
@@ -79,7 +85,7 @@ export default function CopingStrategiesSection() {
                                         </p>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         );
                     })}
                 </div>

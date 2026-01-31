@@ -21,6 +21,9 @@ public class UserCopingStrategy
     [StringLength(50)]
     public string? IconKey { get; set; }
 
+    [Range(1, 5)]
+    public int? Rating { get; set; }
+
     [Required]
     public DateTime SavedAt { get; set; } = DateTime.UtcNow;
 

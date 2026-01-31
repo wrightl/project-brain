@@ -9,7 +9,7 @@ import JournalSummarySection from './journal-summary-section';
 export default async function UserDashboard() {
     const session = await getSession();
     const displayName =
-        session?.user?.name ??
+        session?.user?.given_name ??
         session?.user?.nickname ??
         session?.user?.email ??
         'there';
@@ -20,9 +20,10 @@ export default async function UserDashboard() {
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                 <TodaysGoalsSection />
-                <CopingStrategiesSection />
                 <JournalSummarySection />
             </div>
+
+            <CopingStrategiesSection />
 
             <NetworkSection />
 

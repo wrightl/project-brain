@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
@@ -200,6 +201,11 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             icon: SparklesIcon,
         },
         {
+            href: '/app/user/journal',
+            label: 'Journal',
+            icon: DocumentTextIcon,
+        },
+        {
             href: '/app/user/eggs',
             label: 'Eggs',
             icon: AcademicCapIcon,
@@ -329,9 +335,12 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                 className="sm:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                                 title="Neurodivergent Entrepreneurs Community"
                             >
-                                <img
+                                <Image
                                     src="https://assets.skool.com/f/31ad136c883e458d9b6f81be08dc9b93/658fb61b21394130bea6407b1fd1dee2916ed48976e4409ca9ed76946f1e4a6f"
                                     alt="Community"
+                                    width={32}
+                                    height={32}
+                                    sizes="32px"
                                     className="h-8 w-8 rounded-md"
                                 />
                             </a>
@@ -411,9 +420,12 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                                     }
                                                     className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                                                 >
-                                                    <img
+                                                    <Image
                                                         src="https://assets.skool.com/f/31ad136c883e458d9b6f81be08dc9b93/658fb61b21394130bea6407b1fd1dee2916ed48976e4409ca9ed76946f1e4a6f"
                                                         alt="Community"
+                                                        width={40}
+                                                        height={40}
+                                                        sizes="40px"
                                                         className="h-10 w-10 mr-3 rounded-md"
                                                     />
                                                     Community
@@ -458,9 +470,12 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                     className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
                                     title="Skool - Neurodivergent Entrepreneurs Community"
                                 >
-                                    <img
+                                    <Image
                                         src="https://assets.skool.com/f/31ad136c883e458d9b6f81be08dc9b93/658fb61b21394130bea6407b1fd1dee2916ed48976e4409ca9ed76946f1e4a6f"
                                         alt="Community"
+                                        width={40}
+                                        height={40}
+                                        sizes="40px"
                                         className="h-10 w-10 rounded-md"
                                     />
                                 </a>

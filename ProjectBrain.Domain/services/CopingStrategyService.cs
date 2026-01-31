@@ -57,5 +57,29 @@ public class CopingStrategyService : ICopingStrategyService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    public async Task<UserCopingStrategy?> UpdateRatingAsync(
+        string userId,
+        Guid id,
+        int rating,
+        CancellationToken cancellationToken = default)
+    {
+        if (rating < 1 || rating > 5)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rating), "Rating must be between 1 and 5.");
+        }
+
+        var existing = await _userCopingStrategyRepository.GetByIdForUserAsync(id, userId, cancellationToken);
+        if (existing == null) return null;
+
+        // Need tracked entity for update
+        var tracked = await _userCopingStrategyRepository.GetByIdAsync(existing.Id, cancellationToken);
+        if (tracked == null) return null;
+
+        tracked.Rating = rating;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return tracked;
+    }
 }
 

@@ -2,7 +2,7 @@ import { getAccessToken } from '@/_lib/auth';
 import { NextRequest } from 'next/server';
 
 export async function POST(req: NextRequest) {
-    const { content, conversationId } = await req.json();
+    const { content, conversationId, mode } = await req.json();
 
     const accessToken = await getAccessToken();
 
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
         {
             method: 'POST',
             headers,
-            body: JSON.stringify({ content, conversationId }),
+            body: JSON.stringify({ content, conversationId, mode }),
         }
     );
 

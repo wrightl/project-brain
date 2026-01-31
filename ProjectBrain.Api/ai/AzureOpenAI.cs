@@ -3,6 +3,7 @@
 using System.ClientModel;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using OpenAI;
@@ -35,6 +36,13 @@ public class AzureOpenAIServices(
 public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 {
     public AzureOpenAIServices Services { get; } = services;
+
+    public record StrategySuggestion(string Title, string Description, string? IconKey);
+
+    private sealed class StrategySuggestionsResponse
+    {
+        public List<StrategySuggestion> Items { get; init; } = new();
+    }
 
     public async Task<string> TranscribeAudio(Stream audioStream, string fileName)
     {
@@ -92,6 +100,125 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
     public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)
     {
         return await getChatResponseWithCitations(userQuery, userId, userInformation, userName, history);
+    }
+
+    public async Task<List<StrategySuggestion>> GetStrategySuggestionsAsync(
+        string userQuery,
+        string userId,
+        string userInformation,
+        string userName,
+        List<_shared.ChatMessage> history,
+        CancellationToken cancellationToken = default)
+    {
+        Services.Logger.LogInformation("Generating strategy suggestions for user {UserId}", userId);
+
+        var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
+
+        var systemPrompt = new StringBuilder();
+        systemPrompt.AppendLine("You are a friendly and supportive assistant helping neurodiverse individuals.");
+        systemPrompt.AppendLine("Your job is to suggest practical coping strategies that are safe, gentle, and actionable.");
+        systemPrompt.AppendLine("Avoid medical claims. If the user describes immediate danger, encourage seeking urgent professional help.");
+        systemPrompt.AppendLine();
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            systemPrompt.AppendLine($"You are chatting with {userName}. Use their name occasionally and naturally.");
+            systemPrompt.AppendLine();
+        }
+        systemPrompt.AppendLine("Return ONLY valid JSON. No markdown. No extra text.");
+        systemPrompt.AppendLine("Return exactly 3 items in this shape:");
+        systemPrompt.AppendLine("{\"items\":[{\"title\":\"...\",\"description\":\"...\",\"iconKey\":\"sparkles|lightbulb|null\"}]}");
+        systemPrompt.AppendLine("Constraints:");
+        systemPrompt.AppendLine("- titles <= 60 chars");
+        systemPrompt.AppendLine("- descriptions <= 280 chars");
+        systemPrompt.AppendLine("- descriptions must be specific steps the user can try");
+
+        var userPrompt = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(userInformation))
+        {
+            userPrompt.AppendLine("---");
+            userPrompt.AppendLine("User onboarding data (json):");
+            userPrompt.AppendLine(userInformation);
+            userPrompt.AppendLine("---");
+            userPrompt.AppendLine();
+        }
+
+        if (history.Count > 0)
+        {
+            userPrompt.AppendLine("Conversation context:");
+            foreach (var msg in history.TakeLast(6))
+            {
+                userPrompt.AppendLine($"- {msg.Role}: {msg.Content}");
+            }
+            userPrompt.AppendLine();
+        }
+
+        userPrompt.AppendLine("User input:");
+        userPrompt.AppendLine(userQuery);
+        userPrompt.AppendLine();
+        userPrompt.AppendLine("Now return 3 coping strategy suggestions as JSON only.");
+
+        ClientResult<ChatCompletion> response;
+        try
+        {
+            response = await chatClient.CompleteChatAsync(
+                [
+                    new SystemChatMessage(systemPrompt.ToString()),
+                    new UserChatMessage(userPrompt.ToString()),
+                ],
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Common cause: identity calling Azure OpenAI lacks the data-plane action:
+            // Microsoft.CognitiveServices/accounts/OpenAI/deployments/chat/completions/action
+            Services.Logger.LogError(ex, "Failed to call Azure OpenAI for strategy suggestions. Falling back to defaults.");
+            return new List<StrategySuggestion>();
+        }
+
+        var raw = response.Value.Content.FirstOrDefault()?.Text ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new List<StrategySuggestion>();
+        }
+
+        var extracted = ExtractLikelyJson(raw);
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<StrategySuggestionsResponse>(
+                extracted,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            var items = (parsed?.Items ?? new List<StrategySuggestion>())
+                .Where(i => !string.IsNullOrWhiteSpace(i.Title) && !string.IsNullOrWhiteSpace(i.Description))
+                .Take(3)
+                .ToList();
+
+            if (items.Count == 3)
+            {
+                return items;
+            }
+
+            return items.Take(3).ToList();
+        }
+        catch (Exception ex)
+        {
+            Services.Logger.LogWarning(ex, "Failed to parse strategy suggestion JSON. Raw: {Raw}", raw);
+            return new List<StrategySuggestion>();
+        }
+    }
+
+    private static string ExtractLikelyJson(string input)
+    {
+        var trimmed = input.Trim();
+
+        var firstBrace = trimmed.IndexOf('{');
+        var lastBrace = trimmed.LastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace)
+        {
+            return trimmed.Substring(firstBrace, lastBrace - firstBrace + 1);
+        }
+
+        return trimmed;
     }
 
     private async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> getChatResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)

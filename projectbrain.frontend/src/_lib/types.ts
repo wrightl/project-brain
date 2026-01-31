@@ -37,6 +37,8 @@ export interface Coach extends BaseUser {
     specialisms: string[];
     ageGroups: string[];
     availabilityStatus?: 'Available' | 'Busy' | 'Away' | 'Offline';
+    bio?: string;
+    imageUrl?: string;
     averageRating?: number;
     ratingCount?: number;
 }

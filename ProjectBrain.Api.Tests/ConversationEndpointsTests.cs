@@ -13,6 +13,7 @@ public class ConversationEndpointsTests
     private readonly Mock<ILogger<ConversationServices>> _mockLogger;
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly Mock<IConversationService> _mockConversationService;
+    private readonly Mock<ProjectBrain.Domain.Repositories.IConversationRepository> _mockConversationRepository;
     private readonly Mock<IIdentityService> _mockIdentityService;
     private readonly ConversationServices _conversationServices;
 
@@ -22,11 +23,11 @@ public class ConversationEndpointsTests
         _mockConfig = new Mock<IConfiguration>();
         _mockConversationService = new Mock<IConversationService>();
         _mockIdentityService = new Mock<IIdentityService>();
-        var mockConversationRepository = new Mock<ProjectBrain.Domain.Repositories.IConversationRepository>();
+        _mockConversationRepository = new Mock<ProjectBrain.Domain.Repositories.IConversationRepository>();
 
         _conversationServices = new ConversationServices(
             _mockConversationService.Object,
-            mockConversationRepository.Object,
+            _mockConversationRepository.Object,
             _mockIdentityService.Object,
             _mockLogger.Object,
             _mockConfig.Object
@@ -154,18 +155,28 @@ public class ConversationEndpointsTests
         };
 
         _mockIdentityService.Setup(s => s.UserId).Returns(userId);
-        _mockConversationService.Setup(s => s.GetAllForUser(userId))
+        _mockConversationRepository
+            .Setup(r => r.CountAsync(
+                It.IsAny<System.Linq.Expressions.Expression<Func<Conversation, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(conversations.Count);
+
+        _mockConversationRepository
+            .Setup(r => r.GetPagedForUserAsync(userId, 0, 20, It.IsAny<CancellationToken>()))
             .ReturnsAsync(conversations);
 
         // Act
         var method = typeof(ConversationEndpoints)
             .GetMethod("GetAllConversationsForUser", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        var task = (Task<IResult>)method!.Invoke(null, new object[] { _conversationServices })!;
+        var httpContext = new DefaultHttpContext();
+        var task = (Task<IResult>)method!.Invoke(null, new object[] { _conversationServices, httpContext.Request })!;
         var result = await task;
 
         // Assert
         result.Should().NotBeNull();
-        _mockConversationService.Verify(s => s.GetAllForUser(userId), Times.Once);
+        _mockConversationRepository.Verify(
+            r => r.GetPagedForUserAsync(userId, 0, 20, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]

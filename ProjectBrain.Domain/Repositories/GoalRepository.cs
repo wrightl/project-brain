@@ -102,6 +102,55 @@ public class GoalRepository : Repository<Goal, Guid>, IGoalRepository
         return streak;
     }
 
+    public async Task<int> GetLongestCompletionStreakAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        // Fetch all goals that were actually set (non-empty messages).
+        // A "completed day" is any day where the user had at least one non-empty goal and all such goals were completed.
+        var goals = await _dbSet
+            .AsNoTracking()
+            .Where(g => g.UserId == userId && !string.IsNullOrWhiteSpace(g.Message))
+            .Select(g => new { g.Date, g.Completed })
+            .ToListAsync(cancellationToken);
+
+        if (goals.Count == 0)
+        {
+            return 0;
+        }
+
+        var completedDays = goals
+            .GroupBy(g => g.Date)
+            .Where(grp => grp.All(g => g.Completed))
+            .Select(grp => grp.Key)
+            .OrderBy(d => d)
+            .ToList();
+
+        if (completedDays.Count == 0)
+        {
+            return 0;
+        }
+
+        var best = 1;
+        var current = 1;
+
+        for (var i = 1; i < completedDays.Count; i++)
+        {
+            if (completedDays[i] == completedDays[i - 1].AddDays(1))
+            {
+                current++;
+                if (current > best)
+                {
+                    best = current;
+                }
+            }
+            else
+            {
+                current = 1;
+            }
+        }
+
+        return best;
+    }
+
     public async Task<bool> HasEverCreatedGoalsAsync(string userId, CancellationToken cancellationToken = default)
     {
         return await _dbSet

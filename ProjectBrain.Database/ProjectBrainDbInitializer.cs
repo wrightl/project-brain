@@ -320,6 +320,61 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         {
             logger.LogInformation("Subscription settings already exist, skipping seed");
         }
+
+        // Seed achievements (definitions/catalog)
+        if (!context.Achievements.Any())
+        {
+            logger.LogInformation("Seeding achievements...");
+
+            var achievements = new List<Achievement>
+            {
+                new()
+                {
+                    Key = "streak_1",
+                    Title = "First streak",
+                    Description = "Complete all your goals for a day.",
+                    IconKey = "trophy",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Key = "streak_3",
+                    Title = "3-day streak",
+                    Description = "Complete all your goals for 3 days in a row.",
+                    IconKey = "trophy",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Key = "streak_7",
+                    Title = "7-day streak",
+                    Description = "Complete all your goals for 7 days in a row.",
+                    IconKey = "trophy",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    Key = "first_coach_connection",
+                    Title = "Connected",
+                    Description = "Connect with your first coach.",
+                    IconKey = "trophy",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+            };
+
+            await context.Achievements.AddRangeAsync(achievements, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation("Achievements seeded successfully");
+        }
+        else
+        {
+            logger.LogInformation("Achievements already exist, skipping seed");
+        }
     }
 }
 

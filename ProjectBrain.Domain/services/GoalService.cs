@@ -103,6 +103,11 @@ public class GoalService : IGoalService
         return await _repository.GetCompletionStreakAsync(userId, cancellationToken);
     }
 
+    public async Task<int> GetLongestCompletionStreakAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        return await _repository.GetLongestCompletionStreakAsync(userId, cancellationToken);
+    }
+
     public async Task<bool> HasEverCreatedGoalsAsync(string userId, CancellationToken cancellationToken = default)
     {
         return await _repository.HasEverCreatedGoalsAsync(userId, cancellationToken);

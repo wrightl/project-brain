@@ -39,7 +39,14 @@ public class UserEndpointsTests
         var mockMemoryCache = new Mock<IMemoryCache>();
         var mockFeatureFlagService = new Mock<IFeatureFlagService>();
         var mockConfiguration = new Mock<IConfiguration>();
-        var mockStorage = new Mock<Storage>();
+        var mockSearchIndexService = new Mock<ISearchIndexService>();
+        var mockStorageLogger = new Mock<ILogger<Storage>>();
+        var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
+        var storage = new Storage(
+            mockConfiguration.Object,
+            blobServiceClient,
+            mockStorageLogger.Object,
+            mockSearchIndexService.Object);
 
         _userServices = new UserServices(
             _mockLogger.Object,
@@ -54,7 +61,7 @@ public class UserEndpointsTests
             _mockUserActivityService.Object,
             _mockCoachMessageService.Object,
             _mockOnboardingDataService.Object,
-            mockStorage.Object
+            storage
         );
     }
 

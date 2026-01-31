@@ -458,13 +458,19 @@ public static class CoachEndpoints
         await services.UserService.Update(user);
 
         // Update coach profile if coach-specific fields are provided
-        if (request.Qualifications != null || request.Specialisms != null || request.AgeGroups != null)
+        if (request.Qualifications != null ||
+            request.Specialisms != null ||
+            request.AgeGroups != null ||
+            request.Bio != null ||
+            request.ImageUrl != null)
         {
             await services.CoachProfileService.CreateOrUpdate(
                 userId,
                 qualifications: request.Qualifications,
                 specialisms: request.Specialisms,
-                ageGroups: request.AgeGroups);
+                ageGroups: request.AgeGroups,
+                bio: request.Bio,
+                imageUrl: request.ImageUrl);
         }
 
         // Return the updated coach
@@ -927,6 +933,8 @@ public class UpdateCoachRequest
     public IEnumerable<string>? Qualifications { get; init; }
     public IEnumerable<string>? Specialisms { get; init; }
     public IEnumerable<string>? AgeGroups { get; init; }
+    public string? Bio { get; init; }
+    public string? ImageUrl { get; init; }
 }
 
 public class ConnectionRequestRequest

@@ -126,7 +126,9 @@ public static class DomainToDtoMapper
             Qualifications = coachProfile.Qualifications?.Select(q => q.Qualification).ToList() ?? new List<string>(),
             Specialisms = coachProfile.Specialisms?.Select(s => s.Specialism).ToList() ?? new List<string>(),
             AgeGroups = coachProfile.AgeGroups?.Select(ag => ag.AgeGroup).ToList() ?? new List<string>(),
-            AvailabilityStatus = coachProfile.AvailabilityStatus
+            AvailabilityStatus = coachProfile.AvailabilityStatus,
+            Bio = coachProfile.Bio,
+            ImageUrl = coachProfile.ImageUrl
         };
     }
 

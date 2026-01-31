@@ -24,6 +24,7 @@ public static class GoalEndpoints
         group.MapPost("/", CreateOrUpdateGoals).WithName("CreateOrUpdateGoals");
         group.MapPost("/{index}/complete", CompleteGoal).WithName("CompleteGoal");
         group.MapGet("/streak", GetCompletionStreak).WithName("GetCompletionStreak");
+        group.MapGet("/streak-summary", GetStreakSummary).WithName("GetStreakSummary");
         group.MapGet("/has-ever-created", HasEverCreatedGoals).WithName("HasEverCreatedGoals");
     }
 
@@ -168,6 +169,29 @@ public static class GoalEndpoints
         {
             services.Logger.LogError(ex, "Error getting completion streak for user {UserId}", currentUserId);
             return Results.Problem("An error occurred while fetching streak.");
+        }
+    }
+
+    private static async Task<IResult> GetStreakSummary(
+        [AsParameters] GoalServices services)
+    {
+        var currentUserId = services.IdentityService.UserId!;
+
+        try
+        {
+            var current = await services.GoalService.GetCompletionStreakAsync(currentUserId);
+            var longest = await services.GoalService.GetLongestCompletionStreakAsync(currentUserId);
+
+            return Results.Ok(new StreakSummaryResponseDto
+            {
+                CurrentStreak = current,
+                LongestStreak = longest
+            });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error getting streak summary for user {UserId}", currentUserId);
+            return Results.Problem("An error occurred while fetching streak summary.");
         }
     }
 

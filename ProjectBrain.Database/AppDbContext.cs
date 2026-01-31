@@ -389,6 +389,37 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasForeignKey(dt => dt.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Configure UserCopingStrategy relationships
+        modelBuilder.Entity<UserCopingStrategy>()
+            .HasOne(ucs => ucs.User)
+            .WithMany()
+            .HasForeignKey(ucs => ucs.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserCopingStrategy>()
+            .HasIndex(ucs => ucs.UserId);
+
+        // Configure Achievement relationships
+        modelBuilder.Entity<UserAchievement>()
+            .HasOne(ua => ua.User)
+            .WithMany()
+            .HasForeignKey(ua => ua.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserAchievement>()
+            .HasOne(ua => ua.Achievement)
+            .WithMany()
+            .HasForeignKey(ua => ua.AchievementId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UserAchievement>()
+            .HasIndex(ua => new { ua.UserId, ua.AchievementId })
+            .IsUnique();
+
+        modelBuilder.Entity<Achievement>()
+            .HasIndex(a => a.Key)
+            .IsUnique();
+
         // Unique index on Token
         modelBuilder.Entity<DeviceToken>()
             .HasIndex(dt => dt.Token)
@@ -441,4 +472,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<AgentWorkflow> AgentWorkflows => Set<AgentWorkflow>();
     public DbSet<AgentAction> AgentActions => Set<AgentAction>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<UserCopingStrategy> UserCopingStrategies => Set<UserCopingStrategy>();
+    public DbSet<Achievement> Achievements => Set<Achievement>();
+    public DbSet<UserAchievement> UserAchievements => Set<UserAchievement>();
 }

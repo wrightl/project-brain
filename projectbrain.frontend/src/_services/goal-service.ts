@@ -41,7 +41,7 @@ export class GoalService {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(
-                errorData.error?.message || 'Failed to create/update goals'
+                errorData.error?.message || 'Failed to create/update goals',
             );
         }
         return response.json();
@@ -52,7 +52,7 @@ export class GoalService {
      */
     static async completeGoal(
         index: number,
-        completed: boolean
+        completed: boolean,
     ): Promise<Goal[]> {
         const response = await callBackendApi(`/eggs/${index}/complete`, {
             method: 'POST',
@@ -61,7 +61,7 @@ export class GoalService {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             throw new Error(
-                errorData.error?.message || 'Failed to complete goal'
+                errorData.error?.message || 'Failed to complete goal',
             );
         }
         return response.json();
@@ -77,6 +77,24 @@ export class GoalService {
         }
         const data = await response.json();
         return data.streak ?? 0;
+    }
+
+    /**
+     * Get streak summary (current + longest).
+     */
+    static async getStreakSummary(): Promise<{
+        currentStreak: number;
+        longestStreak: number;
+    }> {
+        const response = await callBackendApi('/eggs/streak-summary');
+        if (!response.ok) {
+            throw new Error('Failed to fetch streak summary');
+        }
+        const data = await response.json();
+        return {
+            currentStreak: data.currentStreak ?? 0,
+            longestStreak: data.longestStreak ?? 0,
+        };
     }
 
     /**

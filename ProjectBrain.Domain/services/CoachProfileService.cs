@@ -37,7 +37,9 @@ public class CoachProfileService : ICoachProfileService
         string userId,
         IEnumerable<string>? qualifications = null,
         IEnumerable<string>? specialisms = null,
-        IEnumerable<string>? ageGroups = null)
+        IEnumerable<string>? ageGroups = null,
+        string? bio = null,
+        string? imageUrl = null)
     {
         var existingProfile = await GetByUserId(userId);
 
@@ -46,7 +48,9 @@ public class CoachProfileService : ICoachProfileService
             // Create new profile
             var newProfile = new CoachProfile
             {
-                UserId = userId
+                UserId = userId,
+                Bio = bio,
+                ImageUrl = imageUrl
             };
 
             _repository.Add(newProfile);
@@ -58,6 +62,16 @@ public class CoachProfileService : ICoachProfileService
 
             if (trackedProfile != null)
             {
+                // Update optional profile fields
+                if (bio != null)
+                {
+                    trackedProfile.Bio = bio;
+                }
+                if (imageUrl != null)
+                {
+                    trackedProfile.ImageUrl = imageUrl;
+                }
+
                 // Add related entities
                 if (qualifications != null)
                 {
@@ -161,6 +175,16 @@ public class CoachProfileService : ICoachProfileService
 
             if (trackedProfile != null)
             {
+                // Update optional profile fields
+                if (bio != null)
+                {
+                    trackedProfile.Bio = bio;
+                }
+                if (imageUrl != null)
+                {
+                    trackedProfile.ImageUrl = imageUrl;
+                }
+
                 // Remove existing related entities
                 _context.CoachQualifications.RemoveRange(trackedProfile.Qualifications);
                 _context.CoachSpecialisms.RemoveRange(trackedProfile.Specialisms);
@@ -243,7 +267,9 @@ public interface ICoachProfileService
         string userId,
         IEnumerable<string>? qualifications = null,
         IEnumerable<string>? specialisms = null,
-        IEnumerable<string>? ageGroups = null);
+        IEnumerable<string>? ageGroups = null,
+        string? bio = null,
+        string? imageUrl = null);
 
     Task<bool> UpdateAvailabilityStatus(string userId, AvailabilityStatus status);
 

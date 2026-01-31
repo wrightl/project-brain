@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using ProjectBrain.Database.Models;
 
@@ -126,6 +126,8 @@ public record CoachDto : BaseUserDto
     public List<string> Specialisms { get; set; } = new List<string>();
     public List<string> AgeGroups { get; set; } = new List<string>();
     public AvailabilityStatus? AvailabilityStatus { get; set; }
+    public string? Bio { get; set; }
+    public string? ImageUrl { get; set; }
     public double? AverageRating { get; set; }
     public int RatingCount { get; set; }
 }

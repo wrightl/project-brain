@@ -21,6 +21,8 @@ export default function CoachProfileForm({
 
     const [formData, setFormData] = useState({
         fullName: coach.fullName || '',
+        bio: coach.bio || '',
+        imageUrl: coach.imageUrl || '',
         streetAddress: coach.streetAddress || '',
         addressLine2: coach.addressLine2 || '',
         city: coach.city || '',
@@ -40,6 +42,8 @@ export default function CoachProfileForm({
         setCoach(initialCoach);
         setFormData({
             fullName: initialCoach.fullName || '',
+            bio: initialCoach.bio || '',
+            imageUrl: initialCoach.imageUrl || '',
             streetAddress: initialCoach.streetAddress || '',
             addressLine2: initialCoach.addressLine2 || '',
             city: initialCoach.city || '',
@@ -55,7 +59,7 @@ export default function CoachProfileForm({
     const handleChange = (
         e: React.ChangeEvent<
             HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-        >
+        >,
     ) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -140,6 +144,8 @@ export default function CoachProfileForm({
                     method: 'PUT',
                     body: {
                         fullName: formData.fullName,
+                        bio: formData.bio || undefined,
+                        imageUrl: formData.imageUrl || undefined,
                         streetAddress: formData.streetAddress || undefined,
                         addressLine2: formData.addressLine2 || undefined,
                         city: formData.city || undefined,
@@ -159,7 +165,7 @@ export default function CoachProfileForm({
                                 ? formData.ageGroups
                                 : undefined,
                     },
-                }
+                },
             );
             setCoach(updatedCoach);
             setSuccess('Profile updated successfully!');
@@ -167,7 +173,7 @@ export default function CoachProfileForm({
             router.refresh();
         } catch (err) {
             setError(
-                err instanceof Error ? err.message : 'Failed to update profile'
+                err instanceof Error ? err.message : 'Failed to update profile',
             );
         } finally {
             setIsSubmitting(false);
@@ -398,6 +404,49 @@ export default function CoachProfileForm({
                             onChange={handleChange}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                         />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                        <label
+                            htmlFor="bio"
+                            className="block text-sm font-medium text-gray-700"
+                        >
+                            Bio
+                        </label>
+                        <textarea
+                            id="bio"
+                            name="bio"
+                            value={formData.bio}
+                            onChange={handleChange}
+                            rows={4}
+                            placeholder="A short bio for your profile…"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            This appears on your public coach profile and in
+                            your connected users’ network.
+                        </p>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                        <label
+                            htmlFor="imageUrl"
+                            className="block text-sm font-medium text-gray-700"
+                        >
+                            Profile picture URL
+                        </label>
+                        <input
+                            type="url"
+                            id="imageUrl"
+                            name="imageUrl"
+                            value={formData.imageUrl}
+                            onChange={handleChange}
+                            placeholder="https://…"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            Use a publicly accessible image URL (e.g., PNG/JPG).
+                        </p>
                     </div>
 
                     <div className="sm:col-span-2">

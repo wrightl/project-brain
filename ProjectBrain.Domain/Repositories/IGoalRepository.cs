@@ -28,6 +28,11 @@ public interface IGoalRepository : IRepository<Goal, Guid>
     Task<int> GetCompletionStreakAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the longest completion streak (max consecutive days with all non-empty goals completed).
+    /// </summary>
+    Task<int> GetLongestCompletionStreakAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks if user has ever created any goals
     /// </summary>
     Task<bool> HasEverCreatedGoalsAsync(string userId, CancellationToken cancellationToken = default);

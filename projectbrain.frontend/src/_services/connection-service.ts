@@ -8,6 +8,7 @@ export interface Connection {
     status: 'pending' | 'accepted' | 'cancelled' | 'rejected';
     userName?: string;
     coachName?: string;
+    coachProfileId?: string;
     requestedAt: string;
     respondedAt?: string;
 }
@@ -39,7 +40,9 @@ export class ConnectionService {
     /**
      * Get connection by ID
      */
-    static async getConnectionById(connectionId: string): Promise<Connection | null> {
+    static async getConnectionById(
+        connectionId: string,
+    ): Promise<Connection | null> {
         const response = await callBackendApi(`/connections/${connectionId}`);
         if (response.status === 404) {
             return null;
@@ -62,4 +65,3 @@ export class ConnectionService {
         }
     }
 }
-

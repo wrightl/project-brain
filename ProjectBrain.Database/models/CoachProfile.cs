@@ -17,6 +17,12 @@ public class CoachProfile
     [Column(TypeName = "nvarchar(20)")]
     public AvailabilityStatus? AvailabilityStatus { get; set; }
 
+    [StringLength(2000)]
+    public string? Bio { get; set; }
+
+    [StringLength(2048)]
+    public string? ImageUrl { get; set; }
+
     // Navigation properties for one-to-many relationships
     public ICollection<CoachQualification> Qualifications { get; set; } = new List<CoachQualification>();
     public ICollection<CoachSpecialism> Specialisms { get; set; } = new List<CoachSpecialism>();

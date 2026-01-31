@@ -6,6 +6,7 @@ export const goalKeys = {
     all: ['goals'] as const,
     todays: () => [...goalKeys.all, 'todays'] as const,
     streak: () => [...goalKeys.all, 'streak'] as const,
+    streakSummary: () => [...goalKeys.all, 'streakSummary'] as const,
     hasEverCreated: () => [...goalKeys.all, 'hasEverCreated'] as const,
 };
 
@@ -56,7 +57,7 @@ export function useCompleteGoal() {
         }) => {
             const response = await apiClient<Goal[]>(
                 `/api/goals/eggs/${index}/complete`,
-                { method: 'POST', body: { completed } }
+                { method: 'POST', body: { completed } },
             );
             return response;
         },
@@ -73,11 +74,25 @@ export function useCompletionStreak() {
         queryKey: goalKeys.streak(),
         queryFn: async () => {
             const response = await apiClient<{ streak: number }>(
-                '/api/goals/eggs/streak'
+                '/api/goals/eggs/streak',
             );
             return response.streak;
         },
         staleTime: 5 * 60 * 1000, // 5 minutes - streak doesn't change frequently
+    });
+}
+
+export function useStreakSummary() {
+    return useQuery({
+        queryKey: goalKeys.streakSummary(),
+        queryFn: async () => {
+            const response = await apiClient<{
+                currentStreak: number;
+                longestStreak: number;
+            }>('/api/goals/eggs/streak-summary');
+            return response;
+        },
+        staleTime: 5 * 60 * 1000,
     });
 }
 
@@ -86,7 +101,7 @@ export function useHasEverCreatedGoals() {
         queryKey: goalKeys.hasEverCreated(),
         queryFn: async () => {
             const response = await apiClient<{ hasEverCreated: boolean }>(
-                '/api/goals/eggs/has-ever-created'
+                '/api/goals/eggs/has-ever-created',
             );
             return response.hasEverCreated;
         },

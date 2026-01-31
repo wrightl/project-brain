@@ -23,16 +23,29 @@ export default function CopingStrategiesSection() {
     const { data, isLoading } = useCopingStrategyLibrary();
 
     return (
-        <section className="bg-white shadow rounded-lg p-6">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                        Coping strategies
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600">
-                        Your personalised strategies.
-                    </p>
-                </div>
+        <section className="relative overflow-hidden rounded-lg bg-white p-6 shadow border border-gray-300">
+            <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                style={{ background: 'var(--pink-indigo-gradient)' }}
+            />
+
+            <div className="relative">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-md bg-[color:var(--light-aluminium)]">
+                            <SparklesIcon className="h-5 w-5 text-[color:var(--pink)]" />
+                        </div>
+
+                        <div>
+                            <h2 className="text-xl font-semibold text-gray-900">
+                                Coping strategies
+                            </h2>
+                            <p className="mt-1 text-sm text-gray-600">
+                                Your personalised strategies.
+                            </p>
+                        </div>
+                    </div>
                 <div className="flex flex-row items-end gap-2">
                     <Link
                         href="/app/user/chat/strategies"
@@ -73,8 +86,8 @@ export default function CopingStrategiesSection() {
                                 className="flex items-start gap-4 rounded-md border border-gray-200 p-4"
                             >
                                 <div className="flex items-start gap-3 min-w-0">
-                                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-indigo-50">
-                                        <Icon className="h-5 w-5 text-indigo-700" />
+                                    <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-md bg-[color:var(--light-aluminium)]">
+                                        <Icon className="h-5 w-5 text-[color:var(--indigo)]" />
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-sm font-semibold text-gray-900">
@@ -90,6 +103,7 @@ export default function CopingStrategiesSection() {
                     })}
                 </div>
             )}
+            </div>
         </section>
     );
 }

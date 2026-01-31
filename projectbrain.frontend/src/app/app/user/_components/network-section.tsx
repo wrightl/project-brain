@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { UserGroupIcon } from '@heroicons/react/24/outline';
+import { UsersIcon } from '@heroicons/react/24/outline';
 import { ConnectionService } from '@/_services/connection-service';
 import { CoachService } from '@/_services/coach-service';
 
@@ -56,96 +56,110 @@ export default async function NetworkSection() {
     );
 
     return (
-        <section className="bg-white shadow rounded-lg p-6">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                        Your network
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600">
-                        Coaches you’re connected with.
-                    </p>
-                </div>
+        <section className="relative overflow-hidden rounded-lg bg-white p-6 shadow border border-gray-300">
+            <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                style={{ background: 'var(--aqua-emerald-gradient)' }}
+            />
 
-                <Link
-                    href="/app/user/find-coaches"
-                    className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700"
-                >
-                    <UserGroupIcon className="h-5 w-5" />
-                    Find coaches
-                </Link>
-            </div>
+            <div className="relative">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-md bg-[color:var(--light-aluminium)]">
+                            <UsersIcon className="h-5 w-5 text-[color:var(--aqua)]" />
+                        </div>
 
-            {coaches.length === 0 ? (
-                <div className="mt-6 rounded-md border border-dashed border-gray-300 p-6">
-                    <p className="text-sm text-gray-700">
-                        No coaches in your network yet.
-                    </p>
+                        <div>
+                            <h2 className="text-xl font-semibold text-gray-900">
+                                Your network
+                            </h2>
+                            <p className="mt-1 text-sm text-gray-600">
+                                Coaches you’re connected with.
+                            </p>
+                        </div>
+                    </div>
+
                     <Link
                         href="/app/user/find-coaches"
-                        className="mt-3 inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700"
                     >
-                        <UserGroupIcon className="h-5 w-5" />
-                        Find a coach
+                        <UsersIcon className="h-5 w-5" />
+                        Find coaches
                     </Link>
                 </div>
-            ) : (
-                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {coaches.map((coach) => (
-                        <div
-                            key={coach.connectionId}
-                            className="rounded-lg border border-gray-200 p-5"
-                        >
-                            <div className="flex items-start gap-4">
-                                {coach.imageUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                        src={coach.imageUrl}
-                                        alt={coach.fullName}
-                                        className="h-12 w-12 rounded-full object-cover border border-gray-200"
-                                    />
-                                ) : (
-                                    <div className="h-12 w-12 rounded-full bg-indigo-50 flex items-center justify-center border border-indigo-100 text-indigo-700 font-semibold">
-                                        {initials(coach.fullName)}
-                                    </div>
-                                )}
 
-                                <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-gray-900">
-                                        {coach.fullName}
-                                    </p>
-                                    <p className="mt-1 text-sm text-gray-600 line-clamp-3">
-                                        {coach.bio ??
-                                            'Coach profile details coming soon.'}
-                                    </p>
+                {coaches.length === 0 ? (
+                    <div className="mt-6 rounded-md border border-dashed border-gray-300 p-6">
+                        <p className="text-sm text-gray-700">
+                            No coaches in your network yet.
+                        </p>
+                        <Link
+                            href="/app/user/find-coaches"
+                            className="mt-3 inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        >
+                            <UsersIcon className="h-5 w-5" />
+                            Find a coach
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {coaches.map((coach) => (
+                            <div
+                                key={coach.connectionId}
+                                className="rounded-lg border border-gray-200 p-5"
+                            >
+                                <div className="flex items-start gap-4">
+                                    {coach.imageUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={coach.imageUrl}
+                                            alt={coach.fullName}
+                                            className="h-12 w-12 rounded-full object-cover border border-gray-200"
+                                        />
+                                    ) : (
+                                        <div className="h-12 w-12 rounded-full bg-[color:var(--light-aluminium)] flex items-center justify-center border border-[color:var(--aluminium)] text-[color:var(--aqua)] font-semibold">
+                                            {initials(coach.fullName)}
+                                        </div>
+                                    )}
+
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-gray-900">
+                                            {coach.fullName}
+                                        </p>
+                                        <p className="mt-1 text-sm text-gray-600 line-clamp-3">
+                                            {coach.bio ??
+                                                'Coach profile details coming soon.'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 flex items-center gap-3">
+                                    <Link
+                                        href={`/app/user/messages/${coach.connectionId}`}
+                                        className="inline-flex flex-1 items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                                    >
+                                        Message
+                                    </Link>
+
+                                    {coach.coachProfileId ? (
+                                        <Link
+                                            href={`/app/user/coaches/${coach.coachProfileId}`}
+                                            className="inline-flex flex-1 items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-medium text-indigo-700 ring-1 ring-inset ring-indigo-200 hover:bg-indigo-50"
+                                        >
+                                            View profile
+                                        </Link>
+                                    ) : (
+                                        <span className="flex-1 inline-flex items-center justify-center rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-400 cursor-not-allowed">
+                                            View profile
+                                        </span>
+                                    )}
                                 </div>
                             </div>
-
-                            <div className="mt-4 flex items-center gap-3">
-                                <Link
-                                    href={`/app/user/messages/${coach.connectionId}`}
-                                    className="inline-flex flex-1 items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                                >
-                                    Message
-                                </Link>
-
-                                {coach.coachProfileId ? (
-                                    <Link
-                                        href={`/app/user/coaches/${coach.coachProfileId}`}
-                                        className="inline-flex flex-1 items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-medium text-indigo-700 ring-1 ring-inset ring-indigo-200 hover:bg-indigo-50"
-                                    >
-                                        View profile
-                                    </Link>
-                                ) : (
-                                    <span className="flex-1 inline-flex items-center justify-center rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-400 cursor-not-allowed">
-                                        View profile
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+                        ))}
+                    </div>
+                )}
+            </div>
         </section>
     );
 }

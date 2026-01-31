@@ -31,6 +31,7 @@ type SuggestedStrategy = {
     title: string;
     description: string;
     iconKey?: string | null;
+    articleUrl?: string | null;
 };
 
 type SseJsonMessage = {
@@ -181,7 +182,17 @@ export default function ChatInterface({
                         : rawIconKey
                     : null;
 
-            return { title, description, iconKey };
+            const rawArticleUrl = obj.articleUrl;
+            const articleUrl =
+                rawArticleUrl === null
+                    ? null
+                    : typeof rawArticleUrl === 'string'
+                    ? rawArticleUrl === 'null'
+                        ? null
+                        : rawArticleUrl
+                    : null;
+
+            return { title, description, iconKey, articleUrl };
         });
         return normalized;
     };
@@ -950,30 +961,42 @@ export default function ChatInterface({
                                     const selected =
                                         selectedStrategyIndexes.has(i);
                                     return (
-                                        <button
+                                        <div
                                             key={`${s.title}-${i}`}
-                                            type="button"
-                                            onClick={() =>
-                                                toggleStrategySelected(i)
-                                            }
                                             className={`text-left rounded-lg border p-4 transition-colors ${
                                                 selected
                                                     ? 'border-indigo-500 bg-indigo-50'
                                                     : 'border-gray-200 bg-white hover:bg-gray-50'
                                             }`}
                                         >
-                                            <p className="text-sm font-semibold text-gray-900">
-                                                {s.title}
-                                            </p>
-                                            <p className="mt-1 text-sm text-gray-600">
-                                                {s.description}
-                                            </p>
-                                            <p className="mt-3 text-xs font-medium text-gray-500">
-                                                {selected
-                                                    ? 'Selected'
-                                                    : 'Click to select'}
-                                            </p>
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    toggleStrategySelected(i)
+                                                }
+                                                className="w-full text-left"
+                                            >
+                                                <p className="text-sm font-semibold text-gray-900">
+                                                    {s.title}
+                                                </p>
+                                                <p className="mt-1 text-sm text-gray-600">
+                                                    {s.description}
+                                                </p>
+                                            </button>
+
+                                            {s.articleUrl && (
+                                                <div className="mt-3">
+                                                    <a
+                                                        href={s.articleUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
+                                                    >
+                                                        Learn more
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
                                     );
                                 })}
                             </div>

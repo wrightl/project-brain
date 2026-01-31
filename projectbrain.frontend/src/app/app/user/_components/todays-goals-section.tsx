@@ -1,13 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircleIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import {
+    AcademicCapIcon,
+    CheckCircleIcon,
+    PencilSquareIcon,
+} from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
 import { useCompleteGoal, useTodaysGoals } from '@/_hooks/queries/use-goals';
 
 export default function TodaysGoalsSection() {
     const { data: goals, isLoading } = useTodaysGoals();
     const completeGoal = useCompleteGoal();
+    const [pendingGoalIndexes, setPendingGoalIndexes] = useState<Set<number>>(
+        () => new Set(),
+    );
 
     const totalGoals = 3;
     const completedCount = (goals ?? []).filter((g) => g.completed).length;
@@ -16,32 +24,59 @@ export default function TodaysGoalsSection() {
         (goals ?? []).every((g) => g.message.trim().length === 0);
 
     const onToggle = async (index: number, completed: boolean) => {
-        await completeGoal.mutateAsync({ index, completed });
+        setPendingGoalIndexes((prev) => {
+            const next = new Set(prev);
+            next.add(index);
+            return next;
+        });
+
+        try {
+            await completeGoal.mutateAsync({ index, completed });
+        } finally {
+            setPendingGoalIndexes((prev) => {
+                const next = new Set(prev);
+                next.delete(index);
+                return next;
+            });
+        }
     };
 
     return (
-        <section className="bg-white shadow rounded-lg p-6">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                        Today’s goals
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600">
-                        {isLoading ? (
-                            'Loading…'
-                        ) : (
-                            <>
-                                <span className="font-semibold text-gray-900">
-                                    {completedCount}
-                                </span>{' '}
-                                of{' '}
-                                <span className="font-semibold text-gray-900">
-                                    {totalGoals}
-                                </span>{' '}
-                                completed
-                            </>
-                        )}
-                    </p>
+        <section className="relative overflow-hidden rounded-lg bg-white p-6 shadow border border-gray-300">
+            <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                style={{ background: 'var(--emerald-yellow-gradient)' }}
+            />
+
+            <div className="relative">
+                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-md bg-[color:var(--light-aluminium)]">
+                        <AcademicCapIcon className="h-5 w-5 text-[color:var(--emerald)]" />
+                    </div>
+
+                    <div>
+                        <h2 className="text-xl font-semibold text-gray-900">
+                            Today’s goals
+                        </h2>
+                        <p className="mt-1 text-sm text-gray-600">
+                            {isLoading ? (
+                                'Loading…'
+                            ) : (
+                                <>
+                                    <span className="font-semibold text-gray-900">
+                                        {completedCount}
+                                    </span>{' '}
+                                    of{' '}
+                                    <span className="font-semibold text-gray-900">
+                                        {totalGoals}
+                                    </span>{' '}
+                                    completed
+                                </>
+                            )}
+                        </p>
+                    </div>
                 </div>
 
                 <Link
@@ -76,14 +111,17 @@ export default function TodaysGoalsSection() {
                 <div className="mt-6 space-y-3">
                     {(goals ?? []).slice(0, 3).map((goal) => {
                         const isEmpty = goal.message.trim().length === 0;
-                        const isDisabled = isEmpty || completeGoal.isPending;
+                        const isTogglingThisGoal = pendingGoalIndexes.has(
+                            goal.index,
+                        );
+                        const isDisabled = isEmpty || isTogglingThisGoal;
 
                         return (
                             <div
                                 key={goal.id}
                                 className={`flex items-center justify-between gap-4 rounded-md border p-4 ${
                                     goal.completed
-                                        ? 'border-green-200 bg-green-50'
+                                        ? 'border-[color:var(--emerald)] bg-[color:var(--light-aluminium)]'
                                         : 'border-gray-200 bg-white'
                                 }`}
                             >
@@ -118,7 +156,7 @@ export default function TodaysGoalsSection() {
                                         isDisabled
                                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                             : goal.completed
-                                              ? 'bg-white text-green-700 hover:bg-green-100'
+                                              ? 'bg-white text-[color:var(--emerald)] hover:bg-gray-50'
                                               : 'bg-indigo-600 text-white hover:bg-indigo-700'
                                     }`}
                                     aria-pressed={goal.completed}
@@ -140,6 +178,7 @@ export default function TodaysGoalsSection() {
                     })}
                 </div>
             )}
+            </div>
         </section>
     );
 }

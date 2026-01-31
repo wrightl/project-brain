@@ -37,7 +37,11 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 {
     public AzureOpenAIServices Services { get; } = services;
 
-    public record StrategySuggestion(string Title, string Description, string? IconKey);
+    public record StrategySuggestion(
+        string Title,
+        string Description,
+        string? IconKey,
+        string? ArticleUrl);
 
     private sealed class StrategySuggestionsResponse
     {
@@ -126,11 +130,12 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         }
         systemPrompt.AppendLine("Return ONLY valid JSON. No markdown. No extra text.");
         systemPrompt.AppendLine("Return exactly 3 items in this shape:");
-        systemPrompt.AppendLine("{\"items\":[{\"title\":\"...\",\"description\":\"...\",\"iconKey\":\"sparkles|lightbulb|null\"}]}");
+        systemPrompt.AppendLine("{\"items\":[{\"title\":\"...\",\"description\":\"...\",\"iconKey\":\"sparkles|lightbulb|null\",\"articleUrl\":\"https://...|null\"}]}");
         systemPrompt.AppendLine("Constraints:");
         systemPrompt.AppendLine("- titles <= 60 chars");
         systemPrompt.AppendLine("- descriptions <= 280 chars");
         systemPrompt.AppendLine("- descriptions must be specific steps the user can try");
+        systemPrompt.AppendLine("- articleUrl must be https and from one of these domains (or null): nhs.uk, apa.org, mind.org.uk, helpguide.org");
 
         var userPrompt = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(userInformation))
@@ -181,6 +186,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             return new List<StrategySuggestion>();
         }
 
+        Services.Logger.LogInformation("Raw response from strategies endpoint: {Raw}", raw);
+
         var extracted = ExtractLikelyJson(raw);
         try
         {
@@ -190,6 +197,11 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
             var items = (parsed?.Items ?? new List<StrategySuggestion>())
                 .Where(i => !string.IsNullOrWhiteSpace(i.Title) && !string.IsNullOrWhiteSpace(i.Description))
+                .Select(i => i with
+                {
+                    IconKey = NormalizeNullableString(i.IconKey),
+                    ArticleUrl = NormalizeAllowlistedArticleUrl(i.ArticleUrl)
+                })
                 .Take(3)
                 .ToList();
 
@@ -205,6 +217,88 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             Services.Logger.LogWarning(ex, "Failed to parse strategy suggestion JSON. Raw: {Raw}", raw);
             return new List<StrategySuggestion>();
         }
+    }
+
+    private static string? NormalizeNullableString(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return string.Equals(value.Trim(), "null", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : value.Trim();
+    }
+
+    private string? NormalizeAllowlistedArticleUrl(string? url)
+    {
+        var normalized = NormalizeNullableString(url);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(normalized, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var allowlist = GetStrategyArticleHostAllowlist();
+        var host = uri.Host;
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return null;
+        }
+
+        var allowed = allowlist.Any(allowedHost => HostMatches(host, allowedHost));
+        return allowed ? normalized : null;
+    }
+
+    private IReadOnlyList<string> GetStrategyArticleHostAllowlist()
+    {
+        // Optional config override:
+        // AI:StrategyArticleLinkAllowlistHosts="nhs.uk,apa.org,mind.org.uk,helpguide.org"
+        var configured = Services.Configuration["AI:StrategyArticleLinkAllowlistHosts"];
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured
+                .Split(
+                    new[] { ',', ';', ' ', '\n', '\r', '\t' },
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToArray();
+        }
+
+        return new[]
+        {
+            "nhs.uk",
+            "apa.org",
+            "mind.org.uk",
+            "helpguide.org"
+        };
+    }
+
+    private static bool HostMatches(string host, string allowedHost)
+    {
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(allowedHost))
+        {
+            return false;
+        }
+
+        host = host.Trim().TrimEnd('.');
+        allowedHost = allowedHost.Trim().TrimEnd('.');
+
+        if (string.Equals(host, allowedHost, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return host.EndsWith("." + allowedHost, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ExtractLikelyJson(string input)

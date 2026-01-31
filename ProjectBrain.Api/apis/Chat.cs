@@ -339,7 +339,8 @@ public static class ChatEndpoints
                 {
                     title = s.Title,
                     description = s.Description,
-                    iconKey = s.IconKey
+                    iconKey = s.IconKey,
+                    articleUrl = s.ArticleUrl
                 }).ToList();
 
                 await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "strategies", value = strategyPayload })}\n\n");

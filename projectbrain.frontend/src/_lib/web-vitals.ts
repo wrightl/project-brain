@@ -1,6 +1,6 @@
 'use client';
 
-import { onCLS, onFID, onFCP, onLCP, onTTFB, onINP, Metric } from 'web-vitals';
+import { onCLS, onFCP, onLCP, onTTFB, onINP, Metric } from 'web-vitals';
 
 type ReportHandler = (metric: Metric) => void;
 
@@ -32,7 +32,6 @@ function reportWebVital(metric: Metric) {
  */
 export function initWebVitals() {
     onCLS(reportWebVital);
-    onFID(reportWebVital);
     onFCP(reportWebVital);
     onLCP(reportWebVital);
     onTTFB(reportWebVital);

@@ -17,7 +17,7 @@ export class ResourceService {
         id: string,
         type: 'user' | 'shared'
     ): Promise<{ blob: Blob; headers: Headers }> {
-        var guid = id.split('_')[0];
+        const guid = id.split('_')[0];
         const response = await callBackendApi(`/resource/${guid}/${type}/file`);
 
         const blob = await response.blob();

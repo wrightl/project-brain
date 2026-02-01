@@ -7,8 +7,14 @@ const createJestConfig = nextJest({
 
 // Add any custom config to be passed to Jest
 const customJestConfig = {
+  // Polyfills that must run before any other imports (e.g. MSW/undici globals).
+  setupFiles: ['<rootDir>/jest.polyfills.js'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
+  // Watchman can fail in restricted/sandboxed environments (e.g. CI containers).
+  watchman: false,
+  // Prevent haste-map collisions with Next.js standalone output.
+  modulePathIgnorePatterns: ['<rootDir>/.next/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
@@ -24,5 +30,18 @@ const customJestConfig = {
   ],
 }
 
-// createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
-module.exports = createJestConfig(customJestConfig)
+// Export an async config so we can *override* next/jest defaults that would
+// otherwise ignore transforming MSW's ESM dependencies in node_modules.
+module.exports = async () => {
+  const config = await createJestConfig(customJestConfig)()
+
+  // MSW v2 ships ESM dependencies that Jest must transform.
+  // next/jest includes default transformIgnorePatterns, so we overwrite them.
+  config.transformIgnorePatterns = [
+    '/node_modules/(?!.pnpm)(?!(geist|msw|@mswjs|until-async)/)',
+    '/node_modules/.pnpm/(?!(geist|msw|@mswjs|until-async)@)',
+    '^.+\\.module\\.(css|sass|scss)$',
+  ]
+
+  return config
+}

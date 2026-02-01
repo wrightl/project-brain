@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@/_lib/test-utils';
+import { act, renderHook, waitFor } from '@/_lib/test-utils';
 import { useApi } from '@/_hooks/use-api';
 import { ApiClientError } from '@/_lib/api-client';
 
@@ -33,14 +33,27 @@ describe('useApi', () => {
     });
 
     it('should set loading to true when executing', async () => {
-        const mockApiFunction = jest.fn(() => Promise.resolve('success'));
+        let resolveApi: (value: string) => void;
+        const apiPromise = new Promise<string>((resolve) => {
+            resolveApi = resolve;
+        });
+
+        const mockApiFunction = jest.fn(() => apiPromise);
         const { result } = renderHook(() => useApi(mockApiFunction));
 
-        const executePromise = result.current.execute();
+        let executePromise: Promise<unknown>;
+        act(() => {
+            executePromise = result.current.execute();
+        });
 
-        expect(result.current.loading).toBe(true);
+        await waitFor(() => {
+            expect(result.current.loading).toBe(true);
+        });
 
-        await executePromise;
+        await act(async () => {
+            resolveApi!('success');
+            await executePromise;
+        });
 
         await waitFor(() => {
             expect(result.current.loading).toBe(false);
@@ -51,7 +64,9 @@ describe('useApi', () => {
         const mockApiFunction = jest.fn(() => Promise.resolve('success'));
         const { result } = renderHook(() => useApi(mockApiFunction));
 
-        await result.current.execute();
+        await act(async () => {
+            await result.current.execute();
+        });
 
         await waitFor(() => {
             expect(result.current.data).toBe('success');
@@ -64,7 +79,9 @@ describe('useApi', () => {
         const mockApiFunction = jest.fn(() => Promise.reject(mockError));
         const { result } = renderHook(() => useApi(mockApiFunction));
 
-        await result.current.execute();
+        await act(async () => {
+            await result.current.execute();
+        });
 
         await waitFor(() => {
             expect(result.current.error).toBe('Server error');
@@ -76,17 +93,23 @@ describe('useApi', () => {
         const mockApiFunction = jest.fn(() => Promise.resolve('success'));
         const { result } = renderHook(() => useApi(mockApiFunction));
 
-        await result.current.execute();
+        await act(async () => {
+            await result.current.execute();
+        });
 
         await waitFor(() => {
             expect(result.current.data).toBe('success');
         });
 
-        result.current.reset();
+        act(() => {
+            result.current.reset();
+        });
 
-        expect(result.current.data).toBeNull();
-        expect(result.current.loading).toBe(false);
-        expect(result.current.error).toBeNull();
+        await waitFor(() => {
+            expect(result.current.data).toBeNull();
+            expect(result.current.loading).toBe(false);
+            expect(result.current.error).toBeNull();
+        });
     });
 });
 

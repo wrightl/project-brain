@@ -42,7 +42,7 @@ function getEnv(): Env {
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
-            const missingVars = error.errors.map((e) => e.path.join('.')).join(', ');
+            const missingVars = error.issues.map((e) => e.path.join('.')).join(', ');
             throw new Error(
                 `❌ Invalid environment variables: ${missingVars}\n` +
                 `Please check your .env file and ensure all required variables are set.`

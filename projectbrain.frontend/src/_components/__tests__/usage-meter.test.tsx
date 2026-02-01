@@ -5,7 +5,7 @@ describe('UsageMeter', () => {
     it('renders label and current value', () => {
         render(<UsageMeter label="Test Usage" current={50} limit={100} />);
         expect(screen.getByText('Test Usage')).toBeInTheDocument();
-        expect(screen.getByText('50')).toBeInTheDocument();
+        expect(screen.getByText(/50\s*\/\s*100/)).toBeInTheDocument();
     });
 
     it('displays percentage correctly', () => {

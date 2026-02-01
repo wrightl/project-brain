@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
     WalletIcon,
@@ -101,13 +101,19 @@ const SidebarNavItem = ({ item }: { item: ISidebarItem }) => {
     const isActive = useMemo(() => {
         if (items && items.length > 0) {
             if (items.find((item) => item.path === pathname)) {
-                setExpanded(true);
                 return true;
             }
         }
 
         return path === pathname;
     }, [items, path, pathname]);
+
+    // Keep sub-nav expanded when one of its children is active.
+    useEffect(() => {
+        if (items && items.length > 0 && isActive) {
+            setExpanded(true);
+        }
+    }, [isActive, items]);
 
     return (
         <>

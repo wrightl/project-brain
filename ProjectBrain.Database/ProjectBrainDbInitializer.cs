@@ -36,10 +36,11 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         logger.LogInformation("Database initialization completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
     }
 
-    private static async Task EnsureDatabaseAsync(AppDbContext context, CancellationToken cancellationToken)
+    private static Task EnsureDatabaseAsync(AppDbContext context, CancellationToken cancellationToken)
     {
         // If you need to delete the database during development, uncomment this line
-        // await context.Database.EnsureDeletedAsync();
+        // return context.Database.EnsureDeletedAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     private static async Task RunMigrationAsync(AppDbContext context, CancellationToken cancellationToken)
@@ -130,6 +131,11 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
 
     private async Task SeedApplicationSettingsAsync(AppDbContext context, User? adminUser, CancellationToken cancellationToken)
     {
+        if (adminUser == null)
+        {
+            throw new InvalidOperationException("Admin user must exist before seeding ApplicationSettings.");
+        }
+
         var settingsKeysAndDefaultValues = new List<SettingsKeysAndDefaultValues>
         {
             new()
@@ -173,6 +179,55 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
                 Value = "7000",
                 Category = "AI",
                 Description = "Maximum total tokens allowed"
+            },
+            new()
+            {
+                Key = "Referral:Enabled",
+                Value = "true",
+                Category = "Referral",
+                Description = "Enable/disable the referral program"
+            },
+            new()
+            {
+                Key = "Referral:MaxRewardsPerInviter",
+                Value = "12",
+                Category = "Referral",
+                Description = "Maximum number of referral rewards an inviter can receive"
+            },
+            new()
+            {
+                Key = "Referral:InviterFreeMonths",
+                Value = "1",
+                Category = "Referral",
+                Description = "Number of free months awarded to the inviter per successful referral"
+            },
+            new()
+            {
+                Key = "Referral:InviteeFreeMonths",
+                Value = "1",
+                Category = "Referral",
+                Description = "Number of free months awarded to the invitee when they become a paid subscriber"
+            },
+            new()
+            {
+                Key = "Referral:InviteTokenExpiryDays",
+                Value = "30",
+                Category = "Referral",
+                Description = "Number of days before an invite link expires"
+            },
+            new()
+            {
+                Key = "Referral:MaxInvitesPerRequest",
+                Value = "10",
+                Category = "Referral",
+                Description = "Maximum number of email addresses allowed per invite send"
+            },
+            new()
+            {
+                Key = "Referral:RequireInviterActiveSubscriberToEarn",
+                Value = "false",
+                Category = "Referral",
+                Description = "Require inviter to be an active paid subscriber at the time rewards are granted"
             }
         };
 
@@ -192,7 +247,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
                     Value = setting.Value,
                     Category = setting.Category,
                     Description = setting.Description,
-                    UpdatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.UtcNow,
                     UpdatedBy = adminUser.Id
                 });
                 addedSettingsAny = true;

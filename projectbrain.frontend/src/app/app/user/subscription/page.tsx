@@ -1,7 +1,6 @@
 import { Metadata } from 'next';
 import { RoleGuard } from '@/_components/auth/role-guard';
 import SubscriptionManagement from './_components/subscription-management';
-import SubscriptionSummary from '../profile/_components/subscription-summary';
 
 export const metadata: Metadata = {
     title: 'Subscription',
@@ -20,7 +19,6 @@ export default async function SubscriptionPage() {
                         Manage your subscription plan and billing
                     </p>
                 </div>
-                <SubscriptionSummary />
                 <SubscriptionManagement />
             </div>
         </RoleGuard>

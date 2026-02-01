@@ -86,5 +86,21 @@ public class JournalEntryRepository : Repository<JournalEntry, Guid>, IJournalEn
             .Select(je => je.CreatedAt)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<List<DateTime>> GetCreatedAtForUserInRangeAsync(
+        string userId,
+        DateTime fromUtc,
+        DateTime toUtcExclusive,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(je =>
+                je.UserId == userId &&
+                je.CreatedAt >= fromUtc &&
+                je.CreatedAt < toUtcExclusive)
+            .Select(je => je.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
 }
 

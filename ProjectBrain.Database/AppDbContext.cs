@@ -283,6 +283,53 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         modelBuilder.Entity<ApplicationSetting>()
             .HasIndex(as_ => as_.Category);
 
+        // Configure ReferralInvite relationships
+        modelBuilder.Entity<ReferralInvite>()
+            .HasOne(ri => ri.Inviter)
+            .WithMany()
+            .HasForeignKey(ri => ri.InviterUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ReferralInvite>()
+            .HasOne(ri => ri.AcceptedByUser)
+            .WithMany()
+            .HasForeignKey(ri => ri.AcceptedByUserId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<ReferralInvite>()
+            .HasIndex(ri => new { ri.InviterUserId, ri.RecipientEmailNormalized })
+            .IsUnique();
+
+        modelBuilder.Entity<ReferralInvite>()
+            .HasIndex(ri => ri.TokenHash)
+            .IsUnique();
+
+        modelBuilder.Entity<ReferralInvite>()
+            .HasIndex(ri => ri.Status);
+
+        modelBuilder.Entity<ReferralInvite>()
+            .HasIndex(ri => ri.ExpiresAt);
+
+        // Configure ReferralReward relationships
+        modelBuilder.Entity<ReferralReward>()
+            .HasOne(rr => rr.ReferralInvite)
+            .WithMany()
+            .HasForeignKey(rr => rr.ReferralInviteId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ReferralReward>()
+            .HasOne(rr => rr.BeneficiaryUser)
+            .WithMany()
+            .HasForeignKey(rr => rr.BeneficiaryUserId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<ReferralReward>()
+            .HasIndex(rr => new { rr.ReferralInviteId, rr.BeneficiaryUserId })
+            .IsUnique();
+
+        modelBuilder.Entity<ReferralReward>()
+            .HasIndex(rr => rr.Status);
+
         // Configure AvailabilityStatus enum to be stored as string
         modelBuilder.Entity<CoachProfile>()
             .Property(cp => cp.AvailabilityStatus)
@@ -501,6 +548,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<CoachMessage> CoachMessages => Set<CoachMessage>();
     public DbSet<SubscriptionExclusion> SubscriptionExclusions => Set<SubscriptionExclusion>();
     public DbSet<ApplicationSetting> ApplicationSettings => Set<ApplicationSetting>();
+    public DbSet<ReferralInvite> ReferralInvites => Set<ReferralInvite>();
+    public DbSet<ReferralReward> ReferralRewards => Set<ReferralReward>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<JournalEntryTag> JournalEntryTags => Set<JournalEntryTag>();

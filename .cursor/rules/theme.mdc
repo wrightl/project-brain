@@ -1,5 +1,23 @@
 ---
+description: Respect ProjectBrain theme system (data-theme) in UI styling
 alwaysApply: true
 ---
 
-Always respect the users theme preference when applying styles to anything in the UI
+## Theme system (ProjectBrain)
+
+- Themes are applied by setting `data-theme` on `<html>` (not via Tailwind `dark` class).
+- See `projectbrain.frontend/src/_components/theme-provider.tsx` and `theme-initializer.tsx`.
+- Theme overrides live in:
+  - `projectbrain.frontend/src/styles/themes/dark.css`
+  - `projectbrain.frontend/src/styles/themes/colourful.css`
+
+## Rules
+
+- Prefer **theme-aware utility classes** that are overridden in theme CSS (e.g. `bg-white`, `text-gray-900`, `text-gray-600`, `border-gray-300`, `bg-gray-100`, `bg-gray-200`, `hover:bg-gray-100`, `shadow`).
+- **Do not rely on Tailwind `dark:*` variants** for user theme preference; they won’t respond to `data-theme="dark"` in this repo.
+- Avoid hardcoded colors/opacity tricks that won’t be updated by theme CSS. If you need new styling tokens, add matching overrides in **both** `dark.css` and `colourful.css` (and ensure the default/standard theme still looks good).
+
+## Quick example
+
+- ✅ Prefer: `className="bg-white text-gray-900 border border-gray-300"`
+- ❌ Avoid: `className="dark:bg-gray-800 dark:text-white"`

@@ -88,6 +88,53 @@ public class ApplicationSettingsService : IApplicationSettingsService
         _logger.LogInformation("Application setting '{Key}' updated by {UpdatedBy}", key, updatedBy);
     }
 
+    public async Task UpsertSettingAsync(
+        string key,
+        string value,
+        string category,
+        string description,
+        string updatedBy)
+    {
+        var setting = await _context.ApplicationSettings
+            .FirstOrDefaultAsync(s => s.Key == key);
+
+        if (setting == null)
+        {
+            _context.ApplicationSettings.Add(new ApplicationSetting
+            {
+                Key = key,
+                Value = value,
+                Category = category,
+                Description = description,
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = updatedBy
+            });
+
+            await _unitOfWork.SaveChangesAsync();
+
+            // Invalidate cache (if anything tried to read it earlier as missing)
+            var cacheKey = $"{SettingsCacheKeyPrefix}{key}";
+            await _cache.RemoveAsync(cacheKey);
+
+            _logger.LogInformation("Application setting '{Key}' created by {UpdatedBy}", key, updatedBy);
+            return;
+        }
+
+        setting.Value = value;
+        setting.Category ??= category;
+        setting.Description ??= description;
+        setting.UpdatedBy = updatedBy;
+        setting.UpdatedAt = DateTime.UtcNow;
+
+        await _unitOfWork.SaveChangesAsync();
+
+        // Invalidate cache
+        var existingCacheKey = $"{SettingsCacheKeyPrefix}{key}";
+        await _cache.RemoveAsync(existingCacheKey);
+
+        _logger.LogInformation("Application setting '{Key}' upserted by {UpdatedBy}", key, updatedBy);
+    }
+
     public async Task<AISettings> GetAISettingsAsync()
     {
         var maxSearchResults = await GetSettingAsync("AI:MaxSearchResults");
@@ -119,6 +166,7 @@ public interface IApplicationSettingsService
     Task<List<ApplicationSetting>> GetAllSettingsAsync();
     Task<List<ApplicationSetting>> GetSettingsByCategoryAsync(string category);
     Task UpdateSettingAsync(string key, string value, string updatedBy);
+    Task UpsertSettingAsync(string key, string value, string category, string description, string updatedBy);
     Task<AISettings> GetAISettingsAsync();
     Task UpdateAISettingsAsync(AISettings settings, string updatedBy);
 }

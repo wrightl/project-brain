@@ -35,7 +35,7 @@ export default function EggsPage() {
 
     if (isLoading || hasEverCreatedGoals === undefined) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
+            <div className="flex items-center justify-center py-12">
                 <div className="text-gray-600">Loading...</div>
             </div>
         );
@@ -43,13 +43,7 @@ export default function EggsPage() {
 
     // Show onboarding if user has never created goals
     if (!hasEverCreatedGoals) {
-        return (
-            <div className="min-h-screen bg-gray-50">
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <EggsOnboardingPage />
-                </div>
-            </div>
-        );
+        return <EggsOnboardingPage />;
     }
 
     // If no goals today, redirect to edit page
@@ -57,11 +51,5 @@ export default function EggsPage() {
         return null; // Will redirect via useEffect
     }
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <GoalsListPage />
-            </div>
-        </div>
-    );
+    return <GoalsListPage />;
 }

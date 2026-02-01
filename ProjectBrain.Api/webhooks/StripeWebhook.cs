@@ -5,10 +5,12 @@ using Stripe;
 
 public class StripeWebhookServices(
     ILogger<StripeWebhookServices> logger,
-    ISubscriptionService subscriptionService)
+    ISubscriptionService subscriptionService,
+    IReferralService referralService)
 {
     public ILogger<StripeWebhookServices> Logger { get; } = logger;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
+    public IReferralService ReferralService { get; } = referralService;
 }
 
 public static class StripeWebhookEndpoints
@@ -136,6 +138,18 @@ public static class StripeWebhookEndpoints
 
         await services.SubscriptionService.UpdateSubscriptionFromStripeAsync(subscriptionId);
         services.Logger.LogInformation("Payment succeeded for subscription {SubscriptionId}", subscriptionId);
+
+        try
+        {
+            await services.ReferralService.ProcessInvoicePaymentSucceededAsync(
+                stripeSubscriptionId: subscriptionId,
+                stripeInvoiceId: invoice.Id,
+                occurredAtUtc: DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error processing referral rewards for subscription {SubscriptionId}", subscriptionId);
+        }
     }
 
     private static async Task HandleInvoicePaymentFailed(StripeWebhookServices services, Event stripeEvent)

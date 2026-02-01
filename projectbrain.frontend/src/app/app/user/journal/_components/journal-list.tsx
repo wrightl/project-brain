@@ -8,6 +8,7 @@ import {
     useDeleteJournalEntry,
 } from '@/_hooks/queries/use-journals';
 import { JournalEntry } from '@/_services/journal-service';
+import YearlyHabitsCalendar from '@/_components/habits/yearly-habits-calendar';
 import {
     PencilIcon,
     TrashIcon,
@@ -80,6 +81,7 @@ export default function JournalList() {
 
     return (
         <div className="space-y-6">
+            <YearlyHabitsCalendar mode="journal" />
             <div className="flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900">
                     Your Journal Entries

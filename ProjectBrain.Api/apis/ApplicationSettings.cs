@@ -17,6 +17,16 @@ public class ApplicationSettingsServices(
 
 public static class ApplicationSettingsEndpoints
 {
+    private const string ReferralSettingsCategory = "Referral";
+
+    private const string ReferralEnabledKey = "Referral:Enabled";
+    private const string ReferralMaxRewardsPerInviterKey = "Referral:MaxRewardsPerInviter";
+    private const string ReferralInviterFreeMonthsKey = "Referral:InviterFreeMonths";
+    private const string ReferralInviteeFreeMonthsKey = "Referral:InviteeFreeMonths";
+    private const string ReferralInviteTokenExpiryDaysKey = "Referral:InviteTokenExpiryDays";
+    private const string ReferralMaxInvitesPerRequestKey = "Referral:MaxInvitesPerRequest";
+    private const string ReferralRequireInviterActiveSubscriberToEarnKey = "Referral:RequireInviterActiveSubscriberToEarn";
+
     public static void MapApplicationSettingsEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("admin/settings").RequireAuthorization("AdminOnly");
@@ -26,9 +36,11 @@ public static class ApplicationSettingsEndpoints
         group.MapGet("/category/{category}", GetSettingsByCategory).WithName("GetSettingsByCategory");
         group.MapGet("/ai", GetAISettings).WithName("GetAISettings");
         group.MapGet("/subscription", GetSubscriptionSettings).WithName("GetSubscriptionSettings");
+        group.MapGet("/referrals", GetReferralSettings).WithName("GetReferralSettings");
         group.MapPut("/{key}", UpdateSetting).WithName("UpdateSetting");
         group.MapPut("/ai", UpdateAISettings).WithName("UpdateAISettings");
         group.MapPut("/subscription", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
+        group.MapPut("/referrals", UpdateReferralSettings).WithName("UpdateReferralSettings");
     }
 
     private static async Task<IResult> GetAllSettings([AsParameters] ApplicationSettingsServices services)
@@ -239,6 +251,122 @@ public static class ApplicationSettingsEndpoints
         {
             services.Logger.LogError(ex, "Error updating subscription settings");
             return Results.Problem("An error occurred while updating subscription settings");
+        }
+    }
+
+    private static async Task<IResult> GetReferralSettings([AsParameters] ApplicationSettingsServices services)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var enabledRaw = await services.ApplicationSettingsService.GetSettingAsync(ReferralEnabledKey);
+            var maxRewardsRaw = await services.ApplicationSettingsService.GetSettingAsync(ReferralMaxRewardsPerInviterKey);
+            var inviterMonthsRaw = await services.ApplicationSettingsService.GetSettingAsync(ReferralInviterFreeMonthsKey);
+            var inviteeMonthsRaw = await services.ApplicationSettingsService.GetSettingAsync(ReferralInviteeFreeMonthsKey);
+            var expiryDaysRaw = await services.ApplicationSettingsService.GetSettingAsync(ReferralInviteTokenExpiryDaysKey);
+            var maxInvitesRaw = await services.ApplicationSettingsService.GetSettingAsync(ReferralMaxInvitesPerRequestKey);
+            var requireInviterPaidRaw = await services.ApplicationSettingsService.GetSettingAsync(ReferralRequireInviterActiveSubscriberToEarnKey);
+
+            var dto = new ReferralSettingsDto
+            {
+                Enabled = bool.TryParse(enabledRaw, out var enabled) ? enabled : false,
+                MaxRewardsPerInviter = int.TryParse(maxRewardsRaw, out var maxRewards) ? maxRewards : 12,
+                InviterFreeMonths = int.TryParse(inviterMonthsRaw, out var inviterMonths) ? inviterMonths : 1,
+                InviteeFreeMonths = int.TryParse(inviteeMonthsRaw, out var inviteeMonths) ? inviteeMonths : 1,
+                InviteTokenExpiryDays = int.TryParse(expiryDaysRaw, out var expiryDays) ? expiryDays : 30,
+                MaxInvitesPerRequest = int.TryParse(maxInvitesRaw, out var maxInvites) ? maxInvites : 10,
+                RequireInviterActiveSubscriberToEarn =
+                    bool.TryParse(requireInviterPaidRaw, out var requireInviterPaid) ? requireInviterPaid : false
+            };
+
+            return Results.Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving referral settings");
+            return Results.Problem("An error occurred while retrieving referral settings");
+        }
+    }
+
+    private static async Task<IResult> UpdateReferralSettings(
+        [AsParameters] ApplicationSettingsServices services,
+        UpdateReferralSettingsRequestDto request)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var adminId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Results.Unauthorized();
+        }
+
+        // Basic validation (keep server-side enforcement)
+        if (request.MaxRewardsPerInviter < 0 ||
+            request.InviterFreeMonths < 0 ||
+            request.InviteeFreeMonths < 0 ||
+            request.InviteTokenExpiryDays < 1 ||
+            request.MaxInvitesPerRequest < 1 ||
+            request.MaxInvitesPerRequest > 10)
+        {
+            return Results.BadRequest(new { error = "Invalid referral settings values" });
+        }
+
+        try
+        {
+            // These keys are seeded by ProjectBrainDbInitializer. We intentionally do not create them here.
+            await services.ApplicationSettingsService.UpdateSettingAsync(
+                ReferralEnabledKey,
+                request.Enabled.ToString().ToLowerInvariant(),
+                adminId);
+
+            await services.ApplicationSettingsService.UpdateSettingAsync(
+                ReferralMaxRewardsPerInviterKey,
+                request.MaxRewardsPerInviter.ToString(),
+                adminId);
+
+            await services.ApplicationSettingsService.UpdateSettingAsync(
+                ReferralInviterFreeMonthsKey,
+                request.InviterFreeMonths.ToString(),
+                adminId);
+
+            await services.ApplicationSettingsService.UpdateSettingAsync(
+                ReferralInviteeFreeMonthsKey,
+                request.InviteeFreeMonths.ToString(),
+                adminId);
+
+            await services.ApplicationSettingsService.UpdateSettingAsync(
+                ReferralInviteTokenExpiryDaysKey,
+                request.InviteTokenExpiryDays.ToString(),
+                adminId);
+
+            await services.ApplicationSettingsService.UpdateSettingAsync(
+                ReferralMaxInvitesPerRequestKey,
+                request.MaxInvitesPerRequest.ToString(),
+                adminId);
+
+            await services.ApplicationSettingsService.UpdateSettingAsync(
+                ReferralRequireInviterActiveSubscriberToEarnKey,
+                request.RequireInviterActiveSubscriberToEarn.ToString().ToLowerInvariant(),
+                adminId);
+
+            return Results.Ok(new { message = "Referral settings updated successfully" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            services.Logger.LogWarning(ex, "Referral settings key missing - seed required");
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error updating referral settings");
+            return Results.Problem("An error occurred while updating referral settings");
         }
     }
 }

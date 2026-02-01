@@ -39,5 +39,14 @@ public interface IJournalEntryRepository : IRepository<JournalEntry, Guid>
     /// Gets all CreatedAt timestamps for a user (UTC), for streak calculations.
     /// </summary>
     Task<List<DateTime>> GetCreatedAtForUserAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets CreatedAt timestamps for a user in a UTC range [fromUtc, toUtcExclusive).
+    /// </summary>
+    Task<List<DateTime>> GetCreatedAtForUserInRangeAsync(
+        string userId,
+        DateTime fromUtc,
+        DateTime toUtcExclusive,
+        CancellationToken cancellationToken = default);
 }
 

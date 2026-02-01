@@ -39,6 +39,8 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
         builder.Services.AddScoped<IAchievementRepository, AchievementRepository>();
         builder.Services.AddScoped<IUserAchievementRepository, UserAchievementRepository>();
+        builder.Services.AddScoped<IReferralInviteRepository, ReferralInviteRepository>();
+        builder.Services.AddScoped<IReferralRewardRepository, ReferralRewardRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
@@ -70,9 +72,12 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IJournalStreakService, JournalStreakService>();
         builder.Services.AddScoped<ICoachRatingService, CoachRatingService>();
         builder.Services.AddScoped<IGoalService, GoalService>();
+        builder.Services.AddScoped<IHabitsCalendarService, HabitsCalendarService>();
         builder.Services.AddScoped<ICopingStrategyService, CopingStrategyService>();
         builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
         builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
+        builder.Services.AddScoped<IReferralSettingsService, ReferralSettingsService>();
+        builder.Services.AddScoped<IReferralService, ReferralService>();
         builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
         builder.Services.AddScoped<IAgentService, AgentService>();
         builder.Services.AddScoped<IAgentActionTrackingService, AgentActionTrackingService>();

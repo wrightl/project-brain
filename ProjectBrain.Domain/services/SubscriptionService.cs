@@ -104,7 +104,7 @@ public class SubscriptionService : ISubscriptionService
         return tierResult;
     }
 
-    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? baseUrl = null)
+    public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string baseUrl = null)
     {
         // Get or create Stripe customer
         var subscription = await GetUserSubscriptionAsync(userId, userType);
@@ -578,7 +578,7 @@ public interface ISubscriptionService
 {
     Task<UserSubscription?> GetUserSubscriptionAsync(string userId, UserType userType);
     Task<string> GetUserTierAsync(string userId, UserType userType);
-    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? baseUrl = null);
+    Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string baseUrl);
     Task UpdateSubscriptionFromStripeAsync(string stripeSubscriptionId);
     Task CancelSubscriptionAsync(string userId, UserType userType);
     Task StartTrialAsync(string userId, UserType userType, string tier);

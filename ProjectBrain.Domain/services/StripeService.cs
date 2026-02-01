@@ -69,17 +69,6 @@ public class StripeService : IStripeService
                     $"You need to create a product and price in Stripe Dashboard and add the price ID to configuration.");
             }
 
-            // Use provided baseUrl or fallback to config or default
-            if (string.IsNullOrEmpty(baseUrl))
-            {
-                baseUrl = _configuration["Stripe:BaseUrl"];
-                if (string.IsNullOrEmpty(baseUrl))
-                {
-                    // Final fallback
-                    baseUrl = "https://localhost:3000";
-                }
-            }
-
             // Set URLs based on userType
             var successPath = userType == UserType.Coach
                 ? "/app/coach/subscription/success?session_id={CHECKOUT_SESSION_ID}"
@@ -263,6 +252,46 @@ public class StripeService : IStripeService
             throw;
         }
     }
+
+    public async Task<DateTime> ExtendSubscriptionByMonthsAsync(string stripeSubscriptionId, int months)
+    {
+        if (months <= 0)
+        {
+            // No-op
+            var info = await GetSubscriptionAsync(stripeSubscriptionId);
+            return info.CurrentPeriodEnd;
+        }
+
+        var infoBefore = await GetSubscriptionAsync(stripeSubscriptionId);
+        var newBillingAnchorUtc = DateTime.SpecifyKind(infoBefore.CurrentPeriodEnd.AddMonths(months), DateTimeKind.Utc);
+        var newBillingAnchorUnix = new DateTimeOffset(newBillingAnchorUtc).ToUnixTimeSeconds();
+
+        try
+        {
+            var service = new Stripe.SubscriptionService();
+            var options = new SubscriptionUpdateOptions
+            {
+                ProrationBehavior = "none"
+            };
+            // Stripe.NET v50 models BillingCycleAnchor as now/unchanged. We need a timestamp, so use ExtraParams.
+            options.AddExtraParam("billing_cycle_anchor", newBillingAnchorUnix);
+
+            await service.UpdateAsync(stripeSubscriptionId, options);
+
+            _logger.LogInformation(
+                "Extended Stripe subscription {SubscriptionId} by {Months} month(s). New billing anchor: {BillingAnchor}",
+                stripeSubscriptionId,
+                months,
+                newBillingAnchorUtc);
+
+            return newBillingAnchorUtc;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extending Stripe subscription {SubscriptionId} by {Months} month(s)", stripeSubscriptionId, months);
+            throw;
+        }
+    }
 }
 
 public interface IStripeService
@@ -272,6 +301,7 @@ public interface IStripeService
     Task<StripeSubscriptionInfo> GetSubscriptionAsync(string stripeSubscriptionId);
     Task CancelSubscriptionAsync(string stripeSubscriptionId);
     Task<StripeCheckoutSessionInfo> GetCheckoutSessionAsync(string sessionId);
+    Task<DateTime> ExtendSubscriptionByMonthsAsync(string stripeSubscriptionId, int months);
 }
 
 public class StripeSubscriptionInfo

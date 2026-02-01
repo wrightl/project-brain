@@ -7,6 +7,7 @@ import { PencilIcon } from '@heroicons/react/24/outline';
 import ProgressIndicator from './progress-indicator';
 import StreakDisplay from './streak-display';
 import CompletionOverlay from './completion-overlay';
+import YearlyHabitsCalendar from '@/_components/habits/yearly-habits-calendar';
 
 export default function GoalsListPage() {
     const { data: goals, isLoading } = useTodaysGoals();
@@ -88,6 +89,7 @@ export default function GoalsListPage() {
 
     return (
         <div className="space-y-6">
+            <YearlyHabitsCalendar mode="goals" />
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">

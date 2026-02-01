@@ -36,4 +36,14 @@ public interface IGoalRepository : IRepository<Goal, Guid>
     /// Checks if user has ever created any goals
     /// </summary>
     Task<bool> HasEverCreatedGoalsAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all goals for a user in a date range (inclusive).
+    /// Intended for reporting/visualizations.
+    /// </summary>
+    Task<List<Goal>> GetGoalsInDateRangeAsync(
+        string userId,
+        DateOnly fromDateInclusive,
+        DateOnly toDateInclusive,
+        CancellationToken cancellationToken = default);
 }

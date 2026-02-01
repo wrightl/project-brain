@@ -10,6 +10,7 @@ export interface ApiOptions {
     cache?: RequestCache;
     revalidate?: number | false;
     isFormData?: boolean;
+    headers?: HeadersInit;
 }
 
 export class BackendApiError extends Error {
@@ -42,6 +43,7 @@ export async function callBackendApi(
         cache = 'no-store',
         revalidate,
         isFormData,
+        headers: extraHeaders,
     } = options;
 
     try {
@@ -50,15 +52,12 @@ export async function callBackendApi(
             scope: scopes.length > 0 ? scopes.join(' ') : undefined,
         });
 
-        // console.log('Access token:', accessToken);
-
         // Prepare headers
-        const headers: HeadersInit = {
-            Authorization: `Bearer ${accessToken}`,
-        };
+        const headers = new Headers(extraHeaders);
+        headers.set('Authorization', `Bearer ${accessToken}`);
         // Only add content-type when isFormData is not true
         if (!isFormData) {
-            headers['Content-Type'] = 'application/json';
+            headers.set('Content-Type', contentType);
         }
 
         // Prepare request options

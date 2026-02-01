@@ -28,7 +28,9 @@ export default function UsageDisplay() {
     if (!usage || !subscription) return null;
 
     const tier = subscription?.tier || 'Free';
-    const userType = subscription?.userType || 'user';
+    // Backend stores userType as e.g. "User"/"Coach" (or sometimes enum), so normalize.
+    const userType = String((subscription as { userType?: unknown })?.userType ?? 'user').toLowerCase();
+    const isCoach = userType === 'coach';
 
     // Safely extract usage values with defaults
     const aiQueriesDaily: number = usage.aiQueries?.daily ?? 0;
@@ -50,7 +52,7 @@ export default function UsageDisplay() {
         clientConnections?: number;
         clientMessages?: number;
     } => {
-        if (userType === 'coach') {
+        if (isCoach) {
             return {
                 clientConnections: tier === 'Pro' ? -1 : 3,
                 clientMessages: tier === 'Pro' ? -1 : 10,
@@ -77,7 +79,7 @@ export default function UsageDisplay() {
             <h2 className="text-2xl font-semibold mb-4">Usage</h2>
 
             <div className="space-y-6">
-                {userType === 'user' && (
+                {!isCoach && (
                     <>
                         <div>
                             <h3 className="font-medium mb-2">AI Queries</h3>
@@ -129,7 +131,7 @@ export default function UsageDisplay() {
                     </>
                 )}
 
-                {userType === 'coach' && (
+                {isCoach && (
                     <>
                         <div>
                             <h3 className="font-medium mb-2">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AISettingsSection from './ai-settings-section';
 import SubscriptionSettingsSection from './subscription-settings-section';
+import ReferralSettingsSection from './referral-settings-section';
 
 export default function SettingsComponent() {
     return (
@@ -15,6 +16,7 @@ export default function SettingsComponent() {
             </div>
 
             <SubscriptionSettingsSection />
+            <ReferralSettingsSection />
             <AISettingsSection />
         </div>
     );

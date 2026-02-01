@@ -977,6 +977,133 @@ namespace projectbrain.database.Migrations
                     b.ToTable("QuizResponses");
                 });
 
+            modelBuilder.Entity("ReferralInvite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AcceptedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InviterUserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("LastSentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RecipientEmail")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("RecipientEmailNormalized")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("ResendCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RewardedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcceptedByUserId");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("InviterUserId", "RecipientEmailNormalized")
+                        .IsUnique();
+
+                    b.ToTable("ReferralInvites");
+                });
+
+            modelBuilder.Entity("ReferralReward", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AppliedToStripeSubscriptionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("BeneficiaryUserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Months")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ReferralInviteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TriggeringStripeInvoiceId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BeneficiaryUserId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ReferralInviteId", "BeneficiaryUserId")
+                        .IsUnique();
+
+                    b.ToTable("ReferralRewards");
+                });
+
             modelBuilder.Entity("ResearchReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1897,6 +2024,43 @@ namespace projectbrain.database.Migrations
                         .IsRequired();
 
                     b.Navigation("Quiz");
+                });
+
+            modelBuilder.Entity("ReferralInvite", b =>
+                {
+                    b.HasOne("User", "AcceptedByUser")
+                        .WithMany()
+                        .HasForeignKey("AcceptedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("User", "Inviter")
+                        .WithMany()
+                        .HasForeignKey("InviterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AcceptedByUser");
+
+                    b.Navigation("Inviter");
+                });
+
+            modelBuilder.Entity("ReferralReward", b =>
+                {
+                    b.HasOne("User", "BeneficiaryUser")
+                        .WithMany()
+                        .HasForeignKey("BeneficiaryUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ReferralInvite", "ReferralInvite")
+                        .WithMany()
+                        .HasForeignKey("ReferralInviteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BeneficiaryUser");
+
+                    b.Navigation("ReferralInvite");
                 });
 
             modelBuilder.Entity("ResearchReport", b =>

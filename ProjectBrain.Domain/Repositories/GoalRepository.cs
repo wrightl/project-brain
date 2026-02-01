@@ -157,4 +157,21 @@ public class GoalRepository : Repository<Goal, Guid>, IGoalRepository
             .AsNoTracking()
             .AnyAsync(g => g.UserId == userId && !string.IsNullOrWhiteSpace(g.Message), cancellationToken);
     }
+
+    public async Task<List<Goal>> GetGoalsInDateRangeAsync(
+        string userId,
+        DateOnly fromDateInclusive,
+        DateOnly toDateInclusive,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(g =>
+                g.UserId == userId &&
+                g.Date >= fromDateInclusive &&
+                g.Date <= toDateInclusive)
+            .OrderBy(g => g.Date)
+            .ThenBy(g => g.Index)
+            .ToListAsync(cancellationToken);
+    }
 }

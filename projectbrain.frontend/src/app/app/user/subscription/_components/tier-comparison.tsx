@@ -11,6 +11,9 @@ interface TierComparisonProps {
 export default function TierComparison({ currentTier, onUpgrade }: TierComparisonProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [billingInterval, setBillingInterval] = useState<'monthly' | 'annual'>(
+        'monthly'
+    );
 
     const handleUpgrade = async (tier: string, isAnnual: boolean) => {
         try {
@@ -20,6 +23,7 @@ export default function TierComparison({ currentTier, onUpgrade }: TierCompariso
                 method: 'POST',
                 body: { tier, isAnnual },
             });
+            onUpgrade();
             window.location.href = url;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to create checkout session');
@@ -76,7 +80,40 @@ export default function TierComparison({ currentTier, onUpgrade }: TierCompariso
 
     return (
         <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-2xl font-semibold mb-6">Choose Your Plan</h2>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <h2 className="text-2xl font-semibold">Choose Your Plan</h2>
+
+                <div
+                    className="inline-flex rounded-lg border border-gray-300 bg-gray-200 p-1"
+                    role="group"
+                    aria-label="Billing interval"
+                >
+                    <button
+                        type="button"
+                        onClick={() => setBillingInterval('monthly')}
+                        aria-pressed={billingInterval === 'monthly'}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                            billingInterval === 'monthly'
+                                ? 'bg-white text-gray-900 shadow-sm'
+                                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                    >
+                        Monthly
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setBillingInterval('annual')}
+                        aria-pressed={billingInterval === 'annual'}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                            billingInterval === 'annual'
+                                ? 'bg-white text-gray-900 shadow-sm'
+                                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                    >
+                        Annual
+                    </button>
+                </div>
+            </div>
             
             {error && (
                 <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
@@ -105,11 +142,19 @@ export default function TierComparison({ currentTier, onUpgrade }: TierCompariso
                             ) : (
                                 <div className="mb-4">
                                     <div className="text-2xl font-semibold">
-                                        {tier.monthlyPrice}
-                                        <span className="text-sm font-normal text-gray-600">/month</span>
+                                        {billingInterval === 'monthly'
+                                            ? tier.monthlyPrice
+                                            : tier.annualPrice}
+                                        {billingInterval === 'monthly' && (
+                                            <span className="text-sm font-normal text-gray-600">
+                                                /month
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="text-sm text-gray-600 mt-1">
-                                        {tier.annualPrice} when paid annually ({tier.annualTotal})
+                                        {billingInterval === 'monthly'
+                                            ? 'Billed monthly'
+                                            : `Billed annually (${tier.annualTotal})`}
                                     </div>
                                 </div>
                             )}
@@ -128,22 +173,24 @@ export default function TierComparison({ currentTier, onUpgrade }: TierCompariso
                                     Current Plan
                                 </div>
                             ) : !isFree ? (
-                                <div className="space-y-2">
-                                    <button
-                                        onClick={() => handleUpgrade(tier.name, false)}
-                                        disabled={loading}
-                                        className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                                    >
-                                        {loading ? 'Loading...' : `Upgrade to ${tier.name} (Monthly)`}
-                                    </button>
-                                    <button
-                                        onClick={() => handleUpgrade(tier.name, true)}
-                                        disabled={loading}
-                                        className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                                    >
-                                        {loading ? 'Loading...' : `Upgrade to ${tier.name} (Annual)`}
-                                    </button>
-                                </div>
+                                <button
+                                    onClick={() =>
+                                        handleUpgrade(
+                                            tier.name,
+                                            billingInterval === 'annual'
+                                        )
+                                    }
+                                    disabled={loading}
+                                    className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {loading
+                                        ? 'Loading...'
+                                        : `Upgrade to ${tier.name} (${
+                                              billingInterval === 'annual'
+                                                  ? 'Annual'
+                                                  : 'Monthly'
+                                          })`}
+                                </button>
                             ) : null}
                         </div>
                     );

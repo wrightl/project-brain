@@ -115,11 +115,6 @@ public class CoachProfileService : ICoachProfileService
         else
         {
             // Update existing profile
-            // Remove existing related entities
-            _context.CoachQualifications.RemoveRange(existingProfile.Qualifications);
-            _context.CoachSpecialisms.RemoveRange(existingProfile.Specialisms);
-            _context.CoachAgeGroups.RemoveRange(existingProfile.AgeGroups);
-
             // Add new related entities
             if (qualifications != null)
             {
@@ -185,7 +180,7 @@ public class CoachProfileService : ICoachProfileService
                     trackedProfile.ImageUrl = imageUrl;
                 }
 
-                // Remove existing related entities
+                // Remove existing related entities (tracked graph only - avoids duplicate User tracking)
                 _context.CoachQualifications.RemoveRange(trackedProfile.Qualifications);
                 _context.CoachSpecialisms.RemoveRange(trackedProfile.Specialisms);
                 _context.CoachAgeGroups.RemoveRange(trackedProfile.AgeGroups);
@@ -199,7 +194,7 @@ public class CoachProfileService : ICoachProfileService
             }
 
             await _unitOfWork.SaveChangesAsync();
-            return existingProfile;
+            return trackedProfile ?? existingProfile;
         }
     }
 
@@ -256,6 +251,22 @@ public class CoachProfileService : ICoachProfileService
         var results = await _repository.SearchAsync(city, stateProvince, country, ageGroups, specialisms);
         return results.ToList();
     }
+
+    public async Task<List<CoachProfile>> SearchByDistance(
+        double centerLatitude,
+        double centerLongitude,
+        double radiusMiles,
+        IEnumerable<string>? ageGroups = null,
+        IEnumerable<string>? specialisms = null)
+    {
+        var results = await _repository.SearchByDistanceAsync(
+            centerLatitude,
+            centerLongitude,
+            radiusMiles,
+            ageGroups,
+            specialisms);
+        return results.ToList();
+    }
 }
 
 public interface ICoachProfileService
@@ -278,6 +289,13 @@ public interface ICoachProfileService
         string? city = null,
         string? stateProvince = null,
         string? country = null,
+        IEnumerable<string>? ageGroups = null,
+        IEnumerable<string>? specialisms = null);
+
+    Task<List<CoachProfile>> SearchByDistance(
+        double centerLatitude,
+        double centerLongitude,
+        double radiusMiles,
         IEnumerable<string>? ageGroups = null,
         IEnumerable<string>? specialisms = null);
 }

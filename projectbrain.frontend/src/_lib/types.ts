@@ -25,6 +25,8 @@ export interface BaseUser {
     stateProvince?: string;
     postalCode?: string;
     country?: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 export interface User extends BaseUser {
@@ -325,6 +327,10 @@ export interface CoachSearchParams {
     country?: string;
     ageGroups?: string[];
     specialisms?: string[];
+    useMyLocation?: boolean;
+    distanceMiles?: number;
+    latitude?: number;
+    longitude?: number;
 }
 
 export interface ClientWithConnectionStatus {

@@ -19,6 +19,7 @@ public class UserEndpointsTests
     private readonly Mock<IIdentityService> _mockIdentityService;
     private readonly Mock<IUserService> _mockUserService;
     private readonly Mock<IAuth0UserManagement> _mockAuth0UserManagement;
+    private readonly Mock<IGeocodingService> _mockGeocodingService;
     private readonly Mock<ICoachProfileService> _mockCoachProfileService;
     private readonly Mock<IUserProfileService> _mockUserProfileService;
     private readonly UserServices _userServices;
@@ -31,6 +32,7 @@ public class UserEndpointsTests
         _mockIdentityService = new Mock<IIdentityService>();
         _mockUserService = new Mock<IUserService>();
         _mockAuth0UserManagement = new Mock<IAuth0UserManagement>();
+        _mockGeocodingService = new Mock<IGeocodingService>();
         _mockCoachProfileService = new Mock<ICoachProfileService>();
         _mockUserProfileService = new Mock<IUserProfileService>();
         _mockUserActivityService = new Mock<IUserActivityService>();
@@ -56,6 +58,7 @@ public class UserEndpointsTests
             mockMemoryCache.Object,
             mockFeatureFlagService.Object,
             mockConfiguration.Object,
+            _mockGeocodingService.Object,
             _mockCoachProfileService.Object,
             _mockUserProfileService.Object,
             _mockUserActivityService.Object,

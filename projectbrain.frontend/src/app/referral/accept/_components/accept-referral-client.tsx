@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
 interface ReferralInvitePreview {
@@ -14,22 +14,27 @@ interface ReferralInvitePreview {
 export default function AcceptReferralClient({
     token,
     isAuthenticated,
+    autoAccept = false,
 }: {
     token: string;
     isAuthenticated: boolean;
+    autoAccept?: boolean;
 }) {
     const [preview, setPreview] = useState<ReferralInvitePreview | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [accepting, setAccepting] = useState(false);
     const [accepted, setAccepted] = useState(false);
+    const [autoAcceptAttempted, setAutoAcceptAttempted] = useState(false);
 
-    const returnTo = useMemo(() => {
-        const path = `/referral/accept?token=${encodeURIComponent(
-            token || '',
-        )}`;
-        return `/auth/login?returnTo=${encodeURIComponent(path)}`;
+    const referralReturnPath = useMemo(() => {
+        const base = `/referral/accept?token=${encodeURIComponent(token || '')}`;
+        return `${base}&autoAccept=1`;
     }, [token]);
+
+    const signupHref = useMemo(() => {
+        return `/auth/signup?returnTo=${encodeURIComponent(referralReturnPath)}`;
+    }, [referralReturnPath]);
 
     useEffect(() => {
         const run = async () => {
@@ -62,7 +67,7 @@ export default function AcceptReferralClient({
         run();
     }, [token]);
 
-    const handleAccept = async () => {
+    const handleAccept = useCallback(async () => {
         if (!token) return;
         setAccepting(true);
         try {
@@ -86,7 +91,51 @@ export default function AcceptReferralClient({
         } finally {
             setAccepting(false);
         }
-    };
+    }, [token]);
+
+    useEffect(() => {
+        // After signup/login, auto-accept exactly once if requested.
+        if (!isAuthenticated) return;
+        if (!autoAccept) return;
+        if (!token) return;
+        if (loading) return;
+        if (error) return;
+        if (!preview) return;
+        if (preview.isExpired) return;
+        if (accepted) return;
+        if (accepting) return;
+        if (autoAcceptAttempted) return;
+
+        setAutoAcceptAttempted(true);
+        void handleAccept();
+    }, [
+        isAuthenticated,
+        autoAccept,
+        token,
+        loading,
+        error,
+        preview,
+        accepted,
+        accepting,
+        autoAcceptAttempted,
+        handleAccept,
+    ]);
+
+    useEffect(() => {
+        // Prevent refresh from re-triggering auto-accept.
+        if (!accepted) return;
+        if (typeof window === 'undefined') return;
+
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('autoAccept')) {
+                url.searchParams.delete('autoAccept');
+                window.history.replaceState({}, '', url.toString());
+            }
+        } catch {
+            // ignore
+        }
+    }, [accepted]);
 
     if (loading) {
         return (
@@ -112,6 +161,43 @@ export default function AcceptReferralClient({
                         Referral invite
                     </h1>
                     <p className="mt-2 text-sm text-red-600">{error}</p>
+                </div>
+            </div>
+        );
+    }
+
+    // If the visitor is already authenticated *and* they didn't come from the referral signup flow,
+    // block acceptance to enforce "new users only".
+    if (isAuthenticated && !autoAccept && !accepted) {
+        return (
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h1 className="text-2xl font-semibold text-gray-900">
+                        Referral invite
+                    </h1>
+                    <p className="mt-2 text-sm text-red-600">
+                        You’re already signed in. Referral invites can only be
+                        accepted by new users.
+                    </p>
+                    <p className="mt-3 text-sm text-gray-700">
+                        To accept this invite, sign out and create a new account
+                        with the invited email address.
+                    </p>
+
+                    <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                        <Link
+                            href="/app"
+                            className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700"
+                        >
+                            Go to the app
+                        </Link>
+                        <Link
+                            href="/"
+                            className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-semibold text-gray-900 bg-white ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                        >
+                            Learn more
+                        </Link>
+                    </div>
                 </div>
             </div>
         );
@@ -164,12 +250,13 @@ export default function AcceptReferralClient({
                     <div className="mt-6 flex flex-col sm:flex-row gap-3">
                         {!isAuthenticated ? (
                             <Link
-                                href={returnTo}
+                                href={signupHref}
                                 className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700"
                             >
                                 Sign up to accept
                             </Link>
-                        ) : accepted ? (
+                        ) : null}
+                        {isAuthenticated ? accepted ? (
                             <Link
                                 href="/app"
                                 className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700"
@@ -185,7 +272,7 @@ export default function AcceptReferralClient({
                             >
                                 {accepting ? 'Accepting...' : 'Accept invite'}
                             </button>
-                        )}
+                        ) : null}
 
                         <Link
                             href="/"

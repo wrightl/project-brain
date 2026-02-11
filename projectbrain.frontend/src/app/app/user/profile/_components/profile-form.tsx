@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/_lib/types';
 import { apiClient } from '@/_lib/api-client';
+import { CountryCombobox } from '@/_components/location/country-combobox';
+import { CityCombobox } from '@/_components/location/city-combobox';
+import type { CityOption, CountryOption } from '@/_lib/location-types';
 
 interface ProfileFormProps {
     user: User;
@@ -31,6 +34,11 @@ export default function ProfileForm({ user: initialUser }: ProfileFormProps) {
         country: user.country || '',
     });
 
+    const [selectedCountry, setSelectedCountry] = useState<CountryOption | null>(
+        null
+    );
+    const [selectedCity, setSelectedCity] = useState<CityOption | null>(null);
+
     const [newTrait, setNewTrait] = useState('');
 
     useEffect(() => {
@@ -48,7 +56,50 @@ export default function ProfileForm({ user: initialUser }: ProfileFormProps) {
             postalCode: initialUser.postalCode || '',
             country: initialUser.country || '',
         });
+
+        setSelectedCountry(null);
+        setSelectedCity(
+            initialUser.city
+                ? {
+                      city: initialUser.city,
+                      stateProvince: initialUser.stateProvince,
+                      country: initialUser.country,
+                      latitude: 0,
+                      longitude: 0,
+                      placeId: `manual:${initialUser.city}|${
+                          initialUser.stateProvince || ''
+                      }|${initialUser.country || ''}`,
+                      formattedAddress: [
+                          initialUser.city,
+                          initialUser.stateProvince,
+                          initialUser.country,
+                      ]
+                          .filter(Boolean)
+                          .join(', '),
+                  }
+                : null
+        );
     }, [initialUser]);
+
+    const handleCountryChange = (country: CountryOption | null) => {
+        setSelectedCountry(country);
+        setSelectedCity(null);
+        setFormData((prev) => ({
+            ...prev,
+            country: country?.name || '',
+            city: '',
+        }));
+    };
+
+    const handleCityChange = (city: CityOption | null) => {
+        setSelectedCity(city);
+        setFormData((prev) => ({
+            ...prev,
+            city: city?.city || '',
+            // Helpful default: if Google returns a region, populate it
+            stateProvince: city?.stateProvince || prev.stateProvince,
+        }));
+    };
 
     const handleChange = (
         e: React.ChangeEvent<
@@ -484,19 +535,13 @@ export default function ProfileForm({ user: initialUser }: ProfileFormProps) {
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div>
-                                    <label
-                                        htmlFor="city"
-                                        className="block text-sm font-medium text-gray-700"
-                                    >
-                                        City
-                                    </label>
-                                    <input
-                                        type="text"
+                                    <CityCombobox
+                                        key={selectedCountry?.code || 'no-country'}
                                         id="city"
-                                        name="city"
-                                        value={formData.city}
-                                        onChange={handleChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        label="City"
+                                        countryCode={selectedCountry?.code || null}
+                                        value={selectedCity}
+                                        onChange={handleCityChange}
                                     />
                                 </div>
 
@@ -537,19 +582,12 @@ export default function ProfileForm({ user: initialUser }: ProfileFormProps) {
                                 </div>
 
                                 <div>
-                                    <label
-                                        htmlFor="country"
-                                        className="block text-sm font-medium text-gray-700"
-                                    >
-                                        Country
-                                    </label>
-                                    <input
-                                        type="text"
+                                    <CountryCombobox
                                         id="country"
-                                        name="country"
-                                        value={formData.country}
-                                        onChange={handleChange}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        label="Country"
+                                        value={selectedCountry}
+                                        onChange={handleCountryChange}
+                                        initialCountryName={formData.country}
                                     />
                                 </div>
                             </div>

@@ -83,3 +83,7 @@ next-steps.md
 *.notused
 .azure
 */projectbrain.frontend/*
+*.old
+
+*.http
+appsettings.Development.json

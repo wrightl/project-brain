@@ -38,6 +38,11 @@ public class User
     [StringLength(100)]
     public string? Country { get; set; }
 
+    // Geo fields (derived from address, for maps/search UX)
+    public double? Latitude { get; set; }
+
+    public double? Longitude { get; set; }
+
     // Auth0 account information
     [StringLength(100)]
     public string? Connection { get; set; } // e.g., "Username-Password-Authentication", "google-oauth2", "windowslive", etc.

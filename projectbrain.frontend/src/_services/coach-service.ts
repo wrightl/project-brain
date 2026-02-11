@@ -16,6 +16,10 @@ export interface CoachSearchParams {
     country?: string;
     ageGroups?: string[];
     specialisms?: string[];
+    useMyLocation?: boolean;
+    distanceMiles?: number;
+    latitude?: number;
+    longitude?: number;
 }
 
 export class CoachService {
@@ -52,6 +56,18 @@ export class CoachService {
         }
         if (params.country) {
             queryParams.append('country', params.country);
+        }
+        if (typeof params.useMyLocation === 'boolean') {
+            queryParams.append('useMyLocation', params.useMyLocation ? 'true' : 'false');
+        }
+        if (typeof params.distanceMiles === 'number' && Number.isFinite(params.distanceMiles)) {
+            queryParams.append('distanceMiles', String(params.distanceMiles));
+        }
+        if (typeof params.latitude === 'number' && Number.isFinite(params.latitude)) {
+            queryParams.append('latitude', String(params.latitude));
+        }
+        if (typeof params.longitude === 'number' && Number.isFinite(params.longitude)) {
+            queryParams.append('longitude', String(params.longitude));
         }
         if (params.ageGroups && params.ageGroups.length > 0) {
             params.ageGroups.forEach((ag) => {

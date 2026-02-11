@@ -15,6 +15,7 @@ public class UserServices(
     IMemoryCache memoryCache,
     IFeatureFlagService featureFlagService,
     IConfiguration configuration,
+    IGeocodingService geocodingService,
     ICoachProfileService coachProfileService,
     IUserProfileService userProfileService,
     IUserActivityService userActivityService,
@@ -29,6 +30,7 @@ public class UserServices(
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
     public IFeatureFlagService FeatureFlagService { get; } = featureFlagService;
+    public IGeocodingService GeocodingService { get; } = geocodingService;
     public ICoachProfileService CoachProfileService { get; } = coachProfileService;
     public IUserProfileService UserProfileService { get; } = userProfileService;
     public IUserActivityService UserActivityService { get; } = userActivityService;
@@ -87,8 +89,16 @@ public static class UserEndpoints
             City = request.City,
             StateProvince = request.StateProvince,
             PostalCode = request.PostalCode,
-            Country = request.Country
+            Country = request.Country,
         };
+
+        // Populate coordinates (only when we have a meaningful location)
+        if (!string.IsNullOrWhiteSpace(user.City) && !string.IsNullOrWhiteSpace(user.Country))
+        {
+            var geocoded = await services.GeocodingService.GeocodeAsync(user.City, user.StateProvince, user.Country);
+            user.Latitude = geocoded?.Latitude;
+            user.Longitude = geocoded?.Longitude;
+        }
 
         if (existingUser is not null && existingUser.Roles != null && existingUser.Roles.Count > 0)
         {
@@ -247,8 +257,16 @@ public static class UserEndpoints
             City = request.City,
             StateProvince = request.StateProvince,
             PostalCode = request.PostalCode,
-            Country = request.Country
+            Country = request.Country,
         };
+
+        // Populate coordinates (only when we have a meaningful location)
+        if (!string.IsNullOrWhiteSpace(user.City) && !string.IsNullOrWhiteSpace(user.Country))
+        {
+            var geocoded = await services.GeocodingService.GeocodeAsync(user.City, user.StateProvince, user.Country);
+            user.Latitude = geocoded?.Latitude;
+            user.Longitude = geocoded?.Longitude;
+        }
 
         if (existingUser is not null && existingUser.Roles != null && existingUser.Roles.Count > 0)
         {
@@ -363,6 +381,31 @@ public static class UserEndpoints
             Country = request.Country ?? existingUser.Country,
             Roles = existingUser.Roles // Preserve existing roles
         };
+
+        var locationChanged =
+            !string.Equals(user.City, existingUser.City, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(user.StateProvince, existingUser.StateProvince, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(user.Country, existingUser.Country, StringComparison.OrdinalIgnoreCase);
+
+        if (locationChanged)
+        {
+            if (!string.IsNullOrWhiteSpace(user.City) && !string.IsNullOrWhiteSpace(user.Country))
+            {
+                var geocoded = await services.GeocodingService.GeocodeAsync(user.City, user.StateProvince, user.Country);
+                user.Latitude = geocoded?.Latitude;
+                user.Longitude = geocoded?.Longitude;
+            }
+            else
+            {
+                user.Latitude = null;
+                user.Longitude = null;
+            }
+        }
+        else
+        {
+            user.Latitude = existingUser.Latitude;
+            user.Longitude = existingUser.Longitude;
+        }
 
         // Update user in database
         var updatedUser = await services.UserService.Update(user);

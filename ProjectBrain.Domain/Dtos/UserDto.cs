@@ -22,6 +22,10 @@ public record BaseUserDto
     public string? PostalCode { get; set; }
     public string? Country { get; set; }
 
+    // Geo fields (derived from address)
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
     // Auth0 account information
     public string? Connection { get; set; } // e.g., "Username-Password-Authentication", "google-oauth2", "windowslive", etc.
     public bool EmailVerified { get; set; }

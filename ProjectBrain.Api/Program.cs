@@ -196,6 +196,7 @@ app.MapGoalEndpoints();
 app.MapHabitsEndpoints();
 app.MapCopingStrategyEndpoints();
 app.MapAchievementEndpoints();
+app.MapLocationEndpoints();
 app.MapFeatureFlagEndpoints();
 app.MapAgentEndpoints();
 app.MapPushNotificationEndpoints();

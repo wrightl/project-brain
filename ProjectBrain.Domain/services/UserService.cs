@@ -59,6 +59,8 @@ public class UserService : IUserService
         user.StateProvince = updatedUser.StateProvince;
         user.PostalCode = updatedUser.PostalCode;
         user.Country = updatedUser.Country;
+        user.Latitude = updatedUser.Latitude;
+        user.Longitude = updatedUser.Longitude;
 
         user.UserRoles = userDto.Roles.Select(roleName => new UserRole
         {

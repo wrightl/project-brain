@@ -13,6 +13,13 @@ public static class ProgramExtensions
     {
         builder.AddProjectBrainDbContext();
 
+        // External integrations
+        builder.Services.AddHttpClient<IGeocodingService, GoogleGeocodingService>(client =>
+        {
+            client.BaseAddress = new Uri("https://maps.googleapis.com/maps/api/geocode/");
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        });
+
         // Register Unit of Work
         builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 

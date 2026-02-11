@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     MapPinIcon,
     EnvelopeIcon,
@@ -31,6 +31,7 @@ interface CoachDetailViewProps {
 
 export default function CoachDetailView({ coach }: CoachDetailViewProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [connectionStatus, setConnectionStatus] =
         useState<ConnectionStatus | null>(null);
     const [loadingConnectionStatus, setLoadingConnectionStatus] =
@@ -41,7 +42,7 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
             try {
                 setLoadingConnectionStatus(true);
                 const response = await fetchWithAuth(
-                    `/api/coaches/${coach.coachProfileId}/connection-status`
+                    `/api/coaches/${coach.coachProfileId}/connection-status`,
                 );
                 if (response.ok) {
                     const status: ConnectionStatus = await response.json();
@@ -72,6 +73,16 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
+            {searchParams.get('fromSearch') === 'find-coaches' && (
+                <div className="flex items-center">
+                    <Link
+                        href="/app/user/find-coaches?restore=1"
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-800 underline"
+                    >
+                        Return to Search
+                    </Link>
+                </div>
+            )}
             {/* Header */}
             <div className="bg-white shadow rounded-lg p-6">
                 <div className="flex items-start justify-between">
@@ -121,23 +132,28 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
                                 {coach.email}
                             </p>
                         )}
-                        {coach.averageRating !== undefined && coach.averageRating !== null && (
-                            <div className="mt-3 flex items-center gap-3">
-                                <StarRating
-                                    rating={coach.averageRating}
-                                    size="md"
-                                    showValue={true}
-                                />
-                                {coach.ratingCount !== undefined && coach.ratingCount > 0 && (
-                                    <Link
-                                        href={`/app/user/coaches/${coach.coachProfileId}/ratings`}
-                                        className="text-sm text-indigo-600 hover:text-indigo-800 underline"
-                                    >
-                                        View all {coach.ratingCount} {coach.ratingCount === 1 ? 'rating' : 'ratings'}
-                                    </Link>
-                                )}
-                            </div>
-                        )}
+                        {coach.averageRating !== undefined &&
+                            coach.averageRating !== null && (
+                                <div className="mt-3 flex items-center gap-3">
+                                    <StarRating
+                                        rating={coach.averageRating}
+                                        size="md"
+                                        showValue={true}
+                                    />
+                                    {coach.ratingCount !== undefined &&
+                                        coach.ratingCount > 0 && (
+                                            <Link
+                                                href={`/app/user/coaches/${coach.coachProfileId}/ratings`}
+                                                className="text-sm text-indigo-600 hover:text-indigo-800 underline"
+                                            >
+                                                View all {coach.ratingCount}{' '}
+                                                {coach.ratingCount === 1
+                                                    ? 'rating'
+                                                    : 'ratings'}
+                                            </Link>
+                                        )}
+                                </div>
+                            )}
                     </div>
                     <button
                         onClick={handleContactCoach}

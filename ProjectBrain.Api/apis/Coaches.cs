@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
@@ -19,7 +20,8 @@ public class CoachServices(
     ISubscriptionService subscriptionService,
     IUsageTrackingService usageTrackingService,
     ICoachMessageService coachMessageService,
-    ICoachRatingService coachRatingService)
+    ICoachRatingService coachRatingService,
+    IGeocodingService geocodingService)
 {
     public ILogger<CoachServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -33,6 +35,7 @@ public class CoachServices(
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
     public ICoachMessageService CoachMessageService { get; } = coachMessageService;
     public ICoachRatingService CoachRatingService { get; } = coachRatingService;
+    public IGeocodingService GeocodingService { get; } = geocodingService;
 }
 
 public static class CoachEndpoints
@@ -311,16 +314,109 @@ public static class CoachEndpoints
         string? city = null,
         string? stateProvince = null,
         string? country = null,
+        string? useMyLocation = null,
+        string? distanceMiles = null,
+        string? latitude = null,
+        string? longitude = null,
         [FromQuery] string[]? ageGroups = null,
         [FromQuery] string[]? specialisms = null)
     {
+        static bool? ParseBoolish(string? value)
+        {
+            if (value is null) return null;
+            var v = value.Trim().ToLowerInvariant();
+            return v switch
+            {
+                "true" or "1" or "yes" or "on" => true,
+                "false" or "0" or "no" or "off" => false,
+                _ => null
+            };
+        }
 
-        var coaches = await services.CoachProfileService.Search(
-            city: city,
-            stateProvince: stateProvince,
-            country: country,
-            ageGroups: ageGroups,
-            specialisms: specialisms);
+        static bool TryParseFiniteDouble(string? value, out double result)
+        {
+            result = default;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+            {
+                return false;
+            }
+            if (!double.IsFinite(parsed)) return false;
+            result = parsed;
+            return true;
+        }
+
+        var useMyLocationParsed = ParseBoolish(useMyLocation) == true;
+
+        double? radiusMiles = null;
+        if (!string.IsNullOrWhiteSpace(distanceMiles))
+        {
+            if (!TryParseFiniteDouble(distanceMiles, out var parsedRadius) || parsedRadius <= 0)
+            {
+                return Results.BadRequest("distanceMiles must be a positive number.");
+            }
+            radiusMiles = parsedRadius;
+        }
+
+        List<CoachProfile> coaches;
+
+        if (useMyLocationParsed)
+        {
+            if (radiusMiles is null)
+            {
+                return Results.BadRequest("distanceMiles is required when useMyLocation=true.");
+            }
+
+            var currentUserId = services.IdentityService.UserId;
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var currentUser = await services.UserService.GetById(currentUserId);
+            if (currentUser is null)
+            {
+                return Results.NotFound($"User with ID {currentUserId} not found.");
+            }
+
+            if (currentUser.Latitude is null || currentUser.Longitude is null)
+            {
+                return Results.BadRequest("Your profile does not have location coordinates yet.");
+            }
+
+            coaches = await services.CoachProfileService.SearchByDistance(
+                centerLatitude: currentUser.Latitude.Value,
+                centerLongitude: currentUser.Longitude.Value,
+                radiusMiles: radiusMiles.Value,
+                ageGroups: ageGroups,
+                specialisms: specialisms);
+        }
+        else if (radiusMiles is not null)
+        {
+            // Geo search requested with explicit center point
+            if (!TryParseFiniteDouble(latitude, out var centerLat) ||
+                !TryParseFiniteDouble(longitude, out var centerLon))
+            {
+                return Results.BadRequest("latitude and longitude are required when distanceMiles is provided.");
+            }
+
+            coaches = await services.CoachProfileService.SearchByDistance(
+                centerLatitude: centerLat,
+                centerLongitude: centerLon,
+                radiusMiles: radiusMiles.Value,
+                ageGroups: ageGroups,
+                specialisms: specialisms);
+        }
+        else
+        {
+            // Fallback: string-based search
+            coaches = await services.CoachProfileService.Search(
+                city: city,
+                stateProvince: stateProvince,
+                country: country,
+                ageGroups: ageGroups,
+                specialisms: specialisms);
+        }
 
         var coachDtos = coaches
             .Where(cp => cp.User != null)
@@ -453,6 +549,31 @@ public static class CoachEndpoints
             Country = request.Country ?? existingUser.Country,
             Roles = existingUser.Roles // Preserve existing roles
         };
+
+        var locationChanged =
+            !string.Equals(user.City, existingUser.City, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(user.StateProvince, existingUser.StateProvince, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(user.Country, existingUser.Country, StringComparison.OrdinalIgnoreCase);
+
+        if (locationChanged)
+        {
+            if (!string.IsNullOrWhiteSpace(user.City) && !string.IsNullOrWhiteSpace(user.Country))
+            {
+                var geocoded = await services.GeocodingService.GeocodeAsync(user.City, user.StateProvince, user.Country);
+                user.Latitude = geocoded?.Latitude;
+                user.Longitude = geocoded?.Longitude;
+            }
+            else
+            {
+                user.Latitude = null;
+                user.Longitude = null;
+            }
+        }
+        else
+        {
+            user.Latitude = existingUser.Latitude;
+            user.Longitude = existingUser.Longitude;
+        }
 
         // Update user in database
         await services.UserService.Update(user);

@@ -37,5 +37,16 @@ public interface ICoachProfileRepository : IRepository<CoachProfile, int>
         IEnumerable<string>? ageGroups = null,
         IEnumerable<string>? specialisms = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches for coach profiles within a radius (miles) of a center point.
+    /// </summary>
+    Task<IEnumerable<CoachProfile>> SearchByDistanceAsync(
+        double centerLatitude,
+        double centerLongitude,
+        double radiusMiles,
+        IEnumerable<string>? ageGroups = null,
+        IEnumerable<string>? specialisms = null,
+        CancellationToken cancellationToken = default);
 }
 

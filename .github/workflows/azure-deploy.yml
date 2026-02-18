@@ -1,12 +1,16 @@
 name: azure deploy
 
+# on:
+#   workflow_call:
+#     inputs:
+#       deploy_environment:
+#         description: "Target environment (e.g. staging or production)"
+#         required: true
+#         type: string
 on:
-  workflow_call:
-    inputs:
-      deploy_environment:
-        description: "Target environment (e.g. staging or production)"
-        required: true
-        type: string
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 # Set up permissions for deploying with secretless Azure federated credentials
 # https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#set-up-azure-login-with-openid-connect-authentication
@@ -18,7 +22,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.deploy_environment }}
+    environment: ${{ vars.DEPLOYMENT_ENVIRONMENT }}
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}

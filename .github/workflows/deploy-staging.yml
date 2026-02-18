@@ -1,14 +1,14 @@
 name: Deploy (staging)
 
 on:
-  push:
-    branches: [main]
+  # push:
+  #   branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
-  
+
 jobs:
   deploy:
     uses: ./.github/workflows/azd-deploy.yml

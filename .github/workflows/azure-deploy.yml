@@ -27,7 +27,7 @@ jobs:
       AZURE_CUSTOM_DOMAIN_API: ${{ vars.CUSTOMDOMAIN_API }}
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_MIN_REPLICAS: ${{ vars.AZURE_MIN_REPLICAS }}
+      AZURE_MIN_REPLICAS: ${{ vars.MIN_REPLICAS }}
       AZURE_CERTIFICATE_NAME_APP: ${{ vars.CERTIFICATE_NAME_APP }}
       AZURE_CUSTOM_DOMAIN_APP: ${{ vars.CUSTOMDOMAIN_APP }}
       AZURE_DEPLOYMENT_ENVIRONMENT: ${{ vars.DEPLOYMENT_ENVIRONMENT }}
@@ -50,9 +50,6 @@ jobs:
             --federated-credential-provider "github" `
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
-
-      - name: check firebase
-        run: echo ${{secrets.FIREBASE_CREDENTIALS_JSON}} | sed 's/./& /g'
 
       - name: Provision Infrastructure
         run: azd provision --no-prompt

@@ -96,34 +96,20 @@ jobs:
           azd env set CERTIFICATE_NAME_API "${CERTIFICATE_NAME_API:-}" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set CERTIFICATE_NAME_APP "${CERTIFICATE_NAME_APP:-}" -e "$AZURE_ENV_NAME" --no-prompt
 
-          # Secrets (required by infra/app configuration)
-          # Set both underscore and hyphenated names so Aspire-generated Bicep finds them (avoids "prompt for type *survey.Password" panic with --no-prompt)
+          # Secrets (required by infra/app configuration). Use underscore names only (azd .env does not allow hyphens in variable names)
           azd env set auth0_domain "$AUTH0_DOMAIN" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set auth0-domain "$AUTH0_DOMAIN" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set auth0_clientid "$AUTH0_CLIENT_ID" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set auth0-clientid "$AUTH0_CLIENT_ID" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set auth0_managementapiclientid "$AUTH0_MANAGEMENT_API_CLIENT_ID" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set auth0-managementapiclientid "$AUTH0_MANAGEMENT_API_CLIENT_ID" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set auth0_managementapiclientsecret "$AUTH0_MANAGEMENT_API_CLIENT_SECRET" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set auth0-managementapiclientsecret "$AUTH0_MANAGEMENT_API_CLIENT_SECRET" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set auth0_webhook_token "$AUTH0_WEBHOOK_TOKEN" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set auth0-webhook-token "$AUTH0_WEBHOOK_TOKEN" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set launchdarkly_sdk_key "$LAUNCHDARKLY_SDK_KEY" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set launchdarkly-sdk-key "$LAUNCHDARKLY_SDK_KEY" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set mailgun_api_key "$MAILGUN_API_KEY" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set mailgun-api-key "$MAILGUN_API_KEY" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set mailgun_domain "$MAILGUN_DOMAIN" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set mailgun-domain "$MAILGUN_DOMAIN" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set firebase_credentials_json "$FIREBASE_CREDENTIALS_JSON" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set firebase-credentials-json "$FIREBASE_CREDENTIALS_JSON" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set admin_user_password "$ADMIN_USER_PASSWORD" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set admin-user-password "$ADMIN_USER_PASSWORD" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set cache_password "$CACHE_PASSWORD" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set cache-password "$CACHE_PASSWORD" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set projectbrain_password "$SQL_PASSWORD" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set projectbrain-password "$SQL_PASSWORD" -e "$AZURE_ENV_NAME" --no-prompt
           azd env set google_maps_geocoding_api_key "$GOOGLE_MAPS_GEOCODING_API_KEY" -e "$AZURE_ENV_NAME" --no-prompt
-          azd env set google-maps-geocoding-api-key "$GOOGLE_MAPS_GEOCODING_API_KEY" -e "$AZURE_ENV_NAME" --no-prompt
 
       - name: Provision
         run: azd provision -e "${{ vars.AZURE_ENV_NAME }}" --no-prompt

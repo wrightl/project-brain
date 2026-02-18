@@ -18,7 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.deploy_environment }}
+    # environment: ${{ inputs.deploy_environment }}
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
@@ -34,7 +34,7 @@ jobs:
     steps:
       - name: Write secret to file (temporary debug)
         env:
-          FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+          FIREBASE_CREDENTIALS_JSON: ${{ secrets.AZURE_FIREBASE_CREDENTIALS_JSON }}
         run: |
           echo "$FIREBASE_CREDENTIALS_JSON" > firebase-secret-debug.json
         shell: bash

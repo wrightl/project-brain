@@ -1,8 +1,6 @@
-name: Deploy (staging)
+name: Deploy (production)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -10,13 +8,13 @@ permissions:
   id-token: write
 
 concurrency:
-  group: deploy-staging
+  group: deploy-production
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: staging
+    environment: production
     env:
       AZD_USE_AZURE_CLI_CREDENTIALS: true
     steps:

@@ -47,6 +47,37 @@ jobs:
             --federated-credential-provider "github" \
             --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
 
+      - name: Check required secrets
+        shell: bash
+        env:
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_MANAGEMENT_API_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}
+          AUTH0_MANAGEMENT_API_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}
+          AUTH0_WEBHOOK_TOKEN: ${{ secrets.AUTH0_WEBHOOK_TOKEN }}
+          LAUNCHDARKLY_SDK_KEY: ${{ secrets.LAUNCHDARKLY_SDK_KEY }}
+          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+          FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+          ADMIN_USER_PASSWORD: ${{ secrets.ADMIN_USER_PASSWORD }}
+          SQL_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+          CACHE_PASSWORD: ${{ secrets.CACHE_PASSWORD }}
+          GOOGLE_MAPS_GEOCODING_API_KEY: ${{ secrets.GOOGLE_MAPS_GEOCODING_API_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in AUTH0_DOMAIN AUTH0_CLIENT_ID AUTH0_MANAGEMENT_API_CLIENT_ID AUTH0_MANAGEMENT_API_CLIENT_SECRET AUTH0_WEBHOOK_TOKEN LAUNCHDARKLY_SDK_KEY MAILGUN_API_KEY MAILGUN_DOMAIN FIREBASE_CREDENTIALS_JSON ADMIN_USER_PASSWORD SQL_PASSWORD CACHE_PASSWORD GOOGLE_MAPS_GEOCODING_API_KEY; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::One or more required GitHub secrets are missing or empty. Add them in this environment's secrets:"
+            printf '::error::  - %s\n' "${missing[@]}"
+            exit 1
+          fi
+          echo "All required secrets are set."
+
       - name: Configure azd environment
         shell: bash
         env:
@@ -112,7 +143,7 @@ jobs:
           azd env set google_maps_geocoding_api_key "$GOOGLE_MAPS_GEOCODING_API_KEY" -e "$AZURE_ENV_NAME" --no-prompt
 
       - name: Provision
-        run: azd provision -e "${{ vars.AZURE_ENV_NAME }}" --no-prompt
+        run: azd provision -e "${{ vars.AZURE_ENV_NAME }}" --no-prompt --debug
 
       - name: Deploy
         run: azd deploy --all -e "${{ vars.AZURE_ENV_NAME }}" --no-prompt

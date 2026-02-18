@@ -43,21 +43,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # - name: Log in with Azure (Federated Credentials)
-      #   run: |
-      #     azd auth login `
-      #       --client-id "$Env:AZURE_CLIENT_ID" `
-      #       --federated-credential-provider "github" `
-      #       --tenant-id "$Env:AZURE_TENANT_ID"
-      #   shell: pwsh
-
-
-      - name: Log in with Azure (azd OIDC)
+      - name: Log in with Azure (Federated Credentials)
         run: |
-          azd auth login \
-            --client-id "${{ secrets.AZURE_CLIENT_ID }}" \
-            --federated-credential-provider "github" \
-            --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
+          azd auth login `
+            --client-id "$Env:AZURE_CLIENT_ID" `
+            --federated-credential-provider "github" `
+            --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
 
       - name: Provision Infrastructure

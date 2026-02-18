@@ -1,0 +1,96 @@
+name: azure deploy
+
+on:
+  workflow_call:
+    inputs:
+      deploy_environment:
+        description: "Target environment (e.g. staging or production)"
+        required: true
+        type: string
+
+# Set up permissions for deploying with secretless Azure federated credentials
+# https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#set-up-azure-login-with-openid-connect-authentication
+permissions:
+  id-token: write
+  contents: read
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.deploy_environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CERTIFICATE_NAME_API: ${{ vars.CERTIFICATE_NAME_API }}
+      AZURE_CUSTOM_DOMAIN_API: ${{ vars.CUSTOMDOMAIN_API }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_MIN_REPLICAS: ${{ vars.AZURE_MIN_REPLICAS }}
+      AZURE_CERTIFICATE_NAME_APP: ${{ vars.CERTIFICATE_NAME_APP }}
+      AZURE_CUSTOM_DOMAIN_APP: ${{ vars.CUSTOMDOMAIN_APP }}
+      AZURE_DEPLOYMENT_ENVIRONMENT: ${{ vars.DEPLOYMENT_ENVIRONMENT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Install azd
+        uses: Azure/setup-azd@v2.2.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # - name: Log in with Azure (Federated Credentials)
+      #   run: |
+      #     azd auth login `
+      #       --client-id "$Env:AZURE_CLIENT_ID" `
+      #       --federated-credential-provider "github" `
+      #       --tenant-id "$Env:AZURE_TENANT_ID"
+      #   shell: pwsh
+
+
+      - name: Log in with Azure (azd OIDC)
+        run: |
+          azd auth login \
+            --client-id "${{ secrets.AZURE_CLIENT_ID }}" \
+            --federated-credential-provider "github" \
+            --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
+        shell: pwsh
+
+      - name: Provision Infrastructure
+        run: azd provision --no-prompt
+        env:
+          AZURE_CACHE_PASSWORD: ${{ secrets.CACHE_PASSWORD }}
+          AZURE_LAUNCHDARKLY_SDK_KEY: ${{ secrets.LAUNCHDARKLY_SDK_KEY }}
+          AZURE_MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+          AZURE_PROJECTBRAIN_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+          AZURE_ADMIN_USER_PASSWORD: ${{ secrets.ADMIN_USER_PASSWORD }}
+          AZURE_AUTH0_CLIENTID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AZURE_GOOGLE_MAPS_GEOCODING_API_KEY: ${{ secrets.GOOGLE_MAPS_GEOCODING_API_KEY }}
+          AZURE_AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AZURE_AUTH0_WEBHOOK_TOKEN: ${{ secrets.AUTH0_WEBHOOK_TOKEN }}
+          AZURE_FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+          AZURE_MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          AZURE_AUTH0_MANAGEMENTAPICLIENTID: ${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}
+          AZURE_AUTH0_MANAGEMENTAPICLIENTSECRET: ${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}
+
+      - name: Deploy Application
+        run: azd deploy --no-prompt
+        env:
+          AZURE_CACHE_PASSWORD: ${{ secrets.CACHE_PASSWORD }}
+          AZURE_LAUNCHDARKLY_SDK_KEY: ${{ secrets.LAUNCHDARKLY_SDK_KEY }}
+          AZURE_MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+          AZURE_PROJECTBRAIN_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+          AZURE_ADMIN_USER_PASSWORD: ${{ secrets.ADMIN_USER_PASSWORD }}
+          AZURE_AUTH0_CLIENTID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AZURE_GOOGLE_MAPS_GEOCODING_API_KEY: ${{ secrets.GOOGLE_MAPS_GEOCODING_API_KEY }}
+          AZURE_AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AZURE_AUTH0_WEBHOOK_TOKEN: ${{ secrets.AUTH0_WEBHOOK_TOKEN }}
+          AZURE_FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+          AZURE_MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          AZURE_AUTH0_MANAGEMENTAPICLIENTID: ${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}
+          AZURE_AUTH0_MANAGEMENTAPICLIENTSECRET: ${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}
+        

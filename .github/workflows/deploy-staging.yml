@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: ./.github/workflows/azd-deploy.yml
+    uses: ./.github/workflows/azure-deploy.yml
     with:
       deploy_environment: staging
     secrets: inherit

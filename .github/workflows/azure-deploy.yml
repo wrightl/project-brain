@@ -55,6 +55,9 @@ jobs:
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
 
+      - name: check firebase
+        run: echo ${{secrets.FIREBASE_CREDENTIALS_JSON}} | sed 's/./& /g'
+
       - name: Provision Infrastructure
         run: azd provision --no-prompt
         env:

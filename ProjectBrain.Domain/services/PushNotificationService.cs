@@ -1,3 +1,4 @@
+using System.Text;
 using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
 using Google.Apis.Auth.OAuth2;
@@ -36,11 +37,12 @@ public class PushNotificationService : IPushNotificationService
                 throw new InvalidOperationException("Firebase:CredentialsJson is not configured");
             }
 
+            var json = NormalizeFirebaseCredentialsJson(firebaseCredentials);
             try
             {
                 FirebaseApp.Create(new AppOptions()
                 {
-                    Credential = GoogleCredential.FromJson(firebaseCredentials)
+                    Credential = GoogleCredential.FromJson(json)
                 });
                 _logger.LogInformation("Firebase Admin SDK initialized successfully");
             }
@@ -52,6 +54,29 @@ public class PushNotificationService : IPushNotificationService
         }
 
         _messaging = FirebaseMessaging.DefaultInstance;
+    }
+
+    /// <summary>
+    /// Returns the JSON string to pass to GoogleCredential.FromJson. Accepts either raw JSON or base64-encoded JSON.
+    /// </summary>
+    private static string NormalizeFirebaseCredentialsJson(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return value;
+
+        try
+        {
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(value.Trim()));
+            var trimmed = decoded.Trim();
+            if (trimmed.Length > 0 && trimmed.StartsWith('{'))
+                return trimmed;
+        }
+        catch (FormatException)
+        {
+            // Not valid base64; use original value as JSON
+        }
+
+        return value;
     }
 
     public async Task<PushNotificationSendResult> SendNotificationAsync(

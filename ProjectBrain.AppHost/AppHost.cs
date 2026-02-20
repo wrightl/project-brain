@@ -194,7 +194,7 @@ if (builder.ExecutionContext.IsPublishMode)
     // variables
     var appBaseUrl = builder.AddParameter("app-base-url");
     var auth0Audience = builder.AddParameter("auth0-audience");
-    var auth0Scope = builder.AddParameter("auth0-scope", value: "", publishValueAsDefault: true);
+    // var auth0Scope = builder.AddParameter("auth0-scope", value: "", publishValueAsDefault: true);
     var apiServerUrl = builder.AddParameter("api-server-url");
 
     // secrets

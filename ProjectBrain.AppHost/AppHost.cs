@@ -190,6 +190,19 @@ apiService.WithReference(documentStorage);
 
 if (builder.ExecutionContext.IsPublishMode)
 {
+    // variables and secrets only needed for the deployment to azure
+    // variables
+    var appBaseUrl = builder.AddParameter("app-base-url");
+    var auth0Audience = builder.AddParameter("auth0-audience");
+    var auth0Scope = builder.AddParameter("auth0-scope");
+    var apiServerUrl = builder.AddParameter("api-server-url");
+
+    // secrets
+    var auth0Secret = builder.AddParameter("auth0-secret", secret: true);
+    var auth0ClientSecret = builder.AddParameter("auth0-client-secret", secret: true);
+    var nextPublicLaunchDarklyClientId = builder.AddParameter("next-public-launchdarkly-client-id", secret: true);
+    var googleMapsApiKey = builder.AddParameter("next-public-google-maps-api-key", secret: true);
+
     // sql azure
     var azureSql = builder.AddAzureSqlServer(sqlServerName);
 
@@ -202,8 +215,20 @@ if (builder.ExecutionContext.IsPublishMode)
     // Pass DEPLOY_ENV as build argument to select the correct .env file
     var frontend = builder.AddDockerfile(frontendName, $"../{appName}.{frontendName}")
         .WithBuildArg("DEPLOY_ENV", environmentName)
-        .WaitFor(apiService)
+        .WithEnvironment("APP_BASE_URL", appBaseUrl)
+        .WithEnvironment("AUTH0_SECRET", auth0Secret)
+        .WithEnvironment("AUTH0_DOMAIN", auth0Domain)
+        .WithEnvironment("AUTH0_CLIENT_ID", auth0ClientId)
+        .WithEnvironment("AUTH0_CLIENT_SECRET", auth0ClientSecret)
+        .WithEnvironment("AUTH0_AUDIENCE", auth0Audience)
+        .WithEnvironment("AUTH0_SCOPE", auth0Scope)
+        .WithEnvironment("API_SERVER_URL", apiServerUrl)
+        .WithEnvironment("LAUNCHDARKLY_SDK_KEY", launchDarklySdkKey)
+        .WithEnvironment("NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_ID", nextPublicLaunchDarklyClientId)
+        .WithEnvironment("GOOGLE_MAPS_GEOCODING_API_KEY", googleMapsGeocodingApiKey)
+        .WithEnvironment("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", googleMapsApiKey)
         .WithReference(apiService)
+        .WaitFor(apiService)
         .WaitFor(cache)
         .WithHttpEndpoint(targetPort: 3000)
         .WithExternalHttpEndpoints()
@@ -235,8 +260,8 @@ else
 
     // Use npm for frontend development
     var frontend = builder.AddNpmApp(frontendName, $"../{appName}.{frontendName}", "dev")
-        .WaitFor(apiService)
         .WithReference(apiService)
+        .WaitFor(apiService)
         .WaitFor(cache)
         .WithExternalHttpEndpoints();
 }

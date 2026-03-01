@@ -37,7 +37,6 @@ function getEnv(): Env {
             AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET,
             GOOGLE_MAPS_GEOCODING_API_KEY:
                 process.env.GOOGLE_MAPS_GEOCODING_API_KEY,
-            GOOGLE_MAPS_PLACES_API_KEY: process.env.GOOGLE_MAPS_PLACES_API_KEY,
             NODE_ENV: process.env.NODE_ENV,
         });
     } catch (error) {

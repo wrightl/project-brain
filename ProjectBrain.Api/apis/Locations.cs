@@ -45,8 +45,6 @@ public static class LocationEndpoints
         }
 
         var apiKey =
-            services.Configuration["GoogleMaps:PlacesApiKey"] ??
-            services.Configuration["GOOGLE_MAPS_PLACES_API_KEY"] ??
             services.Configuration["GOOGLE_MAPS_GEOCODING_API_KEY"] ??
             services.Configuration["GoogleMaps:GeocodingApiKey"];
 

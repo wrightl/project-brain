@@ -29,7 +29,6 @@ const KNOWN_KEYS = [
     'NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_ID',
     'LAUNCHDARKLY_SDK_KEY',
     'GOOGLE_MAPS_GEOCODING_API_KEY',
-    'GOOGLE_MAPS_PLACES_API_KEY',
 ];
 
 function isSafeKey(key: string): boolean {

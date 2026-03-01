@@ -26,15 +26,15 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       AZURE_CERTIFICATE_NAME_API: ${{ vars.CERTIFICATE_NAME_API }}
       AZURE_CUSTOM_DOMAIN_API: ${{ vars.CUSTOMDOMAIN_API }}
-      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_ENV_NAME: projectbrain-${{ inputs.deploy_environment }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       AZURE_MIN_REPLICAS: ${{ vars.MIN_REPLICAS }}
       AZURE_CERTIFICATE_NAME_APP: ${{ vars.CERTIFICATE_NAME_APP }}
       AZURE_CUSTOM_DOMAIN_APP: ${{ vars.CUSTOMDOMAIN_APP }}
-      AZURE_APP_BASE_URL: ${{ vars.APP_BASE_URL }}
-      AZURE_AUTH0_AUDIENCE: ${{ vars.AUTH0_AUDIENCE }}
+      AZURE_APP_BASE_URL: https://${{ vars.CUSTOMDOMAIN_APP }}
+      AZURE_AUTH0_AUDIENCE: https://${{ vars.CUSTOMDOMAIN_API }}
       AZURE_AUTH0_SCOPE: ${{ vars.AUTH0_SCOPE }}
-      AZURE_API_SERVER_URL: ${{ vars.API_SERVER_URL }}
+      AZURE_API_SERVER_URL: https://${{ vars.CUSTOMDOMAIN_API }}
     steps:
 
       - name: Checkout

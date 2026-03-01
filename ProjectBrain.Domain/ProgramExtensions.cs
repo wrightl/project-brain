@@ -93,8 +93,16 @@ public static class ProgramExtensions
         // Register mail provider
         builder.Services.AddScoped<IEmailService, MailgunEmailService>();
 
-        // Register push notification service
-        builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+        // Register push notification service (or no-op when disabled)
+        var pushEnabled = builder.Configuration.GetValue<bool>("PushNotifications:Enabled", false);
+        if (pushEnabled)
+        {
+            builder.Services.AddScoped<IPushNotificationService, PushNotificationService>();
+        }
+        else
+        {
+            builder.Services.AddScoped<IPushNotificationService, NoOpPushNotificationService>();
+        }
 
         // Register device token cleanup service
         builder.Services.AddScoped<IDeviceTokenCleanupService, DeviceTokenCleanupService>();

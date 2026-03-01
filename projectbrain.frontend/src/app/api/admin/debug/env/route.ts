@@ -11,8 +11,6 @@ const SAFE_KEYS = new Set([
     'AUTH0_CLIENT_ID',
     'AUTH0_AUDIENCE',
     'AUTH0_SCOPE',
-    'AUTH0_BASE_URL',
-    'AUTH0_ISSUER_BASE_URL',
 ]);
 
 /** Known env keys the app uses (server + public). Secrets are redacted. */
@@ -26,18 +24,12 @@ const KNOWN_KEYS = [
     'AUTH0_CLIENT_SECRET',
     'AUTH0_AUDIENCE',
     'AUTH0_SCOPE',
-    'AUTH0_BASE_URL',
-    'AUTH0_ISSUER_BASE_URL',
-    'NEXT_PUBLIC_AUTH0_DOMAIN',
-    'NEXT_PUBLIC_AUTH0_CLIENT_ID',
-    'NEXT_PUBLIC_AUTH0_AUDIENCE',
     'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY',
     'NEXT_PUBLIC_API_SERVER_URL',
     'NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_ID',
     'LAUNCHDARKLY_SDK_KEY',
     'GOOGLE_MAPS_GEOCODING_API_KEY',
     'GOOGLE_MAPS_PLACES_API_KEY',
-    'NEXT_PUBLIC_API_URL',
 ];
 
 function isSafeKey(key: string): boolean {
@@ -73,7 +65,7 @@ export const GET = createApiRoute(async (req: NextRequest) => {
 
     // Sort keys for consistent display
     const sorted = Object.fromEntries(
-        Object.entries(env).sort(([a], [b]) => a.localeCompare(b))
+        Object.entries(env).sort(([a], [b]) => a.localeCompare(b)),
     );
 
     return { env: sorted };

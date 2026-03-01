@@ -6,10 +6,12 @@ using Microsoft.OpenApi;
 using ProjectBrain.AI;
 using ProjectBrain.Api;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
 using ProjectBrain.Api.Middlewares;
 using ProjectBrain.Api.Validators;
 using ProjectBrain.Database.Interfaces;
 using Scalar.AspNetCore;
+using TickerQ.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -121,23 +123,8 @@ builder.Services.AddOpenApi(options =>
     // options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
 
-// builder.Services.AddTickerQ(options =>
-// {
-//     options.SetMaxConcurrency(10);
-//     // options.AddOperationalStore<MyDbContext>(efOpt => 
-//     // {
-//     //     efOpt.SetExceptionHandler<MyExceptionHandlerClass>();
-//     //     efOpt.UseModelCustomizerForMigrations();
-//     // });
-//     if (builder.Environment.IsDevelopment())
-//     {
-//         options.AddDashboard(uiopt =>
-//         {
-//             uiopt.BasePath = "/tickerq-dashboard";
-//             uiopt.EnableBasicAuth = true;
-//         });
-//     }
-// });
+builder.Services.AddTickerQ();
+builder.Services.AddScoped<UserContextTickerJobs>();
 
 builder.AddFeatureFlags();
 
@@ -207,7 +194,7 @@ app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").Requir
 
 app.MapDefaultEndpoints();
 
-// app.UseTickerQ(); // Activates job processor
+app.UseTickerQ(); // Activates job processor
 
 app.Run();
 

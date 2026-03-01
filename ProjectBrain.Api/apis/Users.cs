@@ -150,36 +150,30 @@ public static class UserEndpoints
             }
         }
 
-        // Convert onboarding data to JSON and store in blob storage (for backward compatibility)
+        // Build and upload onboarding as markdown (for AI Chat/Agent) with indexing
         try
         {
             var onboardingData = CreateOnboardingData(userProfile, createdUser as UserDto, request.Onboarding);
-
-            var jsonContent = JsonSerializer.Serialize(onboardingData, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
-            var filename = $"{Constants.ONBOARDING_DATA_FILENAME}";
-            var jsonBytes = Encoding.UTF8.GetBytes(jsonContent);
-            await using (var stream = new MemoryStream(jsonBytes))
+            var markdown = BuildOnboardingMarkdown(onboardingData);
+            var mdFilename = Constants.ONBOARDING_MARKDOWN_FILENAME;
+            var mdBytes = Encoding.UTF8.GetBytes(markdown);
+            await using (var mdStream = new MemoryStream(mdBytes))
             {
                 var options = new StorageUploadOptions
                 {
                     UserId = userId,
                     FileOwnership = FileOwnership.User,
                     StorageType = StorageType.Onboarding,
-                    ResourceId = filename
+                    ResourceId = mdFilename,
+                    SkipIndexing = false
                 };
-                await services.Storage.UploadFile(stream, filename, options);
-                // await services.Storage.UploadFile(stream, filename, resourceId: filename, userId: userId, skipIndexing: true);
+                await services.Storage.UploadFile(mdStream, mdFilename, options);
             }
-            services.Logger.LogInformation("Successfully uploaded onboarding data to blob storage for user {UserId}", userId);
+            services.Logger.LogInformation("Successfully uploaded onboarding markdown to blob storage for user {UserId}", userId);
         }
         catch (Exception ex)
         {
-            // Log error but don't fail the onboarding process if JSON upload fails
-            services.Logger.LogError(ex, "Failed to upload onboarding data to blob storage for user {UserId}, StackTrace: {StackTrace}", userId, ex.StackTrace);
+            services.Logger.LogError(ex, "Failed to upload onboarding markdown for user {UserId}", userId);
         }
 
         return Results.Ok(createdUser);
@@ -216,6 +210,53 @@ public static class UserEndpoints
         }
 
         return baseData;
+    }
+
+    /// <summary>Builds markdown with clear sections for AI consumption (Chat/Agent).</summary>
+    private static string BuildOnboardingMarkdown(object onboardingData)
+    {
+        if (onboardingData is not Dictionary<string, object?> data)
+            return "# Onboarding\n\nNo data.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# Onboarding – User profile");
+        sb.AppendLine();
+
+        if (data.TryGetValue("preferredPronoun", out var pronoun) && pronoun != null && !string.IsNullOrWhiteSpace(pronoun.ToString()))
+        {
+            sb.AppendLine("## Preferred pronoun");
+            sb.AppendLine(pronoun.ToString()!.Trim());
+            sb.AppendLine();
+        }
+
+        if (data.TryGetValue("neurodiverseTraits", out var traits) && traits is IEnumerable<object> traitList && traitList.Any())
+        {
+            sb.AppendLine("## Neurodiverse traits");
+            foreach (var t in traitList)
+                sb.AppendLine("- " + (t?.ToString() ?? ""));
+            sb.AppendLine();
+        }
+
+        if (data.TryGetValue("preferences", out var prefs) && prefs != null)
+        {
+            sb.AppendLine("## Preferences");
+            sb.AppendLine(prefs is string s ? s : JsonSerializer.Serialize(prefs));
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("## Location");
+        var hasLocation = false;
+        if (data.TryGetValue("streetAddress", out var addr) && addr != null && !string.IsNullOrWhiteSpace(addr.ToString())) { sb.AppendLine("- **Street:** " + addr); hasLocation = true; }
+        if (data.TryGetValue("addressLine2", out var addr2) && addr2 != null && !string.IsNullOrWhiteSpace(addr2.ToString())) { sb.AppendLine("- **Address line 2:** " + addr2); hasLocation = true; }
+        if (data.TryGetValue("city", out var city) && city != null && !string.IsNullOrWhiteSpace(city.ToString())) { sb.AppendLine("- **City:** " + city); hasLocation = true; }
+        if (data.TryGetValue("stateProvince", out var state) && state != null && !string.IsNullOrWhiteSpace(state.ToString())) { sb.AppendLine("- **State/Province:** " + state); hasLocation = true; }
+        if (data.TryGetValue("postalCode", out var postal) && postal != null && !string.IsNullOrWhiteSpace(postal.ToString())) { sb.AppendLine("- **Postal code:** " + postal); hasLocation = true; }
+        if (data.TryGetValue("country", out var country) && country != null && !string.IsNullOrWhiteSpace(country.ToString())) { sb.AppendLine("- **Country:** " + country); hasLocation = true; }
+        if (!hasLocation)
+            sb.AppendLine("Not provided.");
+        sb.AppendLine();
+
+        return sb.ToString();
     }
 
     private static object? ConvertJsonElementToObject(JsonElement element)

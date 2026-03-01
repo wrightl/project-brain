@@ -36,6 +36,7 @@
     <PackageReference Include="scalar.aspnetcore" Version="2.11.6" />
     <PackageReference Include="Stripe.net" Version="50.1.0" />
     <PackageReference Include="TickerQ" Version="10.0.2" />
+    <PackageReference Include="TickerQ.Utilities" Version="10.0.2" />
     <PackageReference Include="TickerQ.Dashboard" Version="10.0.2" />
     <PackageReference Include="PdfPig" Version="0.1.12" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />

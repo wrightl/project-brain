@@ -92,7 +92,7 @@ public static class AgentEndpoints
         Conversation? conversation;
         if (request.ConversationId is null)
         {
-            var chatSummaryResponse = await services.Storage.GetFile(Constants.ONBOARDING_DATA_FILENAME, new StorageOptions
+            var chatSummaryResponse = await services.Storage.GetFile(Constants.ONBOARDING_MARKDOWN_FILENAME, new StorageOptions
             {
                 UserId = userId,
                 FileOwnership = FileOwnership.User,
@@ -138,7 +138,7 @@ public static class AgentEndpoints
         // Get the onboarding data for the user
         string userInformation = string.Empty;
         var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.Onboarding };
-        var userInformationStream = await services.Storage.GetFile(Constants.ONBOARDING_DATA_FILENAME, options);
+        var userInformationStream = await services.Storage.GetFile(Constants.ONBOARDING_MARKDOWN_FILENAME, options);
         if (userInformationStream is not null)
         {
             using (var reader = new StreamReader(userInformationStream))

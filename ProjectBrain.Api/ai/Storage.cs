@@ -15,7 +15,9 @@ public enum StorageType
     Journal,
     VoiceNotes,
     CoachMessages,
-    Onboarding
+    Onboarding,
+    Goals,
+    Strategies
 }
 
 public class StorageOptions
@@ -47,6 +49,8 @@ public class Storage
     public const string JOURNAL_FOLDER = "journal";
     public const string VOICE_NOTES_FOLDER = "voice-notes";
     public const string ONBOARDING_FOLDER = "onboarding";
+    public const string GOALS_FOLDER = "goals";
+    public const string STRATEGIES_FOLDER = "strategies";
 
     public Storage(
         IConfiguration configuration,
@@ -175,6 +179,8 @@ public class Storage
                 StorageType.VoiceNotes => VOICE_NOTES_FOLDER,
                 StorageType.CoachMessages => COACH_MESSAGES_FOLDER,
                 StorageType.Onboarding => ONBOARDING_FOLDER,
+                StorageType.Goals => GOALS_FOLDER,
+                StorageType.Strategies => STRATEGIES_FOLDER,
                 _ => throw new Exception("Invalid storage type"),
             },
         ];

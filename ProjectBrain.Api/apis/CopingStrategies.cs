@@ -1,16 +1,27 @@
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
+using ProjectBrain.AI;
 using ProjectBrain.Domain;
 using ProjectBrain.Shared.Dtos.CopingStrategies;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 public class CopingStrategyServices(
     ILogger<CopingStrategyServices> logger,
     ICopingStrategyService copingStrategyService,
-    IIdentityService identityService)
+    IIdentityService identityService,
+    Storage storage,
+    ISearchIndexService searchIndexService,
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
 {
     public ILogger<CopingStrategyServices> Logger { get; } = logger;
     public ICopingStrategyService CopingStrategyService { get; } = copingStrategyService;
     public IIdentityService IdentityService { get; } = identityService;
+    public Storage Storage { get; } = storage;
+    public ISearchIndexService SearchIndexService { get; } = searchIndexService;
+    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
 }
 
 public static class CopingStrategyEndpoints
@@ -69,6 +80,17 @@ public static class CopingStrategyEndpoints
                 request.IconKey,
                 CancellationToken.None);
 
+            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+            {
+                UserId = userId,
+                StrategyId = created.Id,
+                Title = created.Title,
+                Description = created.Description,
+                IconKey = created.IconKey,
+                Rating = created.Rating,
+                SavedAt = created.SavedAt
+            });
+
             return Results.Ok(new CopingStrategyLibraryItemDto
             {
                 Id = created.Id.ToString(),
@@ -95,7 +117,13 @@ public static class CopingStrategyEndpoints
         try
         {
             var deleted = await services.CopingStrategyService.DeleteAsync(userId, id, CancellationToken.None);
-            return deleted ? Results.NoContent() : Results.NotFound();
+            if (!deleted)
+                return Results.NotFound();
+
+            var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.Strategies };
+            await services.Storage.DeleteFile($"{id}.md", options);
+
+            return Results.NoContent();
         }
         catch (Exception ex)
         {
@@ -125,6 +153,17 @@ public static class CopingStrategyEndpoints
                 CancellationToken.None);
 
             if (updated == null) return Results.NotFound();
+
+            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+            {
+                UserId = userId,
+                StrategyId = updated.Id,
+                Title = updated.Title,
+                Description = updated.Description,
+                IconKey = updated.IconKey,
+                Rating = updated.Rating,
+                SavedAt = updated.SavedAt
+            });
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {

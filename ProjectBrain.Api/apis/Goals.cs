@@ -1,22 +1,29 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
+using ProjectBrain.AI;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Shared.Dtos.Goals;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 public class GoalServices(
     ILogger<GoalServices> logger,
     IGoalService goalService,
     IIdentityService identityService,
     IGoalsUpdatedBroadcaster goalsUpdatedBroadcaster,
-    IPushNotificationService pushNotificationService)
+    IPushNotificationService pushNotificationService,
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
 {
     public ILogger<GoalServices> Logger { get; } = logger;
     public IGoalService GoalService { get; } = goalService;
     public IIdentityService IdentityService { get; } = identityService;
     public IGoalsUpdatedBroadcaster GoalsUpdatedBroadcaster { get; } = goalsUpdatedBroadcaster;
     public IPushNotificationService PushNotificationService { get; } = pushNotificationService;
+    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
 }
 
 public static class GoalEndpoints
@@ -141,6 +148,8 @@ public static class GoalEndpoints
 
             NotifyGoalsUpdatedAndPush(services, currentUserId);
 
+            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+
             // Check if goals existed before (by checking if any had non-empty messages)
             // Since we just created/updated, we need to check if this was the first time
             // We'll use a simple heuristic: if all goals are new (just created), return 201
@@ -199,6 +208,8 @@ public static class GoalEndpoints
             var response = GoalMapper.ToDtoList(goals).ToList();
 
             NotifyGoalsUpdatedAndPush(services, currentUserId);
+
+            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
 
             return Results.Ok(response);
         }
@@ -277,4 +288,5 @@ public static class GoalEndpoints
             return Results.Problem("An error occurred while checking goal history.");
         }
     }
+
 }

@@ -2,14 +2,17 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
 using ProjectBrain.Domain.Exceptions;
-using ProjectBrain.AI;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Journal;
 using ProjectBrain.Shared.Dtos.Pagination;
 using ProjectBrain.Shared.Dtos.SystemTags;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
+using ProjectBrain.AI;
 
 public class JournalServices(
     IJournalEntryService journalEntryService,
@@ -19,7 +22,8 @@ public class JournalServices(
     IJournalStreakService journalStreakService,
     IIdentityService identityService,
     ILogger<JournalServices> logger,
-    IServiceScopeFactory serviceScopeFactory)
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager,
+    AzureOpenAI azureOpenAI)
 {
     public ILogger<JournalServices> Logger { get; } = logger;
     public IJournalEntryService JournalEntryService { get; } = journalEntryService;
@@ -28,7 +32,8 @@ public class JournalServices(
     public IUserProfileService UserProfileService { get; } = userProfileService;
     public IJournalStreakService JournalStreakService { get; } = journalStreakService;
     public IIdentityService IdentityService { get; } = identityService;
-    public IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
+    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
+    public AzureOpenAI AzureOpenAI { get; } = azureOpenAI;
 }
 
 public static class JournalEndpoints
@@ -58,12 +63,14 @@ public static class JournalEndpoints
             throw new AppException("UNAUTHORIZED", "User is not authenticated", 401);
         }
 
+        var summary = await services.AzureOpenAI.GetConversationSummary(request.Content, userId);
+
         var journalEntry = new JournalEntry
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             Content = request.Content,
-            Summary = null, // Will be generated asynchronously
+            Summary = summary,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -71,79 +78,13 @@ public static class JournalEndpoints
         var systemAssignments = BuildSystemTagAssignments(request.SystemTagIds, request.SystemTagResponses);
         var createdEntry = await services.JournalEntryService.Add(journalEntry, request.TagIds, systemAssignments);
 
-        // Fire-and-forget: Generate summary, upload blob, and index asynchronously
+        // Enqueue: generate summary, upload blob, and index via TickerQ
         var entryId = createdEntry.Id;
-        var entryContent = createdEntry.Content;
         var entryUserId = userId;
-
-        _ = Task.Run(async () =>
-        {
-            await UploadJournalEntryToBlobStorage(services, entryId, entryContent, entryUserId);
-        });
+        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
 
         var dto = JournalEntryMapper.ToDto(createdEntry);
         return Results.Created($"/journal/{createdEntry.Id}", dto);
-    }
-
-    private async static Task UploadJournalEntryToBlobStorage(JournalServices services, Guid entryId, string entryContent, string entryUserId)
-    {
-        try
-        {
-            using var scope = services.ServiceScopeFactory.CreateScope();
-            var azureOpenAI = scope.ServiceProvider.GetRequiredService<AzureOpenAI>();
-            var storage = scope.ServiceProvider.GetRequiredService<Storage>();
-            var searchIndexService = scope.ServiceProvider.GetRequiredService<ISearchIndexService>();
-            var journalEntryService = scope.ServiceProvider.GetRequiredService<IJournalEntryService>();
-
-            // Generate summary using Azure OpenAI
-            var summary = await azureOpenAI.GetConversationSummary(entryContent, entryUserId);
-
-            // Update the entry with the summary
-            var entry = await journalEntryService.GetById(entryId, entryUserId);
-            if (entry != null)
-            {
-                entry.Summary = summary;
-                entry.UpdatedAt = DateTime.UtcNow;
-                await journalEntryService.Update(entry, null, null);
-            }
-
-            // Upload to blob storage as JSON
-            // var blobPath = $"journal/{entryUserId}/{entryId}.json";
-            // var jsonContent = JsonSerializer.Serialize(new
-            // {
-            //     id = entryId.ToString(),
-            //     userId = entryUserId,
-            //     content = entryContent,
-            //     summary = summary,
-            //     createdAt = entry?.CreatedAt ?? DateTime.UtcNow,
-            //     updatedAt = DateTime.UtcNow
-            // }, new JsonSerializerOptions { WriteIndented = false });
-
-            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(entryContent));
-            var options = new StorageUploadOptions
-            {
-                UserId = entryUserId,
-                StorageType = StorageType.Journal,
-                ResourceId = entryId.ToString()
-            };
-            await storage.UploadFile(stream, $"{entryId}.txt", options);
-            // await storage.UploadFile(stream, $"{entryId}.json", entryId.ToString(), entryUserId, skipIndexing: true, parentFolder: "journal");
-
-            // // Index in Azure Search
-            // using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(entryContent));
-            // await searchIndexService.ExtractEmbedAndIndexFromStreamAsync(
-            //     contentStream,
-            //     $"{entryId}.json",
-            //     entryUserId,
-            //     blobPath,
-            //     entryId.ToString());
-
-            services.Logger.LogInformation("Successfully processed journal entry {EntryId} asynchronously", entryId);
-        }
-        catch (Exception ex)
-        {
-            services.Logger.LogError(ex, "Error processing journal entry {EntryId} asynchronously", entryId);
-        }
     }
 
     private static async Task<IResult> GetJournalEntryById(
@@ -255,17 +196,10 @@ public static class JournalEndpoints
         var systemAssignments = BuildSystemTagAssignments(request.SystemTagIds, request.SystemTagResponses);
         var updatedEntry = await services.JournalEntryService.Update(journalEntry, request.TagIds, systemAssignments);
 
-        // Fire-and-forget: Generate summary, upload blob, and re-index asynchronously
+        // Enqueue: generate summary, upload blob, and re-index via TickerQ
         var entryId = updatedEntry.Id;
-        var entryContent = updatedEntry.Content;
         var entryUserId = userId;
-        var entryCreatedAt = updatedEntry.CreatedAt;
-
-        // TODO: Do this properly with queues and background services
-        _ = Task.Run(async () =>
-        {
-            await UploadJournalEntryToBlobStorage(services, entryId, entryContent, entryUserId);
-        });
+        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
 
         var dto = JournalEntryMapper.ToDto(updatedEntry);
         return Results.Ok(dto);
@@ -383,36 +317,10 @@ public static class JournalEndpoints
 
         await services.JournalEntryService.Remove(journalEntry);
 
-        // Fire-and-forget: Delete from blob storage and search index asynchronously
+        // Enqueue: delete from blob storage and search index via TickerQ
         var entryId = journalEntry.Id;
         var entryUserId = userId;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                using var scope = services.ServiceScopeFactory.CreateScope();
-                var storage = scope.ServiceProvider.GetRequiredService<Storage>();
-
-                // Delete from blob storage
-                // var blobPath = $"journal/{entryUserId}/{entryId}.json";
-                var options = new StorageOptions
-                {
-                    UserId = entryUserId,
-                    StorageType = StorageType.Journal,
-                };
-                await storage.DeleteFile($"{entryId}.txt", options);
-
-                // Delete from search index (would need to implement this in search service)
-                // For now, we'll leave the search index cleanup to a background job or manual process
-
-                services.Logger.LogInformation("Successfully deleted journal entry {EntryId} blob asynchronously", entryId);
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogError(ex, "Error deleting journal entry {EntryId} blob asynchronously", entryId);
-            }
-        });
+        await UserContextTickerEnqueue.EnqueueJournalDeleteAsync(services.TimeTickerManager, entryUserId, entryId);
 
         return Results.NoContent();
     }

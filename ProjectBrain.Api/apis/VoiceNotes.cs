@@ -1,11 +1,16 @@
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
+using ProjectBrain.AI;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Pagination;
 using ProjectBrain.Shared.Dtos.VoiceNotes;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 public class VoiceNoteServices(
     ILogger<VoiceNoteServices> logger,
@@ -13,7 +18,8 @@ public class VoiceNoteServices(
     IVoiceNoteRepository voiceNoteRepository,
     Storage storage,
     IIdentityService identityService,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
 {
     public ILogger<VoiceNoteServices> Logger { get; } = logger;
     public IVoiceNoteService VoiceNoteService { get; } = voiceNoteService;
@@ -21,6 +27,7 @@ public class VoiceNoteServices(
     public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
     public IConfiguration Configuration { get; } = configuration;
+    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
 }
 
 public static class VoiceNoteEndpoints
@@ -154,6 +161,12 @@ public static class VoiceNoteEndpoints
         var savedVoiceNote = await services.VoiceNoteService.Add(voiceNote);
         var response = VoiceNoteMapper.ToDto(savedVoiceNote);
 
+        // Enqueue: transcribe, store transcript as markdown, and index via TickerQ
+        var noteId = savedVoiceNote.Id;
+        var noteUserId = userId;
+        var audioBlobName = storageFileName;
+        await UserContextTickerEnqueue.EnqueueVoiceNoteTranscribeAsync(services.TimeTickerManager, noteUserId, noteId, audioBlobName);
+
         return Results.Created($"/voicenotes/{savedVoiceNote.Id}", response);
     }
 
@@ -249,16 +262,16 @@ public static class VoiceNoteEndpoints
             throw new AppException("FORBIDDEN", "You do not have access to this voice note", 403);
         }
 
-        // Delete file from storage
+        // Delete audio and transcript from storage (and index)
         try
         {
             var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.VoiceNotes };
             await services.Storage.DeleteFile(voiceNote.FileName, options);
+            await services.Storage.DeleteFile($"{id}-transcript.md", options);
         }
         catch (Exception ex)
         {
-            services.Logger.LogWarning(ex, "Failed to delete file from storage for voice note {VoiceNoteId}, continuing with database deletion", id);
-            // Continue with database deletion even if file deletion fails
+            services.Logger.LogWarning(ex, "Failed to delete file(s) from storage for voice note {VoiceNoteId}, continuing with database deletion", id);
         }
 
         // Delete from database

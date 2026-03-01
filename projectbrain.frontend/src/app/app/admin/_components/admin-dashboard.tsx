@@ -6,6 +6,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatisticsService } from '@/_services/statistics-service';
 import AdminStatistics from './admin-statistics';
+import EnvVarsDebugPane from './env-vars-debug-pane';
 
 export default async function AdminDashboard() {
     const [
@@ -71,6 +72,11 @@ export default async function AdminDashboard() {
                     loggedInUsers: loggedInUsersCount,
                 }}
             />
+
+            {/* Debug: frontend env vars */}
+            <div>
+                <EnvVarsDebugPane />
+            </div>
 
             {/* Quick Actions */}
             <div>

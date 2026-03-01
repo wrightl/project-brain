@@ -11,10 +11,16 @@ export function useUnreadMessagesCount() {
 
     const loadUnreadCount = useCallback(async () => {
         try {
-            const response = await fetchWithAuth('/api/coach-messages/conversations');
+            const response = await fetchWithAuth(
+                '/api/coach-messages/conversations',
+            );
             if (response.ok) {
-                const conversations: ConversationSummary[] = await response.json();
-                const total = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+                const conversations: ConversationSummary[] =
+                    await response.json();
+                const total = conversations.reduce(
+                    (sum, conv) => sum + conv.unreadCount,
+                    0,
+                );
                 setUnreadCount(total);
             }
         } catch (err) {
@@ -58,13 +64,11 @@ export function useUnreadMessagesCount() {
             }
         });
 
-        connection
-            .start()
-            .catch((err) => {
-                if (isMounted) {
-                    console.error('SignalR connection for unread count:', err);
-                }
-            });
+        connection.start().catch((err) => {
+            if (isMounted) {
+                console.error('SignalR connection for unread count:', err);
+            }
+        });
 
         return () => {
             isMounted = false;

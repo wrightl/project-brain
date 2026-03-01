@@ -18,7 +18,7 @@ export function useCoachMessagesSignalR({
     onMessageRead,
 }: UseCoachMessagesSignalRProps) {
     const [connection, setConnection] = useState<signalR.HubConnection | null>(
-        null
+        null,
     );
     const [isConnected, setIsConnected] = useState(false);
     const connectionRef = useRef<signalR.HubConnection | null>(null);
@@ -54,7 +54,7 @@ export function useCoachMessagesSignalR({
                     } catch (error) {
                         console.error(
                             'Error getting access token for SignalR:',
-                            error
+                            error,
                         );
                         throw error;
                     }
@@ -93,7 +93,7 @@ export function useCoachMessagesSignalR({
             'TypingIndicator',
             (senderId: string, typing: boolean) => {
                 onTypingIndicatorRef.current(senderId, typing);
-            }
+            },
         );
 
         newConnection.on('MessageDelivered', (message: CoachMessage) => {
@@ -155,7 +155,7 @@ export function useCoachMessagesSignalR({
                     ) {
                         console.error(
                             'Error stopping SignalR connection:',
-                            err
+                            err,
                         );
                     }
                 });

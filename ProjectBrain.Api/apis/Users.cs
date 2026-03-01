@@ -183,6 +183,9 @@ public static class UserEndpoints
     {
         var baseData = new Dictionary<string, object?>
         {
+            ["doB"] = userProfile.DoB,
+            ["fullName"] = createdUser.FullName,
+            ["email"] = createdUser.Email,
             ["preferredPronoun"] = userProfile.PreferredPronoun,
             ["neurodiverseTraits"] = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>(),
             ["preferences"] = userProfile.Preference?.Preferences,
@@ -194,19 +197,12 @@ public static class UserEndpoints
             ["country"] = createdUser.Country
         };
 
-        // If structured onboarding data is provided, merge it into the base data
+        // Store the full onboarding object under one key so profile "preferences" is not overwritten
         if (structuredOnboardingData != null)
         {
-            // Serialize structured data to JSON, then parse and merge properties
             var structuredJson = JsonSerializer.Serialize(structuredOnboardingData);
             using var structuredDoc = JsonDocument.Parse(structuredJson);
-
-            // Add all properties from structured onboarding data
-            foreach (var prop in structuredDoc.RootElement.EnumerateObject())
-            {
-                // Convert JsonElement to object by deserializing based on the element type
-                baseData[prop.Name] = ConvertJsonElementToObject(prop.Value);
-            }
+            baseData["onboarding"] = ConvertJsonElementToObject(structuredDoc.RootElement);
         }
 
         return baseData;
@@ -222,12 +218,11 @@ public static class UserEndpoints
         sb.AppendLine("# Onboarding – User profile");
         sb.AppendLine();
 
-        if (data.TryGetValue("preferredPronoun", out var pronoun) && pronoun != null && !string.IsNullOrWhiteSpace(pronoun.ToString()))
-        {
-            sb.AppendLine("## Preferred pronoun");
-            sb.AppendLine(pronoun.ToString()!.Trim());
-            sb.AppendLine();
-        }
+        // Base profile fields
+        AppendSectionIfPresent(sb, "Full name", data, "fullName");
+        AppendSectionIfPresent(sb, "Email", data, "email");
+        AppendSectionIfPresent(sb, "Date of birth", data, "doB");
+        AppendSectionIfPresent(sb, "Preferred pronoun", data, "preferredPronoun");
 
         if (data.TryGetValue("neurodiverseTraits", out var traits) && traits is IEnumerable<object> traitList && traitList.Any())
         {
@@ -240,7 +235,7 @@ public static class UserEndpoints
         if (data.TryGetValue("preferences", out var prefs) && prefs != null)
         {
             sb.AppendLine("## Preferences");
-            sb.AppendLine(prefs is string s ? s : JsonSerializer.Serialize(prefs));
+            AppendValue(sb, prefs);
             sb.AppendLine();
         }
 
@@ -256,7 +251,132 @@ public static class UserEndpoints
             sb.AppendLine("Not provided.");
         sb.AppendLine();
 
+        // Structured onboarding sections (wizard + follow-on)
+        if (data.TryGetValue("onboarding", out var onboardingObj) && onboardingObj is Dictionary<string, object?> onboarding)
+        {
+            AppendSectionIfPresent(sb, "Locale", onboarding, "locale");
+            AppendOnboardingSection(sb, "Welcome", onboarding, "welcome");
+            AppendOnboardingSection(sb, "About you", onboarding, "aboutYou");
+            AppendOnboardingSection(sb, "Preferences (onboarding)", onboarding, "preferences");
+            AppendOnboardingSection(sb, "Profile", onboarding, "profile");
+            AppendOnboardingSection(sb, "Coaching buddy", onboarding, "coachingBuddy");
+            AppendOnboardingSection(sb, "Closing", onboarding, "closing");
+
+            if (onboarding.TryGetValue("followOnQuestions", out var followOn) && followOn is Dictionary<string, object?> followOnDict && followOnDict.Count > 0)
+            {
+                sb.AppendLine("## Follow-on questions");
+                sb.AppendLine();
+                foreach (var kv in followOnDict.OrderBy(k => k.Key))
+                {
+                    var categoryTitle = ToTitleCase(kv.Key);
+                    if (kv.Value is Dictionary<string, object?> categoryDict && categoryDict.Count > 0)
+                    {
+                        sb.AppendLine("### " + categoryTitle);
+                        AppendKeyValueBlock(sb, categoryDict);
+                        sb.AppendLine();
+                    }
+                }
+            }
+        }
+
         return sb.ToString();
+    }
+
+    private static void AppendSectionIfPresent(StringBuilder sb, string title, Dictionary<string, object?> data, string key)
+    {
+        if (!data.TryGetValue(key, out var value) || value == null) return;
+        var s = value.ToString()?.Trim();
+        if (string.IsNullOrEmpty(s) && value is not bool) return;
+        sb.AppendLine("## " + title);
+        AppendValue(sb, value);
+        sb.AppendLine();
+    }
+
+    private static void AppendOnboardingSection(StringBuilder sb, string title, Dictionary<string, object?> onboarding, string key)
+    {
+        if (!onboarding.TryGetValue(key, out var value) || value == null) return;
+        if (value is Dictionary<string, object?> dict && dict.Count == 0) return;
+        if (value is string str && string.IsNullOrWhiteSpace(str)) return;
+        sb.AppendLine("## " + title);
+        AppendValue(sb, value);
+        sb.AppendLine();
+    }
+
+    private static void AppendValue(StringBuilder sb, object? value)
+    {
+        if (value == null) return;
+        if (value is bool b)
+        {
+            sb.AppendLine(b ? "Yes" : "No");
+            return;
+        }
+        if (value is System.Collections.IList list && list.Count > 0)
+        {
+            foreach (var item in list)
+                sb.AppendLine("- " + (item?.ToString() ?? ""));
+            return;
+        }
+        if (value is Dictionary<string, object?> dict)
+        {
+            AppendKeyValueBlock(sb, dict);
+            return;
+        }
+        var text = value.ToString()?.Trim();
+        if (!string.IsNullOrEmpty(text))
+            sb.AppendLine(text);
+    }
+
+    private static void AppendKeyValueBlock(StringBuilder sb, Dictionary<string, object?> dict)
+    {
+        foreach (var kv in dict.OrderBy(k => k.Key))
+        {
+            if (kv.Value == null) continue;
+            var label = ToTitleCase(kv.Key);
+            if (kv.Value is bool b)
+            {
+                sb.AppendLine("- **" + label + ":** " + (b ? "Yes" : "No"));
+                continue;
+            }
+            if (kv.Value is System.Collections.IList list && list.Count > 0)
+            {
+                sb.AppendLine("- **" + label + ":**");
+                foreach (var item in list)
+                    sb.AppendLine("  - " + (item?.ToString() ?? ""));
+                continue;
+            }
+            if (kv.Value is Dictionary<string, object?> nested && nested.Count > 0)
+            {
+                sb.AppendLine("- **" + label + ":**");
+                foreach (var n in nested.OrderBy(k => k.Key))
+                {
+                    var v = n.Value;
+                    if (v == null) continue;
+                    var subLabel = ToTitleCase(n.Key);
+                    if (v is bool vb)
+                        sb.AppendLine("  - " + subLabel + ": " + (vb ? "Yes" : "No"));
+                    else
+                        sb.AppendLine("  - " + subLabel + ": " + (v.ToString()?.Trim() ?? ""));
+                }
+                continue;
+            }
+            var scalar = kv.Value.ToString()?.Trim();
+            if (!string.IsNullOrEmpty(scalar))
+                sb.AppendLine("- **" + label + ":** " + scalar);
+        }
+    }
+
+    private static string ToTitleCase(string camelCase)
+    {
+        if (string.IsNullOrEmpty(camelCase)) return camelCase;
+        var result = new StringBuilder();
+        result.Append(char.ToUpperInvariant(camelCase[0]));
+        for (var i = 1; i < camelCase.Length; i++)
+        {
+            if (char.IsUpper(camelCase[i]))
+                result.Append(' ');
+            result.Append(camelCase[i]);
+        }
+        return result.ToString();
     }
 
     private static object? ConvertJsonElementToObject(JsonElement element)

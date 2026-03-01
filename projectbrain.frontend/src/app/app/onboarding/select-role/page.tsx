@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { LogoutButton } from '@/_components/buttons/logout-button';
 
 export default function SelectRolePage() {
     const router = useRouter();
@@ -36,6 +37,9 @@ export default function SelectRolePage() {
                     >
                         Sign up as a Coach
                     </button>
+                    <div className="pt-4 text-center">
+                        <LogoutButton />
+                    </div>
                 </div>
             </div>
         </div>

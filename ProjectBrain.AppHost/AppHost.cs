@@ -26,7 +26,7 @@ var defaultModelSkuName = "GlobalStandard";
 var blobName = "blobs";
 
 // Parameters
-// var environmentName = builder.AddParameter("deploymentEnvironment");
+var environmentName = builder.AddParameter("deploy-env");
 var replicas = builder.AddParameter("minReplicas");
 var sqlPassword = builder.AddParameter($"{sqlServerName}-password", secret: true);
 
@@ -214,7 +214,7 @@ if (builder.ExecutionContext.IsPublishMode)
     // Use Docker container for production frontend
     // Pass DEPLOY_ENV as build argument to select the correct .env file
     var frontend = builder.AddDockerfile(frontendName, $"../{appName}.{frontendName}")
-        // .WithBuildArg("DEPLOY_ENV", environmentName)
+        .WithBuildArg("DEPLOY_ENV", environmentName)
         .WithEnvironment("APP_BASE_URL", appBaseUrl)
         .WithEnvironment("AUTH0_SECRET", auth0Secret)
         .WithEnvironment("AUTH0_DOMAIN", auth0Domain)

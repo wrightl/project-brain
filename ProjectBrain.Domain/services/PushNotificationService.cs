@@ -327,6 +327,47 @@ public class PushNotificationService : IPushNotificationService
         return result;
     }
 
+    public async Task SendDataOnlyToUserAsync(
+        string userId,
+        IReadOnlyDictionary<string, string> data,
+        CancellationToken cancellationToken = default)
+    {
+        if (_deviceTokenRepository == null || data == null || data.Count == 0)
+            return;
+
+        var tokens = await _deviceTokenRepository.GetActiveTokensByUserIdAsync(userId, cancellationToken);
+        var tokenList = tokens.Select(t => t.Token).ToList();
+        if (tokenList.Count == 0)
+            return;
+
+        var dataDict = data.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+        foreach (var token in tokenList)
+        {
+            try
+            {
+                var message = new Message
+                {
+                    Token = token,
+                    Data = dataDict
+                };
+                await _messaging.SendAsync(message, cancellationToken);
+            }
+            catch (FirebaseMessagingException ex)
+            {
+                _logger.LogWarning(ex, "Failed to send data-only message to token for user {UserId}", userId);
+                if (ex.MessagingErrorCode == MessagingErrorCode.InvalidArgument ||
+                    ex.MessagingErrorCode == MessagingErrorCode.Unregistered ||
+                    ex.MessagingErrorCode == MessagingErrorCode.SenderIdMismatch)
+                    await MarkTokenAsInvalidAsync(token, ex.MessagingErrorCode.ToString() ?? "Invalid", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending data-only FCM to user {UserId}", userId);
+            }
+        }
+    }
+
     /// <summary>
     /// Marks a token as invalid in the repository (reactive cleanup)
     /// </summary>

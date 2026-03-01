@@ -169,7 +169,7 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("Mailgun__Domain", mailgunDomain)
                         .WithEnvironment("AdminUser__Password", adminUserPassword)
                         .WithEnvironment("GoogleMaps__GeocodingApiKey", googleMapsGeocodingApiKey)
-                        .WithHttpHealthCheck("/health")
+                        .WithHttpHealthCheck("/alive")
                         .PublishAsAzureContainerApp((module, app) =>
                         {
                             // Scale to 0

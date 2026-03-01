@@ -278,6 +278,23 @@ public class CoachMessageService : ICoachMessageService
 
         return conversationSummaries;
     }
+
+    /// <summary>
+    /// Gets total unread message count for a user (either as user or coach).
+    /// Uses the same connection-filter logic as GetConversationsAsync so the count matches the list.
+    /// </summary>
+    public async Task<int> GetTotalUnreadCountAsync(string userId, bool isCoach)
+    {
+        return await _context.CoachMessages
+            .Where(cm =>
+                cm.SenderId != userId &&
+                cm.ReadAt == null &&
+                _context.Connections.Any(c =>
+                    c.Id == cm.ConnectionId &&
+                    c.Status == "accepted" &&
+                    ((c.UserId == userId && !isCoach) || (c.CoachId == userId && isCoach))))
+            .CountAsync();
+    }
 }
 
 public class ConversationSummary
@@ -307,4 +324,5 @@ public interface ICoachMessageService
     Task<bool> MarkAsReadAsync(Guid messageId, string recipientId);
     Task MarkConversationAsReadAsync(Guid connectionId, string currentUserId);
     Task<List<ConversationSummary>> GetConversationsAsync(string userId, bool isCoach);
+    Task<int> GetTotalUnreadCountAsync(string userId, bool isCoach);
 }

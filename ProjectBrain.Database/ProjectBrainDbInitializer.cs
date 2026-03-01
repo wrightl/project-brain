@@ -324,6 +324,10 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             logger.LogInformation("Admin role assigned to user in database.");
             adminUser = systemUser;
         }
+        else
+        {
+            logger.LogInformation("Admin user already exists in database with ID: {UserId}", adminUser.Id);
+        }
 
         return adminUser;
     }

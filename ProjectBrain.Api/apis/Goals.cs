@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
@@ -7,11 +8,15 @@ using ProjectBrain.Shared.Dtos.Goals;
 public class GoalServices(
     ILogger<GoalServices> logger,
     IGoalService goalService,
-    IIdentityService identityService)
+    IIdentityService identityService,
+    IGoalsUpdatedBroadcaster goalsUpdatedBroadcaster,
+    IPushNotificationService pushNotificationService)
 {
     public ILogger<GoalServices> Logger { get; } = logger;
     public IGoalService GoalService { get; } = goalService;
     public IIdentityService IdentityService { get; } = identityService;
+    public IGoalsUpdatedBroadcaster GoalsUpdatedBroadcaster { get; } = goalsUpdatedBroadcaster;
+    public IPushNotificationService PushNotificationService { get; } = pushNotificationService;
 }
 
 public static class GoalEndpoints
@@ -21,11 +26,68 @@ public static class GoalEndpoints
         var group = app.MapGroup("eggs").RequireAuthorization("UserOnly");
 
         group.MapGet("/", GetTodaysGoals).WithName("GetTodaysGoals");
+        group.MapGet("/stream", StreamGoals).WithName("StreamGoals");
         group.MapPost("/", CreateOrUpdateGoals).WithName("CreateOrUpdateGoals");
         group.MapPost("/{index}/complete", CompleteGoal).WithName("CompleteGoal");
         group.MapGet("/streak", GetCompletionStreak).WithName("GetCompletionStreak");
         group.MapGet("/streak-summary", GetStreakSummary).WithName("GetStreakSummary");
         group.MapGet("/has-ever-created", HasEverCreatedGoals).WithName("HasEverCreatedGoals");
+    }
+
+    private static async Task<IResult> StreamGoals(
+        [AsParameters] GoalServices services,
+        HttpContext http)
+    {
+        var currentUserId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(currentUserId))
+            return Results.Unauthorized();
+
+        http.Response.ContentType = "text/event-stream";
+        http.Response.Headers.CacheControl = "no-cache";
+        http.Response.Headers.Connection = "keep-alive";
+        await http.Response.StartAsync(http.RequestAborted);
+
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        try
+        {
+            await services.GoalsUpdatedBroadcaster.SubscribeAsync(
+                currentUserId,
+                async (evt, ct) =>
+                {
+                    await http.Response.WriteAsync("event: goals-updated\n", ct);
+                    var data = JsonSerializer.Serialize(new { updatedAt = evt.UpdatedAt }, options);
+                    await http.Response.WriteAsync($"data: {data}\n\n", ct);
+                    await http.Response.Body.FlushAsync(ct);
+                },
+                http.RequestAborted);
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected
+        }
+
+        return Results.Empty;
+    }
+
+    private static void NotifyGoalsUpdatedAndPush(GoalServices services, string userId)
+    {
+        var evt = new GoalsUpdatedEvent { UpdatedAt = DateTime.UtcNow.ToString("O") };
+        services.GoalsUpdatedBroadcaster.NotifyGoalsUpdated(userId, evt);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await services.PushNotificationService.SendDataOnlyToUserAsync(
+                    userId,
+                    new Dictionary<string, string> { ["type"] = "goals_updated" });
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to send goals_updated FCM to user {UserId}", userId);
+            }
+        });
     }
 
     private static async Task<IResult> GetTodaysGoals(
@@ -76,6 +138,8 @@ public static class GoalEndpoints
                 CancellationToken.None);
 
             var response = GoalMapper.ToDtoList(goals).ToList();
+
+            NotifyGoalsUpdatedAndPush(services, currentUserId);
 
             // Check if goals existed before (by checking if any had non-empty messages)
             // Since we just created/updated, we need to check if this was the first time
@@ -133,6 +197,8 @@ public static class GoalEndpoints
                 CancellationToken.None);
 
             var response = GoalMapper.ToDtoList(goals).ToList();
+
+            NotifyGoalsUpdatedAndPush(services, currentUserId);
 
             return Results.Ok(response);
         }

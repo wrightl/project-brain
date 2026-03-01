@@ -22,6 +22,7 @@ public class DatabaseMigrationsHealthCheck : IHealthCheck
     {
         try
         {
+            _logger.LogInformation("Checking database migrations health");
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 

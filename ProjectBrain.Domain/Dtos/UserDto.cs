@@ -106,12 +106,67 @@ public record Auth0UserDto
     [JsonPropertyName("identities")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWriting)]
     public List<Auth0IdentityDto> Identities { get; set; } = new List<Auth0IdentityDto>();
+
+    /// <summary>
+    /// Deserializes Auth0 Management API user response (snake_case) into Auth0UserDto.
+    /// </summary>
+    public static Auth0UserDto FromJson(string json)
+    {
+        return JsonSerializer.Deserialize<Auth0UserDto>(json) ?? new Auth0UserDto();
+    }
 }
 
 public record Auth0IdentityDto
 {
     [JsonPropertyName("connection")]
     public string Connection { get; set; }
+}
+
+/// <summary>
+/// DTO for Auth0 Management API PATCH /api/v2/users/{id}.
+/// Only includes root attributes that Auth0 accepts; uses snake_case for request body.
+/// </summary>
+public record Auth0UserPatchRequest
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = string.Empty;
+
+    [JsonPropertyName("nickname")]
+    public string Nickname { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Builds a patch request from the current Auth0 user and applies only the properties
+    /// supported by Auth0 PATCH from the given BaseUserDto.
+    /// </summary>
+    public static Auth0UserPatchRequest FromAuth0UserAndApply(Auth0UserDto auth0User, BaseUserDto updates)
+    {
+        return new Auth0UserPatchRequest
+        {
+            Name = updates.FullName ?? auth0User.FullName ?? string.Empty,
+            Email = updates.Email ?? auth0User.Email ?? string.Empty,
+            Nickname = updates.FullName?.Split(' ').FirstOrDefault() ?? auth0User.Nickname ?? string.Empty
+        };
+    }
+
+    /// <summary>
+    /// Returns true if the patchable fields (name, email, nickname) are equal.
+    /// </summary>
+    public static bool PatchableFieldsEqual(Auth0UserDto auth0User, BaseUserDto dto)
+    {
+        var dtoNickname = dto.FullName?.Split(' ').FirstOrDefault() ?? string.Empty;
+        var auth0Nickname = auth0User.Nickname ?? string.Empty;
+        return string.Equals(auth0User.FullName, dto.FullName, StringComparison.Ordinal)
+               && string.Equals(auth0User.Email, dto.Email, StringComparison.Ordinal)
+               && string.Equals(auth0Nickname, dtoNickname, StringComparison.Ordinal);
+    }
+
+    public static string ToJson(Auth0UserPatchRequest request)
+    {
+        return JsonSerializer.Serialize(request);
+    }
 }
 
 public record UserDto : BaseUserDto

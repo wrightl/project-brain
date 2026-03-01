@@ -2,15 +2,14 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.RateLimiting;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.OpenApi;
 using ProjectBrain.AI;
+using ProjectBrain.Api;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Middlewares;
 using ProjectBrain.Api.Validators;
 using ProjectBrain.Database.Interfaces;
 using Scalar.AspNetCore;
-using TickerQ.Dashboard.DependencyInjection;
-using TickerQ.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -107,20 +106,20 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddProblemDetails();
 
 // // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi 
-// builder.Services.AddOpenApi(options =>
-// {
-//     options.AddDocumentTransformer((document, context, cancellationToken) =>
-//     {
-//         document.Info.Contact = new OpenApiContact
-//         {
-//             Name = "ProjectBrain Support",
-//             Email = "support@dotanddashconsulting.com"
-//         };
-//         return Task.CompletedTask;
-//     });
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Info.Contact = new OpenApiContact
+        {
+            Name = "ProjectBrain Support",
+            Email = "support@dotanddashconsulting.com"
+        };
+        return Task.CompletedTask;
+    });
 
-//     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
-// });
+    // options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+});
 
 // builder.Services.AddTickerQ(options =>
 // {
@@ -149,14 +148,14 @@ app.UseExceptionHandler();
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 // TODO - restore this?
-// if (app.Environment.IsDevelopment())
-// {
-// app.MapOpenApi();
-app.MapScalarApiReference(options =>
+if (app.Environment.IsDevelopment())
 {
-    options.Servers = [];
-});
-// }
+    app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.Servers = [];
+    });
+}
 
 // app.UseSecureHeaders();
 
@@ -189,6 +188,7 @@ app.MapAuth0WebhookEndpoints();
 app.MapSubscriptionManagementEndpoints();
 app.MapSubscriptionAnalyticsEndpoints();
 app.MapApplicationSettingsEndpoints();
+app.MapAdminActivityEndpoints();
 app.MapReferralEndpoints();
 app.MapJournalEndpoints();
 app.MapTagEndpoints();
@@ -200,6 +200,7 @@ app.MapLocationEndpoints();
 app.MapFeatureFlagEndpoints();
 app.MapAgentEndpoints();
 app.MapPushNotificationEndpoints();
+app.MapDevSeedEndpoints();
 
 // Map SignalR hub
 app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").RequireAuthorization();

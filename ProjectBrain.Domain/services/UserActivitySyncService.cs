@@ -7,20 +7,23 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Background service that periodically syncs Redis activity data to the database
-/// to ensure data persistence and recover from Redis failures.
+/// Background service that syncs Redis activity data from the database when requested
+/// (on demand or when users are active). Runs only when triggered to avoid unnecessary DB usage.
 /// </summary>
 public class UserActivitySyncService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IUserActivitySyncTrigger _trigger;
     private readonly ILogger<UserActivitySyncService> _logger;
-    private readonly TimeSpan _syncInterval = TimeSpan.FromMinutes(5); // Sync every 5 minutes
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
 
     public UserActivitySyncService(
         IServiceProvider serviceProvider,
+        IUserActivitySyncTrigger trigger,
         ILogger<UserActivitySyncService> logger)
     {
         _serviceProvider = serviceProvider;
+        _trigger = trigger;
         _logger = logger;
     }
 
@@ -28,6 +31,11 @@ public class UserActivitySyncService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            await Task.Delay(PollInterval, stoppingToken);
+
+            if (!_trigger.GetAndClearNextSyncIfDue())
+                continue;
+
             try
             {
                 await SyncActivityDataAsync(stoppingToken);
@@ -36,9 +44,6 @@ public class UserActivitySyncService : BackgroundService
             {
                 _logger.LogError(ex, "Error during user activity sync");
             }
-
-            // Wait for the next sync interval
-            await Task.Delay(_syncInterval, stoppingToken);
         }
     }
 

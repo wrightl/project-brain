@@ -145,16 +145,16 @@ public class Auth0UserManagement : IAuth0UserManagement
         if (userResponse.IsSuccessStatusCode)
         {
             var jsonStringUser = await userResponse.Content.ReadAsStringAsync();
-            var auth0User = BaseUserDto.FromJson(jsonStringUser);
+            var auth0User = Auth0UserDto.FromJson(jsonStringUser);
 
-            // Only update auth0 if any user details have changed
-            if (BaseUserDto.Equals(auth0User, user))
+            if (Auth0UserPatchRequest.PatchableFieldsEqual(auth0User, user))
             {
                 _services.Logger.LogInformation("No changes to user {userId} in Auth0", userId);
                 return true;
             }
 
-            var userJson = BaseUserDto.ToJson(user);
+            var patchRequest = Auth0UserPatchRequest.FromAuth0UserAndApply(auth0User, user);
+            var userJson = Auth0UserPatchRequest.ToJson(patchRequest);
             var result = await getResponse($"/users/{userId}", token, client, HttpMethod.Patch, new StringContent(userJson, null, "application/json"));
             return result.IsSuccessStatusCode;
         }

@@ -99,6 +99,12 @@ public static class ProgramExtensions
         // Register device token cleanup service
         builder.Services.AddScoped<IDeviceTokenCleanupService, DeviceTokenCleanupService>();
 
+        // Sync trigger for user activity (singleton so background service and request path share state)
+        builder.Services.AddSingleton<IUserActivitySyncTrigger, UserActivitySyncTrigger>();
+
+        // Goals real-time SSE broadcaster (singleton so all request handlers share the same subscriber list)
+        builder.Services.AddSingleton<IGoalsUpdatedBroadcaster, GoalsUpdatedBroadcaster>();
+
         // Register background services
         builder.Services.AddHostedService<UserActivitySyncService>();
         builder.Services.AddHostedService<DeviceTokenCleanupBackgroundService>();

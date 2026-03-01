@@ -9,6 +9,7 @@ public class UserActivityService : IUserActivityService
 {
     private readonly IDistributedCache _cache;
     private readonly AppDbContext _context;
+    private readonly IUserActivitySyncTrigger _syncTrigger;
     private readonly ILogger<UserActivityService> _logger;
     private const int ActivityWindowHours = 1;
     private const int CacheExpirationSeconds = 3600; // 1 hour
@@ -24,10 +25,12 @@ public class UserActivityService : IUserActivityService
     public UserActivityService(
         IDistributedCache cache,
         AppDbContext context,
+        IUserActivitySyncTrigger syncTrigger,
         ILogger<UserActivityService> logger)
     {
         _cache = cache;
         _context = context;
+        _syncTrigger = syncTrigger;
         _logger = logger;
     }
 
@@ -66,6 +69,9 @@ public class UserActivityService : IUserActivityService
 
         // Update database with debouncing
         await UpdateDatabaseActivityAsync(userId, now);
+
+        // Request activity sync (debounced) so Redis recovery runs when users are active
+        _syncTrigger.RequestSync();
     }
 
     private async Task UpdateActiveUsersSetAsync(string userId, DateTime timestamp, DistributedCacheEntryOptions cacheOptions)

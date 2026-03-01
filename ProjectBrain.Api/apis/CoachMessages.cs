@@ -240,6 +240,8 @@ public static class CoachMessageEndpoints
             var recipientId = currentUserId == connection.UserId ? connection.CoachId : connection.UserId;
             await services.HubContext.Clients.Group($"user_{recipientId}").SendAsync("NewMessage", response);
 
+            await SendUnreadCountUpdatedToUserAsync(services, recipientId, recipientId == connection.CoachId);
+
             return Results.Created($"/coach-messages/{savedMessage.Id}", response);
         }
         catch (Exception ex)
@@ -419,6 +421,8 @@ public static class CoachMessageEndpoints
             // Notify other party via SignalR
             var recipientId = currentUserId == connection.UserId ? connection.CoachId : connection.UserId;
             await services.HubContext.Clients.Group($"user_{recipientId}").SendAsync("NewMessage", response);
+
+            await SendUnreadCountUpdatedToUserAsync(services, recipientId, recipientId == connection.CoachId);
 
             return Results.Created($"/coach-messages/{savedMessage.Id}", response);
         }
@@ -612,6 +616,8 @@ public static class CoachMessageEndpoints
                 }
             }
 
+            await SendUnreadCountUpdatedToUserAsync(services, currentUserId, services.IdentityService.IsCoach);
+
             return Results.Ok(new { success = true });
         }
         catch (Exception ex)
@@ -650,12 +656,26 @@ public static class CoachMessageEndpoints
         try
         {
             await services.CoachMessageService.MarkConversationAsReadAsync(connectionGuid, currentUserId);
+            await SendUnreadCountUpdatedToUserAsync(services, currentUserId, services.IdentityService.IsCoach);
             return Results.Ok(new { success = true });
         }
         catch (Exception ex)
         {
             services.Logger.LogError(ex, "Error marking conversation as read");
             return Results.Problem("An error occurred while updating conversation status.");
+        }
+    }
+
+    private static async Task SendUnreadCountUpdatedToUserAsync(CoachMessageServices services, string userId, bool isCoach)
+    {
+        try
+        {
+            var totalUnread = await services.CoachMessageService.GetTotalUnreadCountAsync(userId, isCoach);
+            await services.HubContext.Clients.Group($"user_{userId}").SendAsync("UnreadCountUpdated", totalUnread);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error sending UnreadCountUpdated to user {UserId}", userId);
         }
     }
 

@@ -29,6 +29,12 @@ public class GlobalExceptionHandlerMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected or request timed out (e.g. health probe) - not an application error
+            _logger.LogDebug("Request was canceled");
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "An unhandled exception occurred");

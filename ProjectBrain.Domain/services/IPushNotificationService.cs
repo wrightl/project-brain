@@ -52,5 +52,17 @@ public interface IPushNotificationService
         string body,
         Dictionary<string, string>? data = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a data-only FCM message to all active device tokens for the user (no notification title/body).
+    /// Used for silent sync triggers (e.g. goals_updated) so the app can refresh in background.
+    /// </summary>
+    /// <param name="userId">The user ID to resolve device tokens for</param>
+    /// <param name="data">Data payload (e.g. type: "goals_updated")</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task SendDataOnlyToUserAsync(
+        string userId,
+        IReadOnlyDictionary<string, string> data,
+        CancellationToken cancellationToken = default);
 }
 

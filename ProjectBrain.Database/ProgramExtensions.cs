@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using ProjectBrain.Database.Interfaces;
+using ProjectBrain.Database.Seeders;
 
 public static class ProgramExtensions
 {
     public static void AddProjectBrainDbContext(this WebApplicationBuilder builder)
     {
         builder.Services.AddHostedService<ProjectBrainDbInitializer>();
+        builder.Services.AddScoped<IDevelopmentDataSeeder, DevelopmentDataSeeder>();
         // builder.Services.AddOpenTelemetry()
         //     .WithTracing(tracing => tracing.AddSource(ProjectBrainDbInitializer.ActivitySourceName));
 

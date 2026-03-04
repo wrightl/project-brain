@@ -213,7 +213,7 @@ if (builder.ExecutionContext.IsPublishMode)
 
     // Grafana Cloud OTLP (optional): set Parameters__otel_exporter_otlp_endpoint and Parameters__otel_exporter_otlp_headers in CI to enable
     var otelOtlpEndpoint = builder.AddParameter("otel-exporter-otlp-endpoint", value: "", publishValueAsDefault: true);
-    var otelOtlpHeaders = builder.AddParameter("otel-exporter-otlp-headers", value: "", secret: true, publishValueAsDefault: true);
+    var otelOtlpHeaders = builder.AddParameter("otel-exporter-otlp-headers", value: "", secret: true);
     var otelResourceAttributes = builder.AddParameter("otel-resource-attributes", value: "", publishValueAsDefault: true);
 
     // sql azure

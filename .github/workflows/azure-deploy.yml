@@ -54,9 +54,9 @@ jobs:
       AZURE_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
       AZURE_NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_ID }}
       # Grafana Cloud OTLP (optional): set vars/secrets in repo or environment to enable telemetry
-      otel_exporter_otlp_endpoint: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
-      otel_exporter_otlp_headers: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-      otel_resource_attributes: deployment.environment=${{ inputs.deploy_environment }}
+      AZURE_OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+      AZURE_OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+      AZURE_OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${{ inputs.deploy_environment }}
     steps:
 
       - name: Checkout

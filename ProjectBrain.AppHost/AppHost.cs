@@ -3,6 +3,7 @@ using Azure.Core;
 using Azure.Provisioning.AppConfiguration;
 using Azure.Provisioning.CognitiveServices;
 using Azure.Provisioning.Search;
+using Azure.Provisioning.Storage;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -179,11 +180,18 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
 #pragma warning restore ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         });
 
-// azure storage
+// azure storage (private: no public blob access when deployed to Azure)
 var documentStorage = builder.AddAzureStorage(documentstorageName)
                             .RunAsEmulator(azurite =>
                             {
                                 azurite.WithDataVolume();
+                            })
+                            .ConfigureInfrastructure(infra =>
+                            {
+                                var storageAccount = infra.GetProvisionableResources()
+                                                          .OfType<StorageAccount>()
+                                                          .Single();
+                                storageAccount.AllowBlobPublicAccess = false;
                             })
                             .AddBlobs(blobName);
 apiService.WithReference(documentStorage);
@@ -203,13 +211,23 @@ if (builder.ExecutionContext.IsPublishMode)
     var nextPublicLaunchDarklyClientId = builder.AddParameter("next-public-launchdarkly-client-id", secret: true);
     var googleMapsApiKey = builder.AddParameter("next-public-google-maps-api-key", secret: true);
 
+    // Grafana Cloud OTLP (optional): set Parameters__otel_exporter_otlp_endpoint and Parameters__otel_exporter_otlp_headers in CI to enable
+    var otelOtlpEndpoint = builder.AddParameter("otel-exporter-otlp-endpoint", value: "", publishValueAsDefault: true);
+    var otelOtlpHeaders = builder.AddParameter("otel-exporter-otlp-headers", value: "", secret: true, publishValueAsDefault: true);
+    var otelResourceAttributes = builder.AddParameter("otel-resource-attributes", value: "", publishValueAsDefault: true);
+
     // sql azure
     var azureSql = builder.AddAzureSqlServer(sqlServerName);
 
     var azureDb = azureSql.AddDatabase(sqlDbName);
 
     apiService.WithReference(azureDb)
-              .WaitFor(azureDb);
+              .WaitFor(azureDb)
+              .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelOtlpEndpoint)
+              .WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otelOtlpHeaders)
+              .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
+              .WithEnvironment("OTEL_SERVICE_NAME", "projectbrain-api")
+              .WithEnvironment("OTEL_RESOURCE_ATTRIBUTES", otelResourceAttributes);
 
     // Use Docker container for production frontend
     // Pass DEPLOY_ENV as build argument to select the correct .env file

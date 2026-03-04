@@ -24,13 +24,13 @@ jobs:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      AZURE_CERTIFICATE_NAME_API: ${{ vars.CERTIFICATE_NAME_API }}
-      AZURE_CUSTOM_DOMAIN_API: ${{ vars.CUSTOMDOMAIN_API }}
+      CERTIFICATE_NAME_API: ${{ vars.CERTIFICATE_NAME_API }}
+      CUSTOMDOMAIN_API: ${{ vars.CUSTOMDOMAIN_API }}
       AZURE_ENV_NAME: projectbrain-${{ inputs.deploy_environment }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       AZURE_MIN_REPLICAS: ${{ vars.MIN_REPLICAS }}
-      AZURE_CERTIFICATE_NAME_APP: ${{ vars.CERTIFICATE_NAME_APP }}
-      AZURE_CUSTOM_DOMAIN_APP: ${{ vars.CUSTOMDOMAIN_APP }}
+      CERTIFICATE_NAME_APP: ${{ vars.CERTIFICATE_NAME_APP }}
+      CUSTOMDOMAIN_APP: ${{ vars.CUSTOMDOMAIN_APP }}
       AZURE_APP_BASE_URL: https://${{ vars.CUSTOMDOMAIN_APP }}
       AZURE_AUTH0_AUDIENCE: https://${{ vars.CUSTOMDOMAIN_API }}
       AZURE_AUTH0_SCOPE: ${{ vars.AUTH0_SCOPE }}
@@ -53,6 +53,10 @@ jobs:
       AZURE_AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
       AZURE_NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
       AZURE_NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_LAUNCHDARKLY_CLIENT_ID }}
+      # Grafana Cloud OTLP (optional): set vars/secrets in repo or environment to enable telemetry
+      Parameters__otel_exporter_otlp_endpoint: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+      Parameters__otel_exporter_otlp_headers: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+      Parameters__otel_resource_attributes: deployment.environment=${{ inputs.deploy_environment }}
     steps:
 
       - name: Checkout

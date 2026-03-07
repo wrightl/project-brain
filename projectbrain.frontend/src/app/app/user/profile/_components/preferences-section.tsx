@@ -49,12 +49,8 @@ export default function PreferencesSection({
             // Update local state
             setCurrentTheme(newTheme);
 
-            // Apply theme to document
-            const html = document.documentElement;
-            html.removeAttribute('data-theme');
-            if (newTheme !== 'standard') {
-                html.setAttribute('data-theme', newTheme);
-            }
+            // Apply theme to document (always set so theme CSS wins over Tailwind)
+            document.documentElement.setAttribute('data-theme', newTheme);
 
             // Refresh user data from API route
             try {

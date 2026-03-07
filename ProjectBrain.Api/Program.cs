@@ -176,6 +176,7 @@ app.MapSubscriptionManagementEndpoints();
 app.MapSubscriptionAnalyticsEndpoints();
 app.MapApplicationSettingsEndpoints();
 app.MapAdminActivityEndpoints();
+app.MapAdminDashboardEndpoints();
 app.MapReferralEndpoints();
 app.MapJournalEndpoints();
 app.MapTagEndpoints();

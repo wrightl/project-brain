@@ -3,27 +3,16 @@ import {
     UsersIcon,
     CloudArrowUpIcon,
     DocumentTextIcon,
+    Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { StatisticsService } from '@/_services/statistics-service';
-import AdminStatistics from './admin-statistics';
+import { AdminKpiRow } from './admin-kpi-row';
+import { AdminEngagementChart } from './admin-engagement-chart';
+import { AdminSegmentsPanel } from './admin-segments-panel';
 import EnvVarsDebugPane from './env-vars-debug-pane';
 
 export default async function AdminDashboard() {
-    const [
-        allUsersCount,
-        coachesCount,
-        sharedResourcesCount,
-        quizzesCount,
-        normalUsersCount,
-        loggedInUsersCount,
-    ] = await Promise.all([
-        StatisticsService.getAllUsers(),
-        StatisticsService.getCoaches(),
-        StatisticsService.getSharedResources(),
-        StatisticsService.getQuizzes(),
-        StatisticsService.getNormalUsers(),
-        StatisticsService.getLoggedInUsers(),
-    ]);
+    const allUsersCount = await StatisticsService.getAllUsers();
 
     const quickActions = [
         {
@@ -31,101 +20,112 @@ export default async function AdminDashboard() {
             description: 'View and manage all users and coaches',
             href: '/app/admin/users',
             icon: UsersIcon,
-            color: 'bg-indigo-500',
         },
         {
             title: 'Manage Knowledge',
             description: 'Manage knowledge base files',
             href: '/app/admin/manage-files',
             icon: CloudArrowUpIcon,
-            color: 'bg-green-500',
         },
         {
             title: 'Manage Quizzes',
             description: 'Create and manage assessment quizzes',
             href: '/app/admin/quizzes',
             icon: DocumentTextIcon,
-            color: 'bg-purple-500',
         },
     ];
 
     return (
-        <div className="space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                    Admin Dashboard
-                </h1>
-                <p className="mt-2 text-sm text-gray-600">
-                    Welcome to your admin dashboard. Manage users, coaches, and
-                    system resources.
-                </p>
-            </div>
+        <div
+            className="min-h-screen rounded-xl border border-gray-300 shadow-lg overflow-hidden"
+            style={{ background: 'var(--dashboard-gradient)' }}
+        >
+            <div className="p-6 md:p-8 lg:px-14 space-y-8">
+                {/* Header */}
+                <header className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="w-8 h-8 rounded-md flex-shrink-0"
+                            style={{
+                                background:
+                                    'linear-gradient(135deg, #22c55e, #3b82f6)',
+                            }}
+                        />
+                        <span className="text-white font-bold text-base tracking-wide">
+                            ProjectBrain
+                        </span>
+                    </div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                        Analytics Overview
+                    </h1>
+                    <div className="flex items-center gap-3">
+                        <Link
+                            href="/app/admin/users"
+                            className="inline-flex items-center gap-2 rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-emerald-400"
+                        >
+                            Manage users
+                        </Link>
+                        <Link
+                            href="/app/admin/settings"
+                            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
+                        >
+                            <Cog6ToothIcon className="h-4 w-4" />
+                            Settings
+                        </Link>
+                    </div>
+                </header>
 
-            {/* Statistics with Period Selector */}
-            <AdminStatistics
-                initialStats={{
-                    allUsers: allUsersCount,
-                    coaches: coachesCount,
-                    sharedResources: sharedResourcesCount,
-                    quizzes: quizzesCount,
-                    normalUsers: normalUsersCount,
-                    loggedInUsers: loggedInUsersCount,
-                }}
-            />
+                {/* KPI row */}
+                <section>
+                    <AdminKpiRow totalUsers={allUsersCount} />
+                </section>
 
-            {/* Debug: frontend env vars */}
-            <div>
-                <EnvVarsDebugPane />
-            </div>
+                {/* Chart + Segments */}
+                <section className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+                    <AdminEngagementChart />
+                    <AdminSegmentsPanel />
+                </section>
 
-            {/* Quick Actions */}
-            <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                    Quick Actions
-                </h2>
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    {quickActions.map((action) => {
-                        const Icon = action.icon;
-                        return (
-                            <Link
-                                key={action.href}
-                                href={action.href}
-                                className="relative group bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
-                            >
-                                <div>
-                                    <span
-                                        className={`${action.color} rounded-lg inline-flex p-3 ring-4 ring-white`}
-                                    >
-                                        <Icon
-                                            className="h-6 w-6 text-white"
-                                            aria-hidden="true"
-                                        />
-                                    </span>
-                                </div>
-                                <div className="mt-4">
-                                    <h3 className="text-lg font-medium text-gray-900 group-hover:text-indigo-600">
-                                        {action.title}
-                                    </h3>
-                                    <p className="mt-2 text-sm text-gray-500">
-                                        {action.description}
-                                    </p>
-                                </div>
-                                <span
-                                    className="pointer-events-none absolute top-6 right-6 text-gray-300 group-hover:text-gray-400"
-                                    aria-hidden="true"
+                {/* Quick actions */}
+                <section>
+                    <h2 className="text-lg font-semibold text-white mb-4">
+                        Quick Actions
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {quickActions.map((action) => {
+                            const Icon = action.icon;
+                            return (
+                                <Link
+                                    key={action.href}
+                                    href={action.href}
+                                    className="flex items-center gap-4 rounded-lg p-4 border border-gray-300 text-gray-900 bg-white shadow hover:shadow-md transition-shadow"
                                 >
-                                    <svg
-                                        className="h-6 w-6"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" />
-                                    </svg>
-                                </span>
-                            </Link>
-                        );
-                    })}
-                </div>
+                                    <span className="rounded-lg bg-indigo-500 p-2 text-white">
+                                        <Icon className="h-5 w-5" />
+                                    </span>
+                                    <div>
+                                        <p className="font-medium text-gray-900">
+                                            {action.title}
+                                        </p>
+                                        <p className="text-sm text-gray-500">
+                                            {action.description}
+                                        </p>
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                {/* Collapsible debug pane */}
+                <details className="rounded-lg border border-gray-300 bg-white shadow">
+                    <summary className="cursor-pointer px-4 py-3 font-medium text-gray-900 hover:bg-gray-50">
+                        Debug: Frontend env vars
+                    </summary>
+                    <div className="px-4 pb-4">
+                        <EnvVarsDebugPane />
+                    </div>
+                </details>
             </div>
         </div>
     );

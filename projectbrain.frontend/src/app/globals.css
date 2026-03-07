@@ -1,6 +1,7 @@
 /* All @import statements must come first */
 @import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap");
 @import "../styles/theme.css";
+@import "../styles/theme-overrides.css";
 @import "../styles/themes/dark.css";
 @import "../styles/themes/colourful.css";
 @import "tailwindcss";

@@ -110,6 +110,42 @@ public class StatisticsService : IStatisticsService
         return await applyPeriodFilter(period, query, c => c.CreatedAt);
     }
 
+    public async Task<IReadOnlyList<DailyCountDto>> GetConversationsCountByDayAsync(int lastDays, CancellationToken cancellationToken = default)
+    {
+        var start = DateTime.UtcNow.Date.AddDays(-lastDays);
+        var dates = await _context.Conversations
+            .Where(c => c.CreatedAt >= start)
+            .Select(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var byDay = dates
+            .GroupBy(d => d.Date)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return Enumerable.Range(0, lastDays)
+            .Select(i => start.AddDays(i))
+            .Select(d => new DailyCountDto(d, byDay.TryGetValue(d, out var c) ? c : 0))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<DailyCountDto>> GetQuizResponsesCountByDayAsync(int lastDays, CancellationToken cancellationToken = default)
+    {
+        var start = DateTime.UtcNow.Date.AddDays(-lastDays);
+        var dates = await _context.QuizResponses
+            .Where(qr => qr.CreatedAt >= start)
+            .Select(qr => qr.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var byDay = dates
+            .GroupBy(d => d.Date)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return Enumerable.Range(0, lastDays)
+            .Select(i => start.AddDays(i))
+            .Select(d => new DailyCountDto(d, byDay.TryGetValue(d, out var c) ? c : 0))
+            .ToList();
+    }
+
     private static async Task<int> applyPeriodFilter<T>(string? period, IQueryable<T> query, Expression<Func<T, DateTime>> dateSelector)
     {
         if (!string.IsNullOrEmpty(period))
@@ -182,5 +218,7 @@ public interface IStatisticsService
     Task<int> GetQuizResponsesCountAsync(string? period = null);
     Task<int> GetLoggedInUsersCountAsync();
     Task<int> GetConversationsCountAsync(string? period = null);
+    Task<IReadOnlyList<DailyCountDto>> GetConversationsCountByDayAsync(int lastDays, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DailyCountDto>> GetQuizResponsesCountByDayAsync(int lastDays, CancellationToken cancellationToken = default);
 }
 

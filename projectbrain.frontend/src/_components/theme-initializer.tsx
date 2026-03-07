@@ -18,19 +18,11 @@ export function ThemeInitializer() {
         const initializeTheme = async () => {
             try {
                 const theme = await ThemeService.getTheme();
-                const html = document.documentElement;
-
-                // Remove all theme attributes
-                html.removeAttribute('data-theme');
-
-                // Apply theme if not standard
-                if (theme !== 'standard') {
-                    html.setAttribute('data-theme', theme);
-                }
+                // Always set data-theme so theme overrides (higher specificity) win over Tailwind
+                document.documentElement.setAttribute('data-theme', theme);
             } catch (error) {
                 console.error('Error initializing theme:', error);
-                // Default to standard theme
-                document.documentElement.removeAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', 'standard');
             }
         };
 

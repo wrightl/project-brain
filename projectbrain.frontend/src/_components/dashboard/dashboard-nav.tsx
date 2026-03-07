@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import { User, UserRole } from '@/_lib/types';
 import {
-    HomeIcon,
     ChatBubbleLeftRightIcon,
     SparklesIcon,
     UsersIcon,
@@ -290,7 +289,14 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                 href={`/app/${role?.toLowerCase()}`}
                                 className="flex items-center text-xl font-bold text-indigo-600 hover:text-indigo-700"
                             >
-                                <HomeIcon className="h-5 w-5 mr-2" />
+                                <Image
+                                    src="/dotdash.png"
+                                    alt=""
+                                    width={28}
+                                    height={28}
+                                    sizes="28px"
+                                    className="h-7 w-auto mr-2"
+                                />
                                 ProjectBrain
                             </Link>
                         </div>

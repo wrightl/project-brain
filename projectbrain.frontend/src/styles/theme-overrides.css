@@ -1,0 +1,124 @@
+/**
+ * Theme overrides — use [data-theme="..."] so specificity beats Tailwind utilities.
+ * Standard theme: design system tokens for body and common utilities.
+ */
+[data-theme="standard"] body {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+[data-theme="standard"] .bg-white {
+  background-color: var(--card) !important;
+}
+
+[data-theme="standard"] .bg-gray-50 {
+  background-color: var(--background) !important;
+}
+
+[data-theme="standard"] .bg-gray-100 {
+  background-color: var(--card) !important;
+}
+
+[data-theme="standard"] .bg-gray-200 {
+  background-color: var(--border) !important;
+}
+
+[data-theme="standard"] .text-gray-900,
+[data-theme="standard"] .text-gray-800,
+[data-theme="standard"] .text-gray-700 {
+  color: var(--foreground) !important;
+}
+
+[data-theme="standard"] .text-gray-600,
+[data-theme="standard"] .text-gray-500,
+[data-theme="standard"] .text-gray-400 {
+  color: var(--muted-foreground) !important;
+}
+
+[data-theme="standard"] .border-gray-300,
+[data-theme="standard"] .border-gray-200 {
+  border-color: var(--border) !important;
+}
+
+[data-theme="standard"] .hover\:bg-gray-50:hover,
+[data-theme="standard"] .hover\:bg-gray-100:hover {
+  background-color: var(--card) !important;
+  transition: background-color 0.15s ease;
+}
+
+[data-theme="standard"] .shadow {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+}
+
+/* Primary buttons: hover darkens */
+[data-theme="standard"] .bg-indigo-600 {
+  background-color: var(--primary) !important;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+[data-theme="standard"] .bg-indigo-600:hover,
+[data-theme="standard"] .hover\:bg-indigo-700:hover {
+  background-color: var(--primary-hover) !important;
+  box-shadow: 0 2px 4px rgba(0, 61, 206, 0.25);
+}
+
+/* Destructive buttons: hover darkens */
+[data-theme="standard"] .bg-red-600 {
+  background-color: var(--destructive) !important;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+[data-theme="standard"] .bg-red-600:hover,
+[data-theme="standard"] .hover\:bg-red-700:hover {
+  background-color: var(--destructive-hover) !important;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.25);
+}
+
+/* Outline / secondary (white + border) buttons: hover background + shadow */
+[data-theme="standard"] .border-gray-300.bg-white:hover,
+[data-theme="standard"] .hover\:bg-gray-50:hover.border-gray-300 {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08);
+}
+
+[data-theme="standard"] .text-indigo-600,
+[data-theme="standard"] .text-indigo-800,
+[data-theme="standard"] .hover\:text-indigo-600:hover {
+  color: var(--primary) !important;
+}
+
+[data-theme="standard"] .focus\:ring-indigo-500:focus {
+  --tw-ring-color: var(--primary);
+}
+
+[data-theme="standard"] .focus\:border-indigo-500:focus {
+  border-color: var(--primary) !important;
+}
+
+[data-theme="standard"] .text-blue-600 {
+  color: var(--primary) !important;
+}
+
+[data-theme="standard"] .bg-blue-100 {
+  background-color: var(--accent-pink-soft) !important;
+}
+
+[data-theme="standard"] .bg-indigo-50,
+[data-theme="standard"] .hover\:bg-indigo-100:hover {
+  background-color: var(--accent-pink-soft) !important;
+  transition: background-color 0.15s ease;
+}
+[data-theme="standard"] .bg-indigo-100 {
+  background-color: var(--accent-pink-soft) !important;
+  transition: background-color 0.15s ease;
+}
+[data-theme="standard"] .bg-indigo-100:hover,
+[data-theme="standard"] .hover\:bg-indigo-200:hover {
+  background-color: var(--secondary) !important;
+  box-shadow: 0 1px 3px 0 rgba(245, 152, 255, 0.2);
+}
+
+[data-theme="standard"] .ring-gray-300 {
+  --tw-ring-color: var(--border);
+}
+
+[data-theme="standard"] .disabled\:bg-gray-300:disabled {
+  background-color: var(--border) !important;
+}

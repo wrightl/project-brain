@@ -1,6 +1,26 @@
-/* Theme */
+/* Theme — design system variables (standard theme) */
 
 :root {
+  /* Design system: standard theme */
+  --background: #ffffff;
+  --foreground: #171d3a;
+  --muted-foreground: #71717a;
+  --card: #f4f4f5;
+  --card-foreground: #171d3a;
+  --border: #d4d4d8;
+  --primary: #003dce;
+  --primary-hover: #002d99;
+  --primary-foreground: #ffffff;
+  --secondary: #f598ff;
+  --secondary-hover: #e879f9;
+  --secondary-foreground: #171d3a;
+  --accent-teal: #14b8a6;
+  --accent-teal-soft: rgba(20, 184, 166, 0.125);
+  --accent-pink: #f598ff;
+  --accent-pink-soft: rgba(245, 152, 255, 0.15);
+  --destructive: #ef4444;
+  --destructive-hover: #dc2626;
+
   --orange: #ff4f40;
   --indigo: #635dff;
   --white: #fff;
@@ -66,7 +86,18 @@
   --font-primary: "Inter", sans-serif;
   --font-secondary: "Space Grotesk", sans-serif;
   --font-mono: "Fira Code", monospace;
+
+  --dashboard-gradient: linear-gradient(
+    135deg,
+    #0f172a 0%,
+    #1d4ed8 50%,
+    #7c3aed 100%
+  );
+  --dashboard-card-bg: rgba(2, 6, 23, 0.8);
+  --dashboard-panel-bg: rgba(2, 6, 23, 0.9);
 }
+
+/* Body and utility overrides load after Tailwind in theme-overrides.css */
 
 @font-face {
   font-family: "Material Icons";

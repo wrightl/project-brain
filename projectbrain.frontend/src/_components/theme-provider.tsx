@@ -57,12 +57,8 @@ export function ThemeProvider({
     }, []);
 
     const applyTheme = (newTheme: Theme) => {
-        // Remove all theme classes
-        document.documentElement.removeAttribute('data-theme');
-
-        if (newTheme !== 'standard') {
-            document.documentElement.setAttribute('data-theme', newTheme);
-        }
+        // Always set data-theme so our CSS overrides (higher specificity) win over Tailwind
+        document.documentElement.setAttribute('data-theme', newTheme);
     };
 
     const setTheme = (newTheme: Theme) => {

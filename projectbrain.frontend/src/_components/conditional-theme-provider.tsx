@@ -13,10 +13,10 @@ export function ConditionalThemeProvider({
     children,
 }: ConditionalThemeProviderProps) {
     const pathname = usePathname();
-    const isAuthenticatedRoute = pathname?.startsWith('/app') ?? false;
+    // Apply theme to all app routes (user, coach, admin, and any /app/*)
+    const isAppRoute = typeof pathname === 'string' && pathname.startsWith('/app');
 
-    // Only apply themes for authenticated routes
-    if (isAuthenticatedRoute) {
+    if (isAppRoute) {
         return (
             <ThemeProvider>
                 <ThemeInitializer />
@@ -25,7 +25,6 @@ export function ConditionalThemeProvider({
         );
     }
 
-    // For public routes, just render children without theme logic
     return <>{children}</>;
 }
 

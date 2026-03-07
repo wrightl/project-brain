@@ -152,6 +152,27 @@ public class UsageTrackingService : IUsageTrackingService
             .Where(c => c.CoachId == coachId && c.Status == "accepted")
             .CountAsync();
     }
+
+    public async Task<int> GetTotalUsageCountAsync(string usageType, string periodType)
+    {
+        var periodStart = GetPeriodStart(periodType);
+        var sum = await _context.UsageTrackings
+            .AsNoTracking()
+            .Where(ut =>
+                ut.UsageType == usageType &&
+                ut.PeriodType == periodType &&
+                ut.PeriodStart == periodStart)
+            .SumAsync(ut => ut.Count);
+        return sum;
+    }
+
+    public async Task<long> GetTotalFileStorageBytesAsync()
+    {
+        var sum = await _context.FileStorageUsages
+            .AsNoTracking()
+            .SumAsync(fsu => fsu.TotalBytes);
+        return sum;
+    }
 }
 
 public interface IUsageTrackingService
@@ -165,4 +186,6 @@ public interface IUsageTrackingService
     Task<long> GetFileStorageUsageAsync(string userId);
     Task<bool> CheckLimitAsync(string userId, string userType, string usageType, int limit, string periodType);
     Task<int> GetClientConnectionCountAsync(string coachId);
+    Task<int> GetTotalUsageCountAsync(string usageType, string periodType);
+    Task<long> GetTotalFileStorageBytesAsync();
 }

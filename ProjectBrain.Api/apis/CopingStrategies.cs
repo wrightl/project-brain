@@ -80,16 +80,23 @@ public static class CopingStrategyEndpoints
                 request.IconKey,
                 CancellationToken.None);
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+            try
             {
-                UserId = userId,
-                StrategyId = created.Id,
-                Title = created.Title,
-                Description = created.Description,
-                IconKey = created.IconKey,
-                Rating = created.Rating,
-                SavedAt = created.SavedAt
-            });
+                await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+                {
+                    UserId = userId,
+                    StrategyId = created.Id,
+                    Title = created.Title,
+                    Description = created.Description,
+                    IconKey = created.IconKey,
+                    Rating = created.Rating,
+                    SavedAt = created.SavedAt
+                });
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue strategy upload for strategy {StrategyId} and user {UserId}", created.Id, userId);
+            }
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {
@@ -120,8 +127,15 @@ public static class CopingStrategyEndpoints
             if (!deleted)
                 return Results.NotFound();
 
-            var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.Strategies };
-            await services.Storage.DeleteFile($"{id}.md", options);
+            try
+            {
+                var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.Strategies };
+                await services.Storage.DeleteFile($"{id}.md", options);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to delete strategy markdown for strategy {StrategyId} and user {UserId}", id, userId);
+            }
 
             return Results.NoContent();
         }
@@ -154,16 +168,23 @@ public static class CopingStrategyEndpoints
 
             if (updated == null) return Results.NotFound();
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+            try
             {
-                UserId = userId,
-                StrategyId = updated.Id,
-                Title = updated.Title,
-                Description = updated.Description,
-                IconKey = updated.IconKey,
-                Rating = updated.Rating,
-                SavedAt = updated.SavedAt
-            });
+                await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+                {
+                    UserId = userId,
+                    StrategyId = updated.Id,
+                    Title = updated.Title,
+                    Description = updated.Description,
+                    IconKey = updated.IconKey,
+                    Rating = updated.Rating,
+                    SavedAt = updated.SavedAt
+                });
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue strategy upload for strategy {StrategyId} and user {UserId}", updated.Id, userId);
+            }
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {

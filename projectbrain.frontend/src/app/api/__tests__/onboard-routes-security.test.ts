@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+/** @jest-environment node */
+
 import { getAccessToken } from '@/_lib/auth';
 import { POST as userOnboardPost } from '@/app/api/user/onboard/route';
 import { POST as coachOnboardPost } from '@/app/api/coach/onboard/route';
@@ -25,12 +26,11 @@ describe('Onboard route security', () => {
             })
         ) as jest.Mock;
 
-        const request = new NextRequest('http://localhost/api/user/onboard', {
-            method: 'POST',
-            body: JSON.stringify({ fullName: 'Test User' }),
-        });
+        const request = {
+            json: async () => ({ fullName: 'Test User' }),
+        };
 
-        const response = await userOnboardPost(request);
+        const response = await userOnboardPost(request as any);
         const payload = (await response.json()) as { error: string };
 
         expect(response.status).toBe(502);
@@ -46,12 +46,11 @@ describe('Onboard route security', () => {
             })
         ) as jest.Mock;
 
-        const request = new NextRequest('http://localhost/api/coach/onboard', {
-            method: 'POST',
-            body: JSON.stringify({ fullName: 'Coach User' }),
-        });
+        const request = {
+            json: async () => ({ fullName: 'Coach User' }),
+        };
 
-        const response = await coachOnboardPost(request);
+        const response = await coachOnboardPost(request as any);
         const payload = (await response.json()) as { error: string };
 
         expect(response.status).toBe(504);

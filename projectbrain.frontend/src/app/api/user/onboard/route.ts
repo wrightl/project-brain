@@ -13,6 +13,25 @@ const httpsAgent =
           })
         : undefined;
 
+async function extractBackendError(response: Response): Promise<string | null> {
+    try {
+        const contentType = response.headers.get('content-type') ?? '';
+        if (contentType.includes('application/json')) {
+            const payload = (await response.json()) as Record<string, unknown>;
+            const value =
+                (typeof payload.error === 'string' && payload.error) ||
+                (typeof payload.message === 'string' && payload.message) ||
+                null;
+            return value?.slice(0, 500) ?? null;
+        }
+
+        const text = (await response.text()).trim();
+        return text ? text.slice(0, 500) : null;
+    } catch {
+        return null;
+    }
+}
+
 /**
  * API route to handle user onboarding
  * This server-side route proxies the request to the backend API with proper authentication
@@ -59,26 +78,14 @@ export async function POST(request: NextRequest) {
 
         // Handle the response
         if (!response.ok) {
-            const errorMessage = `API Error (${response.status}, token: ${token}, url: ${apiServerUrl})`;
-
-            // try {
-            //     const contentType = response.headers.get('content-type');
-            //     if (contentType?.includes('application/json')) {
-            //         const errorData = await response.json();
-            //         errorMessage =
-            //             errorData.message || errorData.error || errorMessage;
-            //     } else {
-            //         const errorText = await response.text();
-            //         if (errorText)
-            //             errorMessage = `${errorMessage}: ${errorText}`;
-            //     }
-            // } catch {
-            //     // Use default message if parsing fails
-            // }
-
-            console.error('Backend API error:', errorMessage);
+            const backendError = await extractBackendError(response);
+            console.error('Backend onboarding API error', {
+                status: response.status,
+                endpoint: '/users/me/onboarding',
+                backendError,
+            });
             return NextResponse.json(
-                { error: errorMessage },
+                { error: backendError || 'Failed to complete onboarding' },
                 { status: response.status }
             );
         }

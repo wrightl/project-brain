@@ -81,7 +81,14 @@ public static class JournalEndpoints
         // Enqueue: generate summary, upload blob, and index via TickerQ
         var entryId = createdEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue journal upload for entry {EntryId}", entryId);
+        }
 
         var dto = JournalEntryMapper.ToDto(createdEntry);
         return Results.Created($"/journal/{createdEntry.Id}", dto);
@@ -199,7 +206,14 @@ public static class JournalEndpoints
         // Enqueue: generate summary, upload blob, and re-index via TickerQ
         var entryId = updatedEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue journal re-index for entry {EntryId}", entryId);
+        }
 
         var dto = JournalEntryMapper.ToDto(updatedEntry);
         return Results.Ok(dto);
@@ -320,7 +334,14 @@ public static class JournalEndpoints
         // Enqueue: delete from blob storage and search index via TickerQ
         var entryId = journalEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalDeleteAsync(services.TimeTickerManager, entryUserId, entryId);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueJournalDeleteAsync(services.TimeTickerManager, entryUserId, entryId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue journal delete for entry {EntryId}", entryId);
+        }
 
         return Results.NoContent();
     }

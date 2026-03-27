@@ -165,7 +165,14 @@ public static class VoiceNoteEndpoints
         var noteId = savedVoiceNote.Id;
         var noteUserId = userId;
         var audioBlobName = storageFileName;
-        await UserContextTickerEnqueue.EnqueueVoiceNoteTranscribeAsync(services.TimeTickerManager, noteUserId, noteId, audioBlobName);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueVoiceNoteTranscribeAsync(services.TimeTickerManager, noteUserId, noteId, audioBlobName);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue voice note transcription for voice note {VoiceNoteId}", noteId);
+        }
 
         return Results.Created($"/voicenotes/{savedVoiceNote.Id}", response);
     }

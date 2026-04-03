@@ -148,7 +148,15 @@ public static class GoalEndpoints
 
             NotifyGoalsUpdatedAndPush(services, currentUserId);
 
-            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+            try
+            {
+                // Queue processing is best-effort; goal writes should still succeed if queueing is unavailable.
+                await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue goals upload for user {UserId}", currentUserId);
+            }
 
             // Check if goals existed before (by checking if any had non-empty messages)
             // Since we just created/updated, we need to check if this was the first time
@@ -209,7 +217,15 @@ public static class GoalEndpoints
 
             NotifyGoalsUpdatedAndPush(services, currentUserId);
 
-            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+            try
+            {
+                // Queue processing is best-effort; goal writes should still succeed if queueing is unavailable.
+                await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue goals upload for user {UserId}", currentUserId);
+            }
 
             return Results.Ok(response);
         }

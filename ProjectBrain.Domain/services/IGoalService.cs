@@ -36,4 +36,12 @@ public interface IGoalService
     /// Checks if user has ever created any goals
     /// </summary>
     Task<bool> HasEverCreatedGoalsAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Prior incomplete goals grouped by normalized text: most recently missed first, then by miss count.
+    /// </summary>
+    Task<IReadOnlyList<IncompleteGoalBacklogItem>> GetPrioritizedIncompleteGoalBacklogAsync(
+        string userId,
+        int maxItems = 15,
+        CancellationToken cancellationToken = default);
 }

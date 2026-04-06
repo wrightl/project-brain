@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useCreateOrUpdateGoals } from '@/_hooks/queries/use-goals';
+import {
+    useCreateOrUpdateGoals,
+    useSuggestGoals,
+} from '@/_hooks/queries/use-goals';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Input } from '@headlessui/react';
@@ -26,6 +29,7 @@ export default function GoalEntryPage({
     });
     const [errors, setErrors] = useState<string[]>(['', '', '']);
     const createOrUpdateMutation = useCreateOrUpdateGoals();
+    const suggestGoalsMutation = useSuggestGoals();
 
     const handleGoalChange = (index: number, value: string) => {
         const newGoals = [...goals];
@@ -71,6 +75,41 @@ export default function GoalEntryPage({
         } catch (error) {
             toast.error(
                 error instanceof Error ? error.message : 'Failed to save goals'
+            );
+        }
+    };
+
+    const handleSuggestGoals = async () => {
+        try {
+            const data = await suggestGoalsMutation.mutateAsync();
+            if (!data.goals?.length) {
+                toast.error(
+                    'No suggestions available right now. Try again later.',
+                );
+                return;
+            }
+            setGoals((prev) => {
+                const next = [...prev];
+                let si = 0;
+                for (let i = 0; i < 3 && si < data.goals.length; i++) {
+                    if (!next[i].trim()) {
+                        next[i] = data.goals[si];
+                        si++;
+                    }
+                }
+                return next;
+            });
+            setErrors(['', '', '']);
+            toast.success(
+                data.source === 'history'
+                    ? 'Filled empty slots from your past goals.'
+                    : 'Filled empty slots based on your profile.',
+            );
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to load suggestions',
             );
         }
     };
@@ -127,11 +166,27 @@ export default function GoalEntryPage({
                     </div>
                 ))}
 
-                <div className="flex justify-end space-x-4 pt-4">
+                <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-4">
+                    <button
+                        type="button"
+                        onClick={handleSuggestGoals}
+                        disabled={
+                            suggestGoalsMutation.isPending ||
+                            createOrUpdateMutation.isPending
+                        }
+                        className="inline-flex items-center justify-center px-4 py-3 border border-gray-300 rounded-md text-base font-medium text-gray-700 bg-white shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {suggestGoalsMutation.isPending
+                            ? 'Suggesting…'
+                            : 'Suggest goals for today'}
+                    </button>
                     <button
                         type="submit"
-                        disabled={createOrUpdateMutation.isPending}
-                        className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={
+                            createOrUpdateMutation.isPending ||
+                            suggestGoalsMutation.isPending
+                        }
+                        className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {createOrUpdateMutation.isPending
                             ? 'Saving...'

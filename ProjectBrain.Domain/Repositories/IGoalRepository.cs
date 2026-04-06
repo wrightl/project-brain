@@ -46,4 +46,13 @@ public interface IGoalRepository : IRepository<Goal, Guid>
         DateOnly fromDateInclusive,
         DateOnly toDateInclusive,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Incomplete goals strictly before <paramref name="beforeDateExclusive"/>, with non-empty message, in optional date range.
+    /// </summary>
+    Task<List<Goal>> GetHistoricalIncompleteGoalsAsync(
+        string userId,
+        DateOnly beforeDateExclusive,
+        DateOnly fromDateInclusive,
+        CancellationToken cancellationToken = default);
 }

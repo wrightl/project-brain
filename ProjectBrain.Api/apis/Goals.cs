@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Background;
+using ProjectBrain.Api.Goals;
 using ProjectBrain.AI;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
@@ -16,7 +17,10 @@ public class GoalServices(
     IIdentityService identityService,
     IGoalsUpdatedBroadcaster goalsUpdatedBroadcaster,
     IPushNotificationService pushNotificationService,
-    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager,
+    IGoalDailySuggestionClient goalDailySuggestionClient,
+    IGoalSuggestionUserContext goalSuggestionUserContext,
+    IUsageTrackingService usageTrackingService)
 {
     public ILogger<GoalServices> Logger { get; } = logger;
     public IGoalService GoalService { get; } = goalService;
@@ -24,6 +28,9 @@ public class GoalServices(
     public IGoalsUpdatedBroadcaster GoalsUpdatedBroadcaster { get; } = goalsUpdatedBroadcaster;
     public IPushNotificationService PushNotificationService { get; } = pushNotificationService;
     public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
+    public IGoalDailySuggestionClient GoalDailySuggestionClient { get; } = goalDailySuggestionClient;
+    public IGoalSuggestionUserContext GoalSuggestionUserContext { get; } = goalSuggestionUserContext;
+    public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
 }
 
 public static class GoalEndpoints
@@ -39,6 +46,7 @@ public static class GoalEndpoints
         group.MapGet("/streak", GetCompletionStreak).WithName("GetCompletionStreak");
         group.MapGet("/streak-summary", GetStreakSummary).WithName("GetStreakSummary");
         group.MapGet("/has-ever-created", HasEverCreatedGoals).WithName("HasEverCreatedGoals");
+        group.MapGet("/suggestions", GetSuggestedGoals).WithName("GetSuggestedGoals");
     }
 
     private static async Task<IResult> StreamGoals(
@@ -286,6 +294,58 @@ public static class GoalEndpoints
         {
             services.Logger.LogError(ex, "Error checking if user has ever created goals for user {UserId}", currentUserId);
             return Results.Problem("An error occurred while checking goal history.");
+        }
+    }
+
+    private static async Task<IResult> GetSuggestedGoals(
+        [AsParameters] GoalServices services,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = services.IdentityService.UserId!;
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            var user = await services.IdentityService.GetUserAsync();
+            var userName = user?.FirstName ?? "there";
+
+            var userInformation = await services.GoalSuggestionUserContext.LoadOnboardingMarkdownAsync(
+                currentUserId,
+                cancellationToken);
+
+            var backlog = await services.GoalService.GetPrioritizedIncompleteGoalBacklogAsync(
+                currentUserId,
+                cancellationToken: cancellationToken);
+
+            var todaysMessages = (await services.GoalService.GetTodaysGoalsAsync(currentUserId, cancellationToken))
+                .Select(g => g.Message.Trim())
+                .Where(m => m.Length > 0)
+                .ToList();
+
+            var suggested = await services.GoalDailySuggestionClient.GetSuggestedDailyGoalsAsync(
+                currentUserId,
+                userName,
+                userInformation,
+                backlog,
+                todaysMessages,
+                cancellationToken);
+
+            await services.UsageTrackingService.TrackAIQueryAsync(currentUserId);
+
+            var source = backlog.Count > 0 ? "history" : "profile";
+            return Results.Ok(new GoalSuggestionsResponseDto
+            {
+                Goals = suggested.ToList(),
+                Source = source
+            });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error generating goal suggestions for user {UserId}", currentUserId);
+            return Results.Problem("An error occurred while generating goal suggestions.");
         }
     }
 

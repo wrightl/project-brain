@@ -18,6 +18,11 @@ export interface CompleteGoalRequest {
     completed: boolean;
 }
 
+export interface GoalSuggestionsResponse {
+    goals: string[];
+    source: string;
+}
+
 export class GoalService {
     /**
      * Get today's goals
@@ -107,5 +112,16 @@ export class GoalService {
         }
         const data = await response.json();
         return data.hasEverCreated ?? false;
+    }
+
+    /**
+     * AI-suggested goals for today (GET /eggs/suggestions).
+     */
+    static async getSuggestions(): Promise<GoalSuggestionsResponse> {
+        const response = await callBackendApi('/eggs/suggestions');
+        if (!response.ok) {
+            throw new Error('Failed to fetch goal suggestions');
+        }
+        return response.json() as Promise<GoalSuggestionsResponse>;
     }
 }

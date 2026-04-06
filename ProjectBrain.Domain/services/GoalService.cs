@@ -9,6 +9,8 @@ using ProjectBrain.Database.Models;
 /// </summary>
 public class GoalService : IGoalService
 {
+    private const int SuggestionHistoryLookbackDays = 365;
+
     private readonly IGoalRepository _repository;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -111,5 +113,43 @@ public class GoalService : IGoalService
     public async Task<bool> HasEverCreatedGoalsAsync(string userId, CancellationToken cancellationToken = default)
     {
         return await _repository.HasEverCreatedGoalsAsync(userId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<IncompleteGoalBacklogItem>> GetPrioritizedIncompleteGoalBacklogAsync(
+        string userId,
+        int maxItems = 15,
+        CancellationToken cancellationToken = default)
+    {
+        if (maxItems < 1)
+        {
+            maxItems = 1;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = today.AddDays(-SuggestionHistoryLookbackDays);
+
+        var rows = await _repository.GetHistoricalIncompleteGoalsAsync(
+            userId,
+            today,
+            from,
+            cancellationToken);
+
+        var aggregated = rows
+            .GroupBy(g => g.Message.Trim().ToLowerInvariant())
+            .Select(grp =>
+            {
+                var ordered = grp.OrderByDescending(x => x.Date).ThenByDescending(x => x.UpdatedAt).ToList();
+                var representative = ordered[0].Message.Trim();
+                return new IncompleteGoalBacklogItem(
+                    string.IsNullOrEmpty(representative) ? ordered[0].Message : representative,
+                    ordered.Count,
+                    ordered.Max(x => x.Date));
+            })
+            .OrderByDescending(x => x.LastMissedDate)
+            .ThenByDescending(x => x.MissCount)
+            .Take(maxItems)
+            .ToList();
+
+        return aggregated;
     }
 }

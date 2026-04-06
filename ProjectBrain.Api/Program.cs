@@ -7,6 +7,7 @@ using ProjectBrain.AI;
 using ProjectBrain.Api;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Background;
+using ProjectBrain.Api.Goals;
 using ProjectBrain.Api.Middlewares;
 using ProjectBrain.Api.Validators;
 using ProjectBrain.Database.Interfaces;
@@ -88,6 +89,8 @@ builder.AddCustomAuthorisation();
 builder.Services.AddSignalR();
 
 builder.AddAzureOpenAI();
+
+builder.Services.AddScoped<IGoalSuggestionUserContext, StorageGoalSuggestionUserContext>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IIdentityService, IdentityService>();

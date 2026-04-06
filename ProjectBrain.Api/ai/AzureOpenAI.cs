@@ -48,6 +48,11 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         public List<StrategySuggestion> Items { get; init; } = new();
     }
 
+    private sealed class DailyGoalsSuggestionResponse
+    {
+        public List<string> Goals { get; set; } = new();
+    }
+
     public async Task<string> TranscribeAudio(Stream audioStream, string fileName)
     {
         Services.Logger.LogInformation("Starting TranscribeAudio for file: {FileName}", fileName);
@@ -217,6 +222,262 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             Services.Logger.LogWarning(ex, "Failed to parse strategy suggestion JSON. Raw: {Raw}", raw);
             return new List<StrategySuggestion>();
         }
+    }
+
+    /// <summary>
+    /// Produces up to 3 suggested daily goal strings (max 500 chars each). Uses backlog and/or onboarding context.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetSuggestedDailyGoalsAsync(
+        string userId,
+        string userName,
+        string userInformation,
+        IReadOnlyList<IncompleteGoalBacklogItem> backlog,
+        IReadOnlyList<string> todaysExistingGoalMessages,
+        CancellationToken cancellationToken = default)
+    {
+        Services.Logger.LogInformation("Generating daily goal suggestions for user {UserId}", userId);
+
+        var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
+        var hasBacklog = backlog.Count > 0;
+
+        var systemPrompt = new StringBuilder();
+        systemPrompt.AppendLine("You are a friendly, supportive coach for neurodiverse people.");
+        systemPrompt.AppendLine("Propose small, concrete daily goals the user could realistically attempt in one day.");
+        systemPrompt.AppendLine("Avoid medical or diagnostic claims. If content implies crisis, suggest reaching out to appropriate support.");
+        systemPrompt.AppendLine("Return ONLY valid JSON. No markdown fences. No extra commentary.");
+        systemPrompt.AppendLine("Shape: {\"goals\":[\"...\",\"...\",\"...\"]} — exactly 3 non-empty strings.");
+        systemPrompt.AppendLine("Each goal must be at most 500 characters. Use clear, encouraging language.");
+
+        var userPrompt = BuildDailyGoalsUserPrompt(userName, userInformation, backlog, todaysExistingGoalMessages, strictThree: false);
+
+        var goals = await CompleteAndParseDailyGoalsAsync(chatClient, systemPrompt.ToString(), userPrompt, cancellationToken);
+        goals = DeduplicateAndCapGoals(goals, todaysExistingGoalMessages);
+
+        if (goals.Count < 3)
+        {
+            var strictPrompt = BuildDailyGoalsUserPrompt(userName, userInformation, backlog, todaysExistingGoalMessages, strictThree: true);
+            var second = await CompleteAndParseDailyGoalsAsync(chatClient, systemPrompt.ToString(), strictPrompt, cancellationToken);
+            goals = MergeGoalLists(goals, second, todaysExistingGoalMessages);
+        }
+
+        if (goals.Count < 3 && hasBacklog)
+        {
+            foreach (var item in backlog)
+            {
+                if (goals.Count >= 3)
+                {
+                    break;
+                }
+
+                var g = TruncateGoalText(item.Message);
+                if (string.IsNullOrEmpty(g) || GoalConflictsWithExisting(g, todaysExistingGoalMessages) || goals.Any(x => string.Equals(x, g, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                goals.Add(g);
+            }
+        }
+
+        return goals.Take(3).ToList();
+    }
+
+    private static string BuildDailyGoalsUserPrompt(
+        string userName,
+        string userInformation,
+        IReadOnlyList<IncompleteGoalBacklogItem> backlog,
+        IReadOnlyList<string> todaysExistingGoalMessages,
+        bool strictThree)
+    {
+        var userPrompt = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            userPrompt.AppendLine($"The user's first name is {userName}.");
+            userPrompt.AppendLine();
+        }
+
+        if (!string.IsNullOrWhiteSpace(userInformation))
+        {
+            userPrompt.AppendLine("---");
+            userPrompt.AppendLine("User onboarding / profile (markdown):");
+            userPrompt.AppendLine(userInformation);
+            userPrompt.AppendLine("---");
+            userPrompt.AppendLine();
+        }
+
+        var blocked = todaysExistingGoalMessages
+            .Select(m => m.Trim())
+            .Where(m => m.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (blocked.Count > 0)
+        {
+            userPrompt.AppendLine("The user already has these goals planned for today — do not duplicate or closely paraphrase them:");
+            foreach (var m in blocked)
+            {
+                userPrompt.AppendLine($"- {m}");
+            }
+
+            userPrompt.AppendLine();
+        }
+
+        if (backlog.Count > 0)
+        {
+            userPrompt.AppendLine("Previously incomplete goals (most important first). Each line: message; times missed; last missed date (UTC calendar day):");
+            foreach (var item in backlog)
+            {
+                userPrompt.AppendLine($"- {item.Message}; missCount={item.MissCount}; lastMissed={item.LastMissedDate:O}");
+            }
+
+            userPrompt.AppendLine();
+            userPrompt.AppendLine("Suggest 3 goals for TODAY grounded in this list (you may lightly rephrase for clarity).");
+        }
+        else
+        {
+            userPrompt.AppendLine("The user has no prior incomplete goals on record.");
+            userPrompt.AppendLine("Suggest 3 gentle, practical daily goals using only the profile information above.");
+        }
+
+        if (strictThree)
+        {
+            userPrompt.AppendLine();
+            userPrompt.AppendLine("CRITICAL: The goals array must contain exactly 3 distinct, non-empty strings.");
+        }
+
+        userPrompt.AppendLine();
+        userPrompt.AppendLine("Respond with JSON only.");
+
+        return userPrompt.ToString();
+    }
+
+    private async Task<List<string>> CompleteAndParseDailyGoalsAsync(
+        ChatClient chatClient,
+        string systemPrompt,
+        string userPrompt,
+        CancellationToken cancellationToken)
+    {
+        ClientResult<ChatCompletion> response;
+        try
+        {
+            response = await chatClient.CompleteChatAsync(
+                [
+                    new SystemChatMessage(systemPrompt),
+                    new UserChatMessage(userPrompt),
+                ],
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Services.Logger.LogError(ex, "Azure OpenAI call failed for daily goal suggestions.");
+            return new List<string>();
+        }
+
+        var raw = response.Value.Content.FirstOrDefault()?.Text ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new List<string>();
+        }
+
+        var extracted = ExtractLikelyJson(raw);
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<DailyGoalsSuggestionResponse>(
+                extracted,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            var list = parsed?.Goals ?? new List<string>();
+            return list
+                .Select(TruncateGoalText)
+                .Where(g => !string.IsNullOrEmpty(g))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Services.Logger.LogWarning(ex, "Failed to parse daily goals JSON. Raw: {Raw}", raw);
+            return new List<string>();
+        }
+    }
+
+    private static List<string> DeduplicateAndCapGoals(
+        IReadOnlyList<string> goals,
+        IReadOnlyList<string> todaysExistingGoalMessages)
+    {
+        var result = new List<string>();
+        foreach (var g in goals)
+        {
+            if (result.Count >= 3)
+            {
+                break;
+            }
+
+            if (GoalConflictsWithExisting(g, todaysExistingGoalMessages))
+            {
+                continue;
+            }
+
+            if (result.Any(x => string.Equals(x, g, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            result.Add(g);
+        }
+
+        return result;
+    }
+
+    private static List<string> MergeGoalLists(
+        IReadOnlyList<string> first,
+        IReadOnlyList<string> second,
+        IReadOnlyList<string> todaysExistingGoalMessages)
+    {
+        var merged = DeduplicateAndCapGoals(first, todaysExistingGoalMessages);
+        foreach (var g in second)
+        {
+            if (merged.Count >= 3)
+            {
+                break;
+            }
+
+            if (GoalConflictsWithExisting(g, todaysExistingGoalMessages))
+            {
+                continue;
+            }
+
+            if (merged.Any(x => string.Equals(x, g, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            merged.Add(g);
+        }
+
+        return merged;
+    }
+
+    private static bool GoalConflictsWithExisting(string goal, IReadOnlyList<string> todaysExistingGoalMessages)
+    {
+        if (string.IsNullOrWhiteSpace(goal))
+        {
+            return true;
+        }
+
+        var g = goal.Trim();
+        return todaysExistingGoalMessages.Any(
+            e => !string.IsNullOrWhiteSpace(e) &&
+                 string.Equals(e.Trim(), g, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string TruncateGoalText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var t = text.Trim();
+        const int max = 500;
+        return t.Length <= max ? t : t[..max];
     }
 
     private static string? NormalizeNullableString(string? value)
@@ -677,6 +938,7 @@ public static class AzureOpenAIExtensions
 
         builder.Services.AddScoped<AzureOpenAIServices>();
         builder.Services.AddScoped<AzureOpenAI>();
+        builder.Services.AddScoped<IGoalDailySuggestionClient, GoalDailySuggestionClient>();
         builder.Services.AddScoped<ISearchIndexService, AzureSearchClient>();
         builder.Services.AddScoped<AzureSearchClientServices>();
     }

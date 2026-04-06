@@ -174,4 +174,23 @@ public class GoalRepository : Repository<Goal, Guid>, IGoalRepository
             .ThenBy(g => g.Index)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<List<Goal>> GetHistoricalIncompleteGoalsAsync(
+        string userId,
+        DateOnly beforeDateExclusive,
+        DateOnly fromDateInclusive,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(g =>
+                g.UserId == userId &&
+                g.Date >= fromDateInclusive &&
+                g.Date < beforeDateExclusive &&
+                !g.Completed &&
+                !string.IsNullOrWhiteSpace(g.Message))
+            .OrderByDescending(g => g.Date)
+            .ThenByDescending(g => g.UpdatedAt)
+            .ToListAsync(cancellationToken);
+    }
 }

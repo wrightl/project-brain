@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/_lib/api-client';
-import { Goal } from '@/_services/goal-service';
+import {
+    Goal,
+    type GoalSuggestionsResponse,
+} from '@/_services/goal-service';
 
 export const goalKeys = {
     all: ['goals'] as const,
@@ -106,5 +109,16 @@ export function useHasEverCreatedGoals() {
             return response.hasEverCreated;
         },
         staleTime: 10 * 60 * 1000, // 10 minutes - this rarely changes
+    });
+}
+
+export function useSuggestGoals() {
+    return useMutation({
+        mutationFn: async () => {
+            const response = await apiClient<GoalSuggestionsResponse>(
+                '/api/goals/eggs/suggestions',
+            );
+            return response;
+        },
     });
 }

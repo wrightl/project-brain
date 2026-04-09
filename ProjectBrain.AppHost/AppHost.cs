@@ -1,5 +1,7 @@
 using Aspire.Hosting.Pipelines;
 using Azure.Core;
+using Azure.Provisioning.Expressions;
+using ProjectBrain.AppHost;
 using Azure.Provisioning.AppConfiguration;
 using Azure.Provisioning.CognitiveServices;
 using Azure.Provisioning.Search;
@@ -149,6 +151,7 @@ var cache = builder.AddRedis(cacheName)
         {
             // Scale to 0
             app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+            ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
         });
 
 // api
@@ -175,6 +178,7 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         {
                             // Scale to 0
                             app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+                            ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
 #pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                             app.ConfigureCustomDomain(customDomainApi, certificateNameApi);
 #pragma warning restore ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -253,6 +257,7 @@ if (builder.ExecutionContext.IsPublishMode)
         .PublishAsAzureContainerApp((module, app) =>
         {
             app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+            ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
 #pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             app.ConfigureCustomDomain(customDomainApp, certificateNameApp);
 #pragma warning restore ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.

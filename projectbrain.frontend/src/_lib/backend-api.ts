@@ -94,8 +94,7 @@ export async function callBackendApi(
                 'Backend API response not ok:',
                 `${API_URL}${endpoint}`,
                 response.status,
-                response.statusText,
-                accessToken
+                response.statusText
             );
 
             // Handle 401 Unauthorized - session expired

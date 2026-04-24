@@ -156,7 +156,12 @@ public static class GoalEndpoints
 
             NotifyGoalsUpdatedAndPush(services, currentUserId);
 
-            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+            await UserContextTickerEnqueue.TryEnqueueAsync(
+                ct => UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId, ct),
+                services.Logger,
+                UserContextTickerEnqueue.GoalsUpload,
+                currentUserId,
+                CancellationToken.None);
 
             // Check if goals existed before (by checking if any had non-empty messages)
             // Since we just created/updated, we need to check if this was the first time
@@ -217,7 +222,12 @@ public static class GoalEndpoints
 
             NotifyGoalsUpdatedAndPush(services, currentUserId);
 
-            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+            await UserContextTickerEnqueue.TryEnqueueAsync(
+                ct => UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId, ct),
+                services.Logger,
+                UserContextTickerEnqueue.GoalsUpload,
+                currentUserId,
+                CancellationToken.None);
 
             return Results.Ok(response);
         }

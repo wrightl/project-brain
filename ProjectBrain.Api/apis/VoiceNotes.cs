@@ -165,7 +165,12 @@ public static class VoiceNoteEndpoints
         var noteId = savedVoiceNote.Id;
         var noteUserId = userId;
         var audioBlobName = storageFileName;
-        await UserContextTickerEnqueue.EnqueueVoiceNoteTranscribeAsync(services.TimeTickerManager, noteUserId, noteId, audioBlobName);
+        await UserContextTickerEnqueue.TryEnqueueAsync(
+            ct => UserContextTickerEnqueue.EnqueueVoiceNoteTranscribeAsync(services.TimeTickerManager, noteUserId, noteId, audioBlobName, ct),
+            services.Logger,
+            UserContextTickerEnqueue.VoiceNoteTranscribe,
+            noteUserId,
+            CancellationToken.None);
 
         return Results.Created($"/voicenotes/{savedVoiceNote.Id}", response);
     }

@@ -1,6 +1,7 @@
 using TickerQ.Utilities;
 using TickerQ.Utilities.Entities;
 using TickerQ.Utilities.Interfaces.Managers;
+using Microsoft.Extensions.Logging;
 
 namespace ProjectBrain.Api.Background;
 
@@ -85,5 +86,33 @@ public static class UserContextTickerEnqueue
                 AudioBlobName = audioBlobName
             })
         }, ct);
+    }
+
+    /// <summary>
+    /// Best-effort enqueue wrapper to prevent primary writes from failing when the queue is temporarily unavailable.
+    /// </summary>
+    public static async Task TryEnqueueAsync(
+        Func<CancellationToken, Task> enqueueAction,
+        ILogger logger,
+        string functionName,
+        string userId,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            await enqueueAction(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Failed to enqueue ticker job {Function} for user {UserId}. Continuing request.",
+                functionName,
+                userId);
+        }
     }
 }

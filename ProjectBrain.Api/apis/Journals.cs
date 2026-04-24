@@ -81,7 +81,12 @@ public static class JournalEndpoints
         // Enqueue: generate summary, upload blob, and index via TickerQ
         var entryId = createdEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        await UserContextTickerEnqueue.TryEnqueueAsync(
+            ct => UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId, ct),
+            services.Logger,
+            UserContextTickerEnqueue.JournalUpload,
+            entryUserId,
+            CancellationToken.None);
 
         var dto = JournalEntryMapper.ToDto(createdEntry);
         return Results.Created($"/journal/{createdEntry.Id}", dto);
@@ -199,7 +204,12 @@ public static class JournalEndpoints
         // Enqueue: generate summary, upload blob, and re-index via TickerQ
         var entryId = updatedEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        await UserContextTickerEnqueue.TryEnqueueAsync(
+            ct => UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId, ct),
+            services.Logger,
+            UserContextTickerEnqueue.JournalUpload,
+            entryUserId,
+            CancellationToken.None);
 
         var dto = JournalEntryMapper.ToDto(updatedEntry);
         return Results.Ok(dto);
@@ -320,7 +330,12 @@ public static class JournalEndpoints
         // Enqueue: delete from blob storage and search index via TickerQ
         var entryId = journalEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalDeleteAsync(services.TimeTickerManager, entryUserId, entryId);
+        await UserContextTickerEnqueue.TryEnqueueAsync(
+            ct => UserContextTickerEnqueue.EnqueueJournalDeleteAsync(services.TimeTickerManager, entryUserId, entryId, ct),
+            services.Logger,
+            UserContextTickerEnqueue.JournalDelete,
+            entryUserId,
+            CancellationToken.None);
 
         return Results.NoContent();
     }

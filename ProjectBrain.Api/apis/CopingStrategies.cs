@@ -80,16 +80,24 @@ public static class CopingStrategyEndpoints
                 request.IconKey,
                 CancellationToken.None);
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
-            {
-                UserId = userId,
-                StrategyId = created.Id,
-                Title = created.Title,
-                Description = created.Description,
-                IconKey = created.IconKey,
-                Rating = created.Rating,
-                SavedAt = created.SavedAt
-            });
+            await UserContextTickerEnqueue.TryEnqueueAsync(
+                ct => UserContextTickerEnqueue.EnqueueStrategyUploadAsync(
+                    services.TimeTickerManager,
+                    new StrategyUploadRequest
+                    {
+                        UserId = userId,
+                        StrategyId = created.Id,
+                        Title = created.Title,
+                        Description = created.Description,
+                        IconKey = created.IconKey,
+                        Rating = created.Rating,
+                        SavedAt = created.SavedAt
+                    },
+                    ct),
+                services.Logger,
+                UserContextTickerEnqueue.StrategyUpload,
+                userId,
+                CancellationToken.None);
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {
@@ -154,16 +162,24 @@ public static class CopingStrategyEndpoints
 
             if (updated == null) return Results.NotFound();
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
-            {
-                UserId = userId,
-                StrategyId = updated.Id,
-                Title = updated.Title,
-                Description = updated.Description,
-                IconKey = updated.IconKey,
-                Rating = updated.Rating,
-                SavedAt = updated.SavedAt
-            });
+            await UserContextTickerEnqueue.TryEnqueueAsync(
+                ct => UserContextTickerEnqueue.EnqueueStrategyUploadAsync(
+                    services.TimeTickerManager,
+                    new StrategyUploadRequest
+                    {
+                        UserId = userId,
+                        StrategyId = updated.Id,
+                        Title = updated.Title,
+                        Description = updated.Description,
+                        IconKey = updated.IconKey,
+                        Rating = updated.Rating,
+                        SavedAt = updated.SavedAt
+                    },
+                    ct),
+                services.Logger,
+                UserContextTickerEnqueue.StrategyUpload,
+                userId,
+                CancellationToken.None);
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {

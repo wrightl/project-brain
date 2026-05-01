@@ -20,7 +20,8 @@ public class GoalServices(
     ITimeTickerManager<TimeTickerEntity> timeTickerManager,
     IGoalDailySuggestionClient goalDailySuggestionClient,
     IGoalSuggestionUserContext goalSuggestionUserContext,
-    IUsageTrackingService usageTrackingService)
+    IUsageTrackingService usageTrackingService,
+    IServiceScopeFactory serviceScopeFactory)
 {
     public ILogger<GoalServices> Logger { get; } = logger;
     public IGoalService GoalService { get; } = goalService;
@@ -31,6 +32,7 @@ public class GoalServices(
     public IGoalDailySuggestionClient GoalDailySuggestionClient { get; } = goalDailySuggestionClient;
     public IGoalSuggestionUserContext GoalSuggestionUserContext { get; } = goalSuggestionUserContext;
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
+    public IServiceScopeFactory ServiceScopeFactory { get; } = serviceScopeFactory;
 }
 
 public static class GoalEndpoints
@@ -89,18 +91,23 @@ public static class GoalEndpoints
     {
         var evt = new GoalsUpdatedEvent { UpdatedAt = DateTime.UtcNow.ToString("O") };
         services.GoalsUpdatedBroadcaster.NotifyGoalsUpdated(userId, evt);
+        var serviceScopeFactory = services.ServiceScopeFactory;
+        var logger = services.Logger;
 
         _ = Task.Run(async () =>
         {
             try
             {
-                await services.PushNotificationService.SendDataOnlyToUserAsync(
+                using var scope = serviceScopeFactory.CreateScope();
+                var pushNotificationService = scope.ServiceProvider.GetRequiredService<IPushNotificationService>();
+
+                await pushNotificationService.SendDataOnlyToUserAsync(
                     userId,
                     new Dictionary<string, string> { ["type"] = "goals_updated" });
             }
             catch (Exception ex)
             {
-                services.Logger.LogWarning(ex, "Failed to send goals_updated FCM to user {UserId}", userId);
+                logger.LogWarning(ex, "Failed to send goals_updated FCM to user {UserId}", userId);
             }
         });
     }

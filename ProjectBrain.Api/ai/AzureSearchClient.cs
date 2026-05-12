@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Models;
@@ -103,12 +105,10 @@ public class AzureSearchClient(AzureSearchClientServices services) : ISearchInde
                     embedding.Add(f);
                 }
 
-                // Create search document with Azure Search compliant ID
-                // Azure Search IDs can only contain: letters, digits, underscore (_), dash (-), or equal sign (=)
-                // var documentId = GenerateSearchDocumentId(userId, filename, page.PageNumber);
+                // Azure Search document keys: letters, digits, underscore, dash, equal sign only.
                 var searchDocument = new SearchDocument
                 {
-                    ["id"] = $"{resourceId}_{page.PageNumber}",
+                    ["id"] = AzureSearchDocumentIds.BuildSearchDocumentId(resourceId, page.PageNumber),
                     ["content"] = page.Content,
                     ["category"] = Path.GetExtension(filename).TrimStart('.').ToLowerInvariant(),
                     ["sourcepage"] = page.PageNumber.ToString(),
@@ -282,6 +282,39 @@ public class AzureSearchClient(AzureSearchClientServices services) : ISearchInde
     private static bool shouldRemoveDocumentFromIndex(SearchDocument document)
     {
         return document.ContainsKey("id") && document["id"] != null;
+    }
+}
+
+/// <summary>
+/// Builds Azure AI Search document keys (allowed: ASCII letters, digits, underscore, dash, equal sign).
+/// </summary>
+public static class AzureSearchDocumentIds
+{
+    public static string BuildSearchDocumentId(string resourceId, int pageNumber)
+    {
+        ArgumentNullException.ThrowIfNull(resourceId);
+        var id = resourceId.Trim();
+
+        if (Guid.TryParse(id, out _))
+            return $"{id}_{pageNumber}";
+
+        var composite = $"{id}_{pageNumber}";
+        if (isAzureSearchDocumentKey(composite))
+            return composite;
+
+        var payload = Encoding.UTF8.GetBytes($"{id}\u001e{pageNumber}");
+        return Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+    }
+
+    private static bool isAzureSearchDocumentKey(string key)
+    {
+        foreach (var c in key)
+        {
+            if (char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '=')
+                continue;
+            return false;
+        }
+        return true;
     }
 }
 

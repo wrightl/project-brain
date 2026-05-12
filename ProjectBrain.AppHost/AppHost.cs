@@ -146,7 +146,7 @@ else
 }
 
 var cache = builder.AddRedis(cacheName)
-        .WithRedisInsight()
+        // .WithRedisInsight()
         .PublishAsAzureContainerApp((module, app) =>
         {
             // Scale to 0

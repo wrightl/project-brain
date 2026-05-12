@@ -147,6 +147,20 @@ public class Auth0UserManagement : IAuth0UserManagement
             var jsonStringUser = await userResponse.Content.ReadAsStringAsync();
             var auth0User = Auth0UserDto.FromJson(jsonStringUser);
 
+            // Auth0 only allows PATCHing root attributes (name, email, nickname) on
+            // Database connection users. For social/federated users (google-oauth2,
+            // apple, windowslive, etc.) these are owned by the upstream IdP and Auth0
+            // returns 400 Bad Request. Skip the PATCH in that case; user details are
+            // still persisted locally via UserService.
+            if (!isDatabaseConnection(auth0User))
+            {
+                _services.Logger.LogInformation(
+                    "Skipping Auth0 PATCH for user {userId} on non-Database connection {connection}",
+                    userId,
+                    auth0User.Identities.FirstOrDefault()?.Connection ?? "(unknown)");
+                return true;
+            }
+
             if (Auth0UserPatchRequest.PatchableFieldsEqual(auth0User, user))
             {
                 _services.Logger.LogInformation("No changes to user {userId} in Auth0", userId);
@@ -163,6 +177,21 @@ public class Auth0UserManagement : IAuth0UserManagement
             _services.Logger.LogError("Failed to get user {userId} from Auth0", userId);
             return false;
         }
+    }
+
+    private static bool isDatabaseConnection(Auth0UserDto auth0User)
+    {
+        var connection = auth0User.Identities.FirstOrDefault()?.Connection;
+        if (string.IsNullOrEmpty(connection))
+        {
+            // Fall back to the user_id prefix: Database users are "auth0|...".
+            return auth0User.Id?.StartsWith("auth0|", StringComparison.Ordinal) ?? false;
+        }
+        // Auth0's "auth0" strategy is the Database connection. The default tenant
+        // connection name is "Username-Password-Authentication" but custom DB
+        // connections also report provider "auth0"; using the identity's provider
+        // would be more accurate, but the connection name suffices for our setup.
+        return string.Equals(connection, "Username-Password-Authentication", StringComparison.Ordinal);
     }
 
     // Keep the original method for backward compatibility with existing code

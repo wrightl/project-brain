@@ -199,6 +199,44 @@ public class UserContextTickerJobs(IServiceScopeFactory serviceScopeFactory, ILo
         }
     }
 
+    [TickerFunction("UserContext_ConversationTitleSummary")]
+    public async Task ConversationTitleSummary(
+        TickerFunctionContext<ConversationTitleSummaryRequest> context,
+        CancellationToken cancellationToken)
+    {
+        var req = context.Request;
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var conversationService = scope.ServiceProvider.GetRequiredService<IConversationService>();
+            var azureOpenAI = scope.ServiceProvider.GetRequiredService<AzureOpenAI>();
+
+            var conversation = await conversationService.GetById(req.ConversationId, req.UserId);
+            if (conversation is null)
+            {
+                logger.LogWarning("Conversation {ConversationId} not found for title summary; skipping", req.ConversationId);
+                return;
+            }
+
+            var summary = await azureOpenAI.GetConversationSummary(req.UserMessageContent, req.UserId);
+            if (string.IsNullOrWhiteSpace(summary))
+            {
+                logger.LogWarning("Empty summary for conversation {ConversationId}; leaving title unchanged", req.ConversationId);
+                return;
+            }
+
+            const int maxTitleLen = 128;
+            conversation.Title = summary.Length > maxTitleLen ? summary[..maxTitleLen] : summary;
+            conversation.UpdatedAt = DateTime.UtcNow;
+            await conversationService.Update(conversation);
+            logger.LogInformation("Updated conversation {ConversationId} title from deferred summary", req.ConversationId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error updating conversation title for {ConversationId}", req.ConversationId);
+        }
+    }
+
     private static string BuildJournalEntryMarkdown(string content, string? summary, DateTime createdAt)
     {
         var sb = new StringBuilder();

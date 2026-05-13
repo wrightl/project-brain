@@ -12,6 +12,7 @@ public static class UserContextTickerEnqueue
     public const string GoalsUpload = "UserContext_GoalsUpload";
     public const string StrategyUpload = "UserContext_StrategyUpload";
     public const string VoiceNoteTranscribe = "UserContext_VoiceNoteTranscribe";
+    public const string ConversationTitleSummary = "UserContext_ConversationTitleSummary";
 
     public static async Task EnqueueJournalUploadAsync(
         ITimeTickerManager<TimeTickerEntity> manager,
@@ -83,6 +84,26 @@ public static class UserContextTickerEnqueue
                 UserId = userId,
                 VoiceNoteId = voiceNoteId,
                 AudioBlobName = audioBlobName
+            })
+        }, ct);
+    }
+
+    public static async Task EnqueueConversationTitleSummaryAsync(
+        ITimeTickerManager<TimeTickerEntity> manager,
+        string userId,
+        Guid conversationId,
+        string userMessageContent,
+        CancellationToken ct = default)
+    {
+        await manager.AddAsync(new TimeTickerEntity
+        {
+            Function = ConversationTitleSummary,
+            ExecutionTime = DateTime.UtcNow,
+            Request = TickerHelper.CreateTickerRequest(new ConversationTitleSummaryRequest
+            {
+                UserId = userId,
+                ConversationId = conversationId,
+                UserMessageContent = userMessageContent
             })
         }, ct);
     }

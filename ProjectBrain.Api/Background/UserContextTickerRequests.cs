@@ -39,3 +39,11 @@ public class VoiceNoteTranscribeRequest
     public required Guid VoiceNoteId { get; init; }
     public required string AudioBlobName { get; init; }
 }
+
+/// <summary>Request to generate an AI conversation title and persist it (deferred from chat stream).</summary>
+public class ConversationTitleSummaryRequest
+{
+    public required string UserId { get; init; }
+    public required Guid ConversationId { get; init; }
+    public required string UserMessageContent { get; init; }
+}

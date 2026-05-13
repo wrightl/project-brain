@@ -6,6 +6,8 @@ using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 using DomainChatService = ProjectBrain.Domain.IChatService;
 using DomainConversationService = ProjectBrain.Domain.IConversationService;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 public class ChatServices(ILogger<ChatServices> logger,
     IConfiguration config,
@@ -17,7 +19,8 @@ public class ChatServices(ILogger<ChatServices> logger,
     IUsageTrackingService usageTrackingService,
     IFeatureGateService featureGateService,
     ISubscriptionService subscriptionService,
-    IChatPersistenceQueue chatPersistenceQueue)
+    IChatPersistenceQueue chatPersistenceQueue,
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
 {
     public ILogger<ChatServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
@@ -30,6 +33,7 @@ public class ChatServices(ILogger<ChatServices> logger,
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IChatPersistenceQueue ChatPersistenceQueue { get; } = chatPersistenceQueue;
+    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
 }
 
 public static class ChatEndpoints
@@ -264,16 +268,29 @@ public static class ChatEndpoints
 
         if (request.ConversationId is null)
         {
-            var chatSummaryResponse = await services.AzureOpenAI.GetConversationSummary(request.Content, userId);
-
+            var placeholderTitle = BuildNewConversationPlaceholderTitle(request.Content);
             conversation = await services.ConversationService.Add(new Conversation
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                Title = chatSummaryResponse,
+                Title = placeholderTitle,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             });
+
+            try
+            {
+                await UserContextTickerEnqueue.EnqueueConversationTitleSummaryAsync(
+                    services.TimeTickerManager,
+                    userId!,
+                    conversation.Id,
+                    request.Content,
+                    http.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue conversation title summary for {ConversationId}", conversation.Id);
+            }
         }
         else
         {
@@ -308,7 +325,14 @@ public static class ChatEndpoints
         var userName = user.FirstName ?? "there";
         services.Logger.LogInformation("Using user name {UserName} for conversation {ConversationId}", userName, conversation.Id);
 
-        // Get the onboarding data for the user
+        await http.Response.StartAsync(http.RequestAborted);
+        if (contentType == "text/event-stream")
+        {
+            await http.Response.WriteAsync(": \n\n", http.RequestAborted);
+            await http.Response.Body.FlushAsync(http.RequestAborted);
+        }
+
+        // Get the onboarding data for the user (after response start so client receives headers sooner)
         string userInformation = string.Empty;
         var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.Onboarding };
         var userInformationStream = await services.Storage.GetFile(Constants.ONBOARDING_MARKDOWN_FILENAME, options);
@@ -482,6 +506,17 @@ public static class ChatEndpoints
                 await mainHeartbeat.DisposeAsync();
             mainSseLock?.Dispose();
         }
+    }
+
+    private static string BuildNewConversationPlaceholderTitle(string content)
+    {
+        var trimmed = content.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return "New chat";
+        const int maxLen = 128;
+        if (trimmed.Length <= maxLen)
+            return trimmed;
+        return trimmed[..(maxLen - 3)] + "...";
     }
 
     private static TimeSpan GetSseHeartbeatInterval(IConfiguration config)

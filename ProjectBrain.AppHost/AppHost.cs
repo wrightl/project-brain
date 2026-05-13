@@ -185,20 +185,22 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         });
 
 // azure storage (private: no public blob access when deployed to Azure)
-var documentStorage = builder.AddAzureStorage(documentstorageName)
-                            .RunAsEmulator(azurite =>
-                            {
-                                azurite.WithDataVolume();
-                            })
-                            .ConfigureInfrastructure(infra =>
-                            {
-                                var storageAccount = infra.GetProvisionableResources()
-                                                          .OfType<StorageAccount>()
-                                                          .Single();
-                                storageAccount.AllowBlobPublicAccess = false;
-                            })
-                            .AddBlobs(blobName);
-apiService.WithReference(documentStorage);
+var documentStorage = builder.AddAzureStorage(documentstorageName);
+documentStorage.RunAsEmulator(azurite =>
+{
+    azurite.WithDataVolume();
+});
+documentStorage.ConfigureInfrastructure(infra =>
+{
+    var storageAccount = infra.GetProvisionableResources()
+                              .OfType<StorageAccount>()
+                              .Single();
+    storageAccount.AllowBlobPublicAccess = false;
+});
+var documentBlobs = documentStorage.AddBlobs(blobName);
+var documentQueues = documentStorage.AddQueues("queues");
+apiService.WithReference(documentBlobs);
+apiService.WithReference(documentQueues);
 
 if (builder.ExecutionContext.IsPublishMode)
 {

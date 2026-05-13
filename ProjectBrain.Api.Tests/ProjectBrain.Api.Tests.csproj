@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ProjectBrain.Api\ProjectBrain.Api.csproj" />
+    <ProjectReference Include="..\ProjectBrain.Database\ProjectBrain.Database.csproj" />
     <ProjectReference Include="..\ProjectBrain.Domain\ProjectBrain.Domain.csproj" />
   </ItemGroup>
 

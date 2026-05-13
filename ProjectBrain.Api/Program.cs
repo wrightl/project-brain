@@ -47,6 +47,18 @@ builder.Services.AddHttpClient("Mailgun", (serviceProvider, client) =>
 
 builder.AddProjectBrainDomain();
 
+var queuesConnectionString = builder.Configuration.GetConnectionString("queues");
+if (!string.IsNullOrWhiteSpace(queuesConnectionString))
+{
+    builder.AddAzureQueueServiceClient("queues");
+    builder.Services.AddSingleton<IChatPersistenceQueue, AzureStorageChatPersistenceQueue>();
+    builder.Services.AddHostedService<ChatPersistenceQueueProcessor>();
+}
+else
+{
+    builder.Services.AddSingleton<IChatPersistenceQueue, NullChatPersistenceQueue>();
+}
+
 // Add database migrations healthcheck to ensure migrations are applied before marking as healthy
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseMigrationsHealthCheck>("database-migrations");

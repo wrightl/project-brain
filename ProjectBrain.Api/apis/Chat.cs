@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ProjectBrain.AI;
+using ProjectBrain.Api.Background;
 using _shared = ProjectBrain.Models;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
@@ -15,7 +16,8 @@ public class ChatServices(ILogger<ChatServices> logger,
     IIdentityService identityService,
     IUsageTrackingService usageTrackingService,
     IFeatureGateService featureGateService,
-    ISubscriptionService subscriptionService)
+    ISubscriptionService subscriptionService,
+    IChatPersistenceQueue chatPersistenceQueue)
 {
     public ILogger<ChatServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
@@ -27,6 +29,7 @@ public class ChatServices(ILogger<ChatServices> logger,
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
+    public IChatPersistenceQueue ChatPersistenceQueue { get; } = chatPersistenceQueue;
 }
 
 public static class ChatEndpoints
@@ -319,124 +322,189 @@ public static class ChatEndpoints
 
         if (string.Equals(request.Mode, "strategies", StringComparison.OrdinalIgnoreCase))
         {
-            var suggestions = await services.AzureOpenAI.GetStrategySuggestionsAsync(
-                request.Content,
-                userId!,
-                userInformation,
-                userName,
-                history,
-                http.RequestAborted);
+            SemaphoreSlim? strategiesSseLock = null;
+            SseHeartbeat? strategiesHeartbeat = null;
+            if (contentType == "text/event-stream")
+            {
+                strategiesSseLock = new SemaphoreSlim(1, 1);
+                strategiesHeartbeat = new SseHeartbeat(
+                    http.Response,
+                    strategiesSseLock,
+                    GetSseHeartbeatInterval(services.Config),
+                    http.RequestAborted);
+                strategiesHeartbeat.Start();
+            }
 
             var assistantText =
                 "Thanks for sharing — that sounds really tough.\n\n" +
                 "Here are 3 coping strategies you can try. Tap any that feel helpful, then hit Save to add them to your library.";
 
-            if (contentType == "text/event-stream")
+            try
             {
-                await http.Response.WriteAsync(new ChatMessageResponseChunk(assistantText, "text").ToResponse(contentType));
+                var suggestions = await services.AzureOpenAI.GetStrategySuggestionsAsync(
+                    request.Content,
+                    userId!,
+                    userInformation,
+                    userName,
+                    history,
+                    http.RequestAborted);
 
-                var strategyPayload = suggestions.Select(s => new
+                if (contentType == "text/event-stream")
                 {
-                    title = s.Title,
-                    description = s.Description,
-                    iconKey = s.IconKey,
-                    articleUrl = s.ArticleUrl
-                }).ToList();
+                    await WriteSseWithLockAsync(
+                        http,
+                        strategiesSseLock,
+                        new ChatMessageResponseChunk(assistantText, "text").ToResponse(contentType),
+                        http.RequestAborted);
 
-                await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "strategies", value = strategyPayload })}\n\n");
-                await http.Response.Body.FlushAsync();
+                    var strategyPayload = suggestions.Select(s => new
+                    {
+                        title = s.Title,
+                        description = s.Description,
+                        iconKey = s.IconKey,
+                        articleUrl = s.ArticleUrl
+                    }).ToList();
+
+                    await WriteSseWithLockAsync(
+                        http,
+                        strategiesSseLock,
+                        $"data: {JsonSerializer.Serialize(new { type = "strategies", value = strategyPayload })}\n\n",
+                        http.RequestAborted);
+                }
+                else
+                {
+                    await http.Response.WriteAsync(assistantText, http.RequestAborted);
+                }
             }
-            else
+            finally
             {
-                await http.Response.WriteAsync(assistantText);
+                if (strategiesHeartbeat is not null)
+                    await strategiesHeartbeat.DisposeAsync();
+                strategiesSseLock?.Dispose();
             }
 
-            await services.ChatService.Add(new ChatMessage
-            {
-                ConversationId = conversation.Id,
-                Role = "user",
-                Content = request.Content,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-
-            await services.ChatService.Add(new ChatMessage
-            {
-                ConversationId = conversation.Id,
-                Role = "assistant",
-                Content = assistantText,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            });
-
-            await services.UsageTrackingService.TrackAIQueryAsync(userId);
+            await ChatPersistenceHelper.EnqueueOrPersistAsync(
+                services.ChatPersistenceQueue,
+                services.ChatService,
+                services.UsageTrackingService,
+                conversation.Id,
+                userId!,
+                request.Content,
+                assistantText,
+                http.RequestAborted);
             return;
         }
 
-        var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(request.Content, userId, userInformation, userName, history);
-
-        services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
-        // Send citations as metadata before streaming the response
-        if (citations.Any())
+        SemaphoreSlim? mainSseLock = null;
+        SseHeartbeat? mainHeartbeat = null;
+        if (contentType == "text/event-stream")
         {
-            var citationsData = citations.Select(c => new
-            {
-                id = c.Id,
-                index = c.Index,
-                sourceFile = c.SourceFile,
-                sourcePage = c.SourcePage,
-                storageUrl = c.StorageUrl,
-                isShared = c.IsShared
-            }).ToList();
-
-            if (contentType == "text/event-stream")
-            {
-                await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "citations", value = citationsData })}\n\n");
-            }
-            else if (contentType == "application/json")
-            {
-                // For JSON, we could include citations in a separate field
-                // For now, we'll send it as a separate message type
-                await http.Response.WriteAsync(JsonSerializer.Serialize(new { type = "citations", value = citationsData }) + "\n");
-            }
-            await http.Response.Body.FlushAsync();
+            mainSseLock = new SemaphoreSlim(1, 1);
+            mainHeartbeat = new SseHeartbeat(
+                http.Response,
+                mainSseLock,
+                GetSseHeartbeatInterval(services.Config),
+                http.RequestAborted);
+            mainHeartbeat.Start();
         }
 
-        var assistantMessages = new List<string>();
-
-        await foreach (var line in chatResponse)
+        try
         {
-            foreach (var choice in line.ContentUpdate)
+            var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(request.Content, userId, userInformation, userName, history);
+
+            services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
+            // Send citations as metadata before streaming the response
+            if (citations.Any())
             {
-                if (choice.Text != null)
+                var citationsData = citations.Select(c => new
                 {
-                    assistantMessages.Add(choice.Text);
-                    services.Logger.LogInformation("Streaming chunk: {Chunk}", choice.Text);
-                    await http.Response.WriteAsync(new ChatMessageResponseChunk(choice.Text).ToResponse(contentType));
-                    await http.Response.Body.FlushAsync();
+                    id = c.Id,
+                    index = c.Index,
+                    sourceFile = c.SourceFile,
+                    sourcePage = c.SourcePage,
+                    storageUrl = c.StorageUrl,
+                    isShared = c.IsShared
+                }).ToList();
+
+                if (contentType == "text/event-stream")
+                {
+                    await WriteSseWithLockAsync(
+                        http,
+                        mainSseLock,
+                        $"data: {JsonSerializer.Serialize(new { type = "citations", value = citationsData })}\n\n",
+                        http.RequestAborted);
+                }
+                else if (contentType == "application/json")
+                {
+                    // For JSON, we could include citations in a separate field
+                    // For now, we'll send it as a separate message type
+                    await http.Response.WriteAsync(JsonSerializer.Serialize(new { type = "citations", value = citationsData }) + "\n", http.RequestAborted);
+                }
+
+                await http.Response.Body.FlushAsync(http.RequestAborted);
+            }
+
+            var assistantMessages = new List<string>();
+
+            await foreach (var line in chatResponse)
+            {
+                foreach (var choice in line.ContentUpdate)
+                {
+                    if (choice.Text != null)
+                    {
+                        assistantMessages.Add(choice.Text);
+                        services.Logger.LogInformation("Streaming chunk: {Chunk}", choice.Text);
+                        var chunkText = new ChatMessageResponseChunk(choice.Text).ToResponse(contentType);
+                        if (contentType == "text/event-stream")
+                            await WriteSseWithLockAsync(http, mainSseLock, chunkText, http.RequestAborted);
+                        else
+                        {
+                            await http.Response.WriteAsync(chunkText, http.RequestAborted);
+                            await http.Response.Body.FlushAsync(http.RequestAborted);
+                        }
+                    }
                 }
             }
+
+            await ChatPersistenceHelper.EnqueueOrPersistAsync(
+                services.ChatPersistenceQueue,
+                services.ChatService,
+                services.UsageTrackingService,
+                conversation.Id,
+                userId!,
+                request.Content,
+                string.Join("", assistantMessages),
+                http.RequestAborted);
         }
-
-        var chatMessage = await services.ChatService.Add(new ChatMessage
+        finally
         {
-            ConversationId = conversation.Id,
-            Role = "user",
-            Content = request.Content,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
+            if (mainHeartbeat is not null)
+                await mainHeartbeat.DisposeAsync();
+            mainSseLock?.Dispose();
+        }
+    }
 
-        await services.ChatService.Add(new ChatMessage
+    private static TimeSpan GetSseHeartbeatInterval(IConfiguration config)
+    {
+        if (int.TryParse(config["Chat:SseHeartbeatSeconds"], out var seconds) && seconds > 0)
+            return TimeSpan.FromSeconds(seconds);
+        return TimeSpan.FromSeconds(15);
+    }
+
+    private static async Task WriteSseWithLockAsync(HttpContext http, SemaphoreSlim? sseLock, string text, CancellationToken cancellationToken)
+    {
+        if (sseLock is not null)
+            await sseLock.WaitAsync(cancellationToken);
+        try
         {
-            ConversationId = conversation.Id,
-            Role = "assistant",
-            Content = string.Join("", assistantMessages),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
-
-        await services.UsageTrackingService.TrackAIQueryAsync(userId);
+            await http.Response.WriteAsync(text, cancellationToken);
+            await http.Response.Body.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            if (sseLock is not null)
+                sseLock.Release();
+        }
     }
 
     private static async Task<bool> CheckUsageLimits(ChatServices services, HttpContext http, string userId)

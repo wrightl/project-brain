@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using ProjectBrain.AI;
 using ProjectBrain.Api.Background;
 using _shared = ProjectBrain.Models;
@@ -38,6 +40,21 @@ public class ChatServices(ILogger<ChatServices> logger,
 
 public static class ChatEndpoints
 {
+    private static void LogChatStreamPhase(ILogger logger, string correlationId, Stopwatch sw, string phase, Guid? conversationId = null)
+    {
+        if (conversationId is { } cid)
+        {
+            logger.LogInformation(
+                "[ChatStream] phase={Phase} correlationId={CorrelationId} conversationId={ConversationId} elapsedMs={ElapsedMs}",
+                phase, correlationId, cid, sw.ElapsedMilliseconds);
+        }
+        else
+        {
+            logger.LogInformation(
+                "[ChatStream] phase={Phase} correlationId={CorrelationId} elapsedMs={ElapsedMs}",
+                phase, correlationId, sw.ElapsedMilliseconds);
+        }
+    }
 
     public static void MapChatEndpoints(this WebApplication app)
     {
@@ -218,6 +235,10 @@ public static class ChatEndpoints
     {
         services.Logger.LogInformation("Entering chat stream at {0}", DateTime.Now);
 
+        var correlationId = http.TraceIdentifier;
+        var sw = Stopwatch.StartNew();
+        LogChatStreamPhase(services.Logger, correlationId, sw, "stream_begin");
+
         // Get authenticated user from database
         var userId = services.IdentityService.UserId;
         if (string.IsNullOrWhiteSpace(userId))
@@ -227,6 +248,7 @@ public static class ChatEndpoints
         }
 
         var user = await services.IdentityService.GetUserAsync();
+        LogChatStreamPhase(services.Logger, correlationId, sw, "after_GetUserAsync");
         if (user == null)
         {
             http.Response.StatusCode = 401; // Unauthorized
@@ -258,7 +280,7 @@ public static class ChatEndpoints
 #endif
 
         // Check usage limits
-        if (!await CheckUsageLimits(services, http, userId!))
+        if (!await CheckUsageLimits(services, http, userId!, correlationId, sw))
         {
             return;
         }
@@ -310,6 +332,8 @@ public static class ChatEndpoints
             }
         }
 
+        LogChatStreamPhase(services.Logger, correlationId, sw, "after_conversation_resolve", conversation.Id);
+
         http.Response.ContentType = contentType;
         http.Response.StatusCode = 200;
         http.Response.Headers["X-Conversation-Id"] = conversation.Id.ToString();
@@ -325,12 +349,15 @@ public static class ChatEndpoints
         var userName = user.FirstName ?? "there";
         services.Logger.LogInformation("Using user name {UserName} for conversation {ConversationId}", userName, conversation.Id);
 
+        LogChatStreamPhase(services.Logger, correlationId, sw, "before_StartAsync", conversation.Id);
         await http.Response.StartAsync(http.RequestAborted);
         if (contentType == "text/event-stream")
         {
             await http.Response.WriteAsync(": \n\n", http.RequestAborted);
             await http.Response.Body.FlushAsync(http.RequestAborted);
         }
+
+        LogChatStreamPhase(services.Logger, correlationId, sw, "after_StartAsync_and_sse_preamble", conversation.Id);
 
         // Get the onboarding data for the user (after response start so client receives headers sooner)
         string userInformation = string.Empty;
@@ -343,6 +370,8 @@ public static class ChatEndpoints
                 userInformation = await reader.ReadToEndAsync();
             }
         }
+
+        LogChatStreamPhase(services.Logger, correlationId, sw, "after_onboarding_blob", conversation.Id);
 
         if (string.Equals(request.Mode, "strategies", StringComparison.OrdinalIgnoreCase))
         {
@@ -365,6 +394,7 @@ public static class ChatEndpoints
 
             try
             {
+                LogChatStreamPhase(services.Logger, correlationId, sw, "strategies_before_GetStrategySuggestionsAsync", conversation.Id);
                 var suggestions = await services.AzureOpenAI.GetStrategySuggestionsAsync(
                     request.Content,
                     userId!,
@@ -372,6 +402,7 @@ public static class ChatEndpoints
                     userName,
                     history,
                     http.RequestAborted);
+                LogChatStreamPhase(services.Logger, correlationId, sw, "strategies_after_GetStrategySuggestionsAsync", conversation.Id);
 
                 if (contentType == "text/event-stream")
                 {
@@ -416,6 +447,7 @@ public static class ChatEndpoints
                 request.Content,
                 assistantText,
                 http.RequestAborted);
+            LogChatStreamPhase(services.Logger, correlationId, sw, "strategies_after_persistence", conversation.Id);
             return;
         }
 
@@ -432,9 +464,14 @@ public static class ChatEndpoints
             mainHeartbeat.Start();
         }
 
+        LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_sse_heartbeat_start", conversation.Id);
+
         try
         {
-            var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(request.Content, userId, userInformation, userName, history);
+            LogChatStreamPhase(services.Logger, correlationId, sw, "main_before_GetResponseWithCitations", conversation.Id);
+            var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(
+                request.Content, userId, userInformation, userName, history, correlationId);
+            LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_GetResponseWithCitations", conversation.Id);
 
             services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
             // Send citations as metadata before streaming the response
@@ -468,7 +505,10 @@ public static class ChatEndpoints
                 await http.Response.Body.FlushAsync(http.RequestAborted);
             }
 
+            LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_citations_flush_if_any", conversation.Id);
+
             var assistantMessages = new List<string>();
+            var loggedFirstModelToken = false;
 
             await foreach (var line in chatResponse)
             {
@@ -476,6 +516,12 @@ public static class ChatEndpoints
                 {
                     if (choice.Text != null)
                     {
+                        if (!loggedFirstModelToken)
+                        {
+                            LogChatStreamPhase(services.Logger, correlationId, sw, "main_first_model_text_token", conversation.Id);
+                            loggedFirstModelToken = true;
+                        }
+
                         assistantMessages.Add(choice.Text);
                         services.Logger.LogInformation("Streaming chunk: {Chunk}", choice.Text);
                         var chunkText = new ChatMessageResponseChunk(choice.Text).ToResponse(contentType);
@@ -490,6 +536,8 @@ public static class ChatEndpoints
                 }
             }
 
+            LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_model_stream", conversation.Id);
+
             await ChatPersistenceHelper.EnqueueOrPersistAsync(
                 services.ChatPersistenceQueue,
                 services.ChatService,
@@ -499,6 +547,7 @@ public static class ChatEndpoints
                 request.Content,
                 string.Join("", assistantMessages),
                 http.RequestAborted);
+            LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_persistence", conversation.Id);
         }
         finally
         {
@@ -542,17 +591,23 @@ public static class ChatEndpoints
         }
     }
 
-    private static async Task<bool> CheckUsageLimits(ChatServices services, HttpContext http, string userId)
+    private static async Task<bool> CheckUsageLimits(ChatServices services, HttpContext http, string userId, string correlationId, Stopwatch sw)
     {
+        void Phase(string phase) => LogChatStreamPhase(services.Logger, correlationId, sw, phase);
+
+        Phase("usage_limits_begin");
         // Check daily limit
         var dailyLimit = int.Parse(services.Config["TierLimits:User:Free:DailyAIQueries"] ?? "50");
         var dailyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "daily");
+        Phase("usage_limits_after_daily_usage_count");
         var tier = await services.SubscriptionService.GetUserTierAsync(userId, UserType.User);
+        Phase("usage_limits_after_get_user_tier");
         var tierDailyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:DailyAIQueries"] ?? "-1");
         var effectiveDailyLimit = tierDailyLimit >= 0 ? tierDailyLimit : dailyLimit;
 
         if (effectiveDailyLimit >= 0 && dailyUsage >= effectiveDailyLimit)
         {
+            Phase("usage_limits_daily_limit_hit");
             services.Logger.LogWarning("Daily AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, dailyUsage, effectiveDailyLimit);
             http.Response.StatusCode = 429; // Too Many Requests
             http.Response.ContentType = "application/json";
@@ -566,11 +621,13 @@ public static class ChatEndpoints
         // Check monthly limit
         var monthlyLimit = int.Parse(services.Config["TierLimits:User:Free:MonthlyAIQueries"] ?? "200");
         var monthlyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "monthly");
+        Phase("usage_limits_after_monthly_usage_count");
         var tierMonthlyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:MonthlyAIQueries"] ?? "-1");
         var effectiveMonthlyLimit = tierMonthlyLimit >= 0 ? tierMonthlyLimit : monthlyLimit;
 
         if (effectiveMonthlyLimit >= 0 && monthlyUsage >= effectiveMonthlyLimit)
         {
+            Phase("usage_limits_monthly_limit_hit");
             services.Logger.LogWarning("Monthly AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, monthlyUsage, effectiveMonthlyLimit);
             http.Response.StatusCode = 429; // Too Many Requests
             http.Response.ContentType = "application/json";
@@ -581,6 +638,7 @@ public static class ChatEndpoints
             return false;
         }
 
+        Phase("usage_limits_ok");
         return true;
     }
 }

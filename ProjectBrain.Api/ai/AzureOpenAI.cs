@@ -1,5 +1,6 @@
 ﻿namespace ProjectBrain.AI;
 
+using System.Diagnostics;
 using System.ClientModel;
 using System.Linq;
 using System.Text;
@@ -36,6 +37,22 @@ public class AzureOpenAIServices(
 public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 {
     public AzureOpenAIServices Services { get; } = services;
+
+    private static void LogChatRagPhase(ILogger logger, string correlationId, Stopwatch sw, string phase, int? count = null)
+    {
+        if (count is { } c)
+        {
+            logger.LogInformation(
+                "[ChatRag] phase={Phase} correlationId={CorrelationId} elapsedMs={ElapsedMs} count={Count}",
+                phase, correlationId, sw.ElapsedMilliseconds, c);
+        }
+        else
+        {
+            logger.LogInformation(
+                "[ChatRag] phase={Phase} correlationId={CorrelationId} elapsedMs={ElapsedMs}",
+                phase, correlationId, sw.ElapsedMilliseconds);
+        }
+    }
 
     public record StrategySuggestion(
         string Title,
@@ -106,9 +123,15 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         }
     }
 
-    public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)
+    public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(
+        string userQuery,
+        string userId,
+        string userInformation,
+        string userName,
+        List<_shared.ChatMessage> history,
+        string? traceId = null)
     {
-        return await getChatResponseWithCitations(userQuery, userId, userInformation, userName, history);
+        return await getChatResponseWithCitations(userQuery, userId, userInformation, userName, history, traceId);
     }
 
     public async Task<List<StrategySuggestion>> GetStrategySuggestionsAsync(
@@ -576,8 +599,18 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         return trimmed;
     }
 
-    private async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> getChatResponseWithCitations(string userQuery, string userId, string userInformation, string userName, List<_shared.ChatMessage> history)
+    private async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> getChatResponseWithCitations(
+        string userQuery,
+        string userId,
+        string userInformation,
+        string userName,
+        List<_shared.ChatMessage> history,
+        string? traceId)
     {
+        var correlationId = string.IsNullOrEmpty(traceId) ? "no-trace" : traceId;
+        var sw = Stopwatch.StartNew();
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_begin");
+
         Services.Logger.LogInformation("Starting getNewChatResponseWithCitations for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
 
         // Get configurable limits from application settings (with fallback to configuration)
@@ -598,6 +631,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             };
         }
 
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_get_ai_settings");
+
         var maxSearchResults = aiSettings.MaxSearchResults;
         var maxContentLengthPerSource = aiSettings.MaxContentLengthPerSource;
         var maxHistoryMessages = aiSettings.MaxHistoryMessages;
@@ -608,6 +643,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         var embeddingOptions = new EmbeddingGenerationOptions { Dimensions = 1536 };
         var embedResponse = await embedClient.GenerateEmbeddingAsync(userQuery, embeddingOptions);
         var queryVector = embedResponse.Value.ToFloats();
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_embedding");
 
         // Configure search options for user-specific documents
         var searchOptions = new SearchOptions
@@ -638,6 +674,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
         // Execute the search
         var searchResults = await Services.SearchIndexService.SearchAsync(userQuery, searchOptions);
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_search_async");
 
         Services.Logger.LogInformation("Search results received, processing...");
 
@@ -647,8 +684,14 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         var citationContents = new Dictionary<int, string>(); // Store content separately for truncation
         int citationIndex = 1;
 
+        var gotFirstSearchResult = false;
         await foreach (var result in searchResults.Value.GetResultsAsync())
         {
+            if (!gotFirstSearchResult)
+            {
+                LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_first_search_result");
+                gotFirstSearchResult = true;
+            }
             var doc = result.Document;
             var id = doc.ContainsKey("id") ? doc["id"]?.ToString() ?? "" : "";
             var content = doc.ContainsKey("content") ? doc["content"]?.ToString() ?? "" : "";
@@ -694,6 +737,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
             citationIndex++;
         }
+
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_enumerate_search_results", citations.Count);
 
         Services.Logger.LogInformation("Found {CitationCount} relevant sources for query", citations.Count);
 
@@ -770,7 +815,9 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
         // Get streaming response
         var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_before_complete_chat_streaming", messages.Count);
         var response = chatClient.CompleteChatStreamingAsync(messages);
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_returning_stream");
 
         return (response, citations);
     }

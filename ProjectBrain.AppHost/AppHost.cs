@@ -145,14 +145,10 @@ else
     });
 }
 
-var cache = builder.AddRedis(cacheName)
-        // .WithRedisInsight()
-        .PublishAsAzureContainerApp((module, app) =>
-        {
-            // Scale to 0
-            app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
-            ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
-        });
+// Azure Managed Redis in cloud; local Redis container for development (Aspire 13.1+)
+var cache = builder.AddAzureManagedRedis(cacheName)
+    .WithAccessKeyAuthentication()
+    .RunAsContainer();
 
 // api
 var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)

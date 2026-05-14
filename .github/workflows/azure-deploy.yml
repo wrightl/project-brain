@@ -36,7 +36,6 @@ jobs:
       AZURE_AUTH0_SCOPE: ${{ vars.AUTH0_SCOPE }}
       AZURE_API_SERVER_URL: https://${{ vars.CUSTOMDOMAIN_API }}
       AZURE_NEXT_PUBLIC_API_SERVER_URL: https://${{ vars.CUSTOMDOMAIN_API }}
-      AZURE_CACHE_PASSWORD: ${{ secrets.CACHE_PASSWORD }} # start of the secrets
       AZURE_LAUNCHDARKLY_SDK_KEY: ${{ secrets.LAUNCHDARKLY_SDK_KEY }}
       AZURE_MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
       AZURE_PROJECTBRAIN_PASSWORD: ${{ secrets.SQL_PASSWORD }}

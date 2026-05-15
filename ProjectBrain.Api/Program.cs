@@ -27,7 +27,8 @@ builder.Services.AddHostedService<AISeedingBackgroundTask>();
 builder.AddServiceDefaults();
 
 // Add Redis distributed cache
-builder.AddRedisDistributedCache("cache");
+// builder.AddRedisDistributedCache("azurecache");
+builder.AddRedisDistributedCache("azurecache");
 
 // Register keyed HttpClient for EmailService
 builder.Services.AddHttpClient("Mailgun", (serviceProvider, client) =>

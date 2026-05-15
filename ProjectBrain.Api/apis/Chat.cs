@@ -6,6 +6,7 @@ using ProjectBrain.Api.Background;
 using _shared = ProjectBrain.Models;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.UnitOfWork;
 using DomainChatService = ProjectBrain.Domain.IChatService;
 using DomainConversationService = ProjectBrain.Domain.IConversationService;
 using TickerQ.Utilities.Entities;
@@ -22,6 +23,7 @@ public class ChatServices(ILogger<ChatServices> logger,
     IFeatureGateService featureGateService,
     ISubscriptionService subscriptionService,
     IChatPersistenceQueue chatPersistenceQueue,
+    IUnitOfWork unitOfWork,
     ITimeTickerManager<TimeTickerEntity> timeTickerManager)
 {
     public ILogger<ChatServices> Logger { get; } = logger;
@@ -35,6 +37,7 @@ public class ChatServices(ILogger<ChatServices> logger,
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IChatPersistenceQueue ChatPersistenceQueue { get; } = chatPersistenceQueue;
+    public IUnitOfWork UnitOfWork { get; } = unitOfWork;
     public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
 }
 
@@ -442,6 +445,7 @@ public static class ChatEndpoints
                 services.ChatPersistenceQueue,
                 services.ChatService,
                 services.UsageTrackingService,
+                services.UnitOfWork,
                 conversation.Id,
                 userId!,
                 request.Content,
@@ -542,6 +546,7 @@ public static class ChatEndpoints
                 services.ChatPersistenceQueue,
                 services.ChatService,
                 services.UsageTrackingService,
+                services.UnitOfWork,
                 conversation.Id,
                 userId!,
                 request.Content,

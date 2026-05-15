@@ -3,6 +3,7 @@ using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.UnitOfWork;
 
 namespace ProjectBrain.Api.Background;
 
@@ -26,12 +27,18 @@ public sealed class ChatPersistenceQueueProcessor : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var client = _queueServiceClient.GetQueueClient(ChatPersistenceConstants.QueueName);
-        await client.CreateIfNotExistsAsync(cancellationToken: stoppingToken);
+        var queueReady = false;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (!queueReady)
+                {
+                    await client.CreateIfNotExistsAsync(cancellationToken: stoppingToken).ConfigureAwait(false);
+                    queueReady = true;
+                }
+
                 var response = await client.ReceiveMessagesAsync(
                         maxMessages: 5,
                         visibilityTimeout: TimeSpan.FromSeconds(90),
@@ -53,6 +60,7 @@ public sealed class ChatPersistenceQueueProcessor : BackgroundService
             }
             catch (Exception ex)
             {
+                queueReady = false;
                 _logger.LogError(ex, "Chat persistence queue poll failed");
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
             }
@@ -85,10 +93,12 @@ public sealed class ChatPersistenceQueueProcessor : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var chatService = scope.ServiceProvider.GetRequiredService<IChatService>();
             var usage = scope.ServiceProvider.GetRequiredService<IUsageTrackingService>();
+            var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             await ChatPersistenceHelper.PersistSynchronouslyAsync(
                     chatService,
                     usage,
+                    unitOfWork,
                     dto.ConversationId,
                     dto.UserId,
                     dto.UserContent,

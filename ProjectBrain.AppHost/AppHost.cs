@@ -4,6 +4,7 @@ using Azure.Provisioning.Expressions;
 using ProjectBrain.AppHost;
 using Azure.Provisioning.AppConfiguration;
 using Azure.Provisioning.CognitiveServices;
+using Azure.Provisioning.RedisEnterprise;
 using Azure.Provisioning.Search;
 using Azure.Provisioning.Storage;
 
@@ -148,6 +149,15 @@ else
 // Azure Managed Redis in cloud; local Redis container for development (Aspire 13.1+)
 var cache = builder.AddAzureManagedRedis(cacheName)
     .WithAccessKeyAuthentication()
+    .ConfigureInfrastructure(infra =>
+    {
+        var cluster = infra.GetProvisionableResources()
+            .OfType<RedisEnterpriseCluster>()
+            .Single();
+
+        // Default HA requires availability zones; disable when subscription lacks zone metadata.
+        cluster.HighAvailability = RedisEnterpriseHighAvailability.Disabled;
+    })
     .RunAsContainer();
 
 // api

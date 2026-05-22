@@ -25,7 +25,11 @@ public class AgentAzureOpenAI(AzureOpenAIServices services)
         List<Dictionary<string, object>> tools,
         CancellationToken cancellationToken = default)
     {
-        Services.Logger.LogInformation("Starting GetAgentResponseAsync for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
+        Services.Logger.LogInformation(
+            "Starting GetAgentResponseAsync for user {UserId} with query length {QueryLength} and user name present: {HasUserName}",
+            userId,
+            userQuery.Length,
+            !string.IsNullOrWhiteSpace(userName));
 
         // Build system prompt
         var systemPrompt = BuildAgentSystemPrompt(userName);

@@ -104,7 +104,10 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
     public async Task<string> GetConversationSummary(string userQuery, string userId)
     {
-        Services.Logger.LogInformation("Starting GetConversationSummary for userQuery: {UserQuery}", userQuery);
+        Services.Logger.LogInformation(
+            "Starting GetConversationSummary for user {UserId} with query length {QueryLength}",
+            userId,
+            userQuery.Length);
 
         try
         {
@@ -117,7 +120,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         }
         catch (Exception ex)
         {
-            Services.Logger.LogError(ex, "Error generating conversation summary for query: {UserQuery}", userQuery);
+            Services.Logger.LogError(ex, "Error generating conversation summary for user {UserId}", userId);
             // Fallback to a simple truncation if summary generation fails
             return userQuery.Length > 50 ? userQuery[..50] + "..." : userQuery;
         }
@@ -611,7 +614,11 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         var sw = Stopwatch.StartNew();
         LogChatRagPhase(Services.Logger, correlationId, sw, "rag_begin");
 
-        Services.Logger.LogInformation("Starting getNewChatResponseWithCitations for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
+        Services.Logger.LogInformation(
+            "Starting getNewChatResponseWithCitations for user {UserId} with query length {QueryLength} and user name present: {HasUserName}",
+            userId,
+            userQuery.Length,
+            !string.IsNullOrWhiteSpace(userName));
 
         // Get configurable limits from application settings (with fallback to configuration)
         AISettings aiSettings;
@@ -670,7 +677,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         searchOptions.Select.Add("category");
         searchOptions.Select.Add("ownerId");
 
-        Services.Logger.LogInformation("Executing vector search for user {UserId} with query: {UserQuery}", userId, userQuery);
+        Services.Logger.LogInformation("Executing vector search for user {UserId} with query length {QueryLength}", userId, userQuery.Length);
 
         // Execute the search
         var searchResults = await Services.SearchIndexService.SearchAsync(userQuery, searchOptions);

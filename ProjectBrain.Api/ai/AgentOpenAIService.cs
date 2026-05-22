@@ -29,7 +29,11 @@ public class AgentOpenAIService : IAgentOpenAIService
         List<Dictionary<string, object>> tools,
         CancellationToken cancellationToken = default)
     {
-        _services.Logger.LogInformation("Starting GetAgentResponseAsync for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
+        _services.Logger.LogInformation(
+            "Starting GetAgentResponseAsync for user {UserId} with query length {QueryLength} and user name present: {HasUserName}",
+            userId,
+            userQuery.Length,
+            !string.IsNullOrWhiteSpace(userName));
 
         // Build system prompt
         var systemPrompt = BuildAgentSystemPrompt(userName);

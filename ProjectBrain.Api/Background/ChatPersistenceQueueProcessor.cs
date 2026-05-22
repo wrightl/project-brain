@@ -84,13 +84,10 @@ public sealed class ChatPersistenceQueueProcessor : BackgroundService
         {
             using var scope = _scopeFactory.CreateScope();
             var chatService = scope.ServiceProvider.GetRequiredService<IChatService>();
-            var usage = scope.ServiceProvider.GetRequiredService<IUsageTrackingService>();
 
-            await ChatPersistenceHelper.PersistSynchronouslyAsync(
+            await ChatPersistenceHelper.PersistMessagesAsync(
                     chatService,
-                    usage,
                     dto.ConversationId,
-                    dto.UserId,
                     dto.UserContent,
                     dto.AssistantContent)
                 .ConfigureAwait(false);

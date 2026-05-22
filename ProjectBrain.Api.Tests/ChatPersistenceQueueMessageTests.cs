@@ -72,7 +72,7 @@ public class ChatPersistenceQueueMessageTests
     }
 
     [Fact]
-    public async Task ChatPersistenceHelper_EnqueueOrPersistAsync_WhenQueueReturnsTrue_SkipsSyncPersistence()
+    public async Task ChatPersistenceHelper_EnqueueOrPersistAsync_WhenQueueReturnsTrue_TracksUsageWithoutSyncPersistence()
     {
         var queue = new Mock<IChatPersistenceQueue>();
         queue.Setup(x => x.TryEnqueueAsync(It.IsAny<ChatPersistenceQueueMessage>(), It.IsAny<CancellationToken>()))
@@ -80,6 +80,7 @@ public class ChatPersistenceQueueMessageTests
 
         var chat = new Mock<IChatService>();
         var usage = new Mock<IUsageTrackingService>();
+        usage.Setup(x => x.TrackAIQueryAsync(It.IsAny<string>())).Returns(Task.CompletedTask);
 
         await ChatPersistenceHelper.EnqueueOrPersistAsync(
             queue.Object,
@@ -92,6 +93,6 @@ public class ChatPersistenceQueueMessageTests
             CancellationToken.None);
 
         chat.Verify(x => x.AddMany(It.IsAny<List<ChatMessage>>()), Times.Never);
-        usage.Verify(x => x.TrackAIQueryAsync(It.IsAny<string>()), Times.Never);
+        usage.Verify(x => x.TrackAIQueryAsync("uid"), Times.Once);
     }
 }

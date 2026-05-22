@@ -344,10 +344,16 @@ public static class ChatEndpoints
             Content = m.Content
         }).ToList();
 
-        services.Logger.LogInformation("Chat history for conversation {ConversationId}: {History}", conversation.Id, JsonSerializer.Serialize(history));
+        services.Logger.LogInformation(
+            "Loaded {HistoryCount} chat history messages for conversation {ConversationId}",
+            history.Count,
+            conversation.Id);
 
         var userName = user.FirstName ?? "there";
-        services.Logger.LogInformation("Using user name {UserName} for conversation {ConversationId}", userName, conversation.Id);
+        services.Logger.LogInformation(
+            "Resolved user display name for conversation {ConversationId}: {HasUserName}",
+            conversation.Id,
+            !string.IsNullOrWhiteSpace(user.FirstName));
 
         LogChatStreamPhase(services.Logger, correlationId, sw, "before_StartAsync", conversation.Id);
         await http.Response.StartAsync(http.RequestAborted);
@@ -473,7 +479,7 @@ public static class ChatEndpoints
                 request.Content, userId, userInformation, userName, history, correlationId);
             LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_GetResponseWithCitations", conversation.Id);
 
-            services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
+            services.Logger.LogInformation("Retrieved {CitationCount} citations for conversation {ConversationId}", citations.Count, conversation.Id);
             // Send citations as metadata before streaming the response
             if (citations.Any())
             {
@@ -523,7 +529,7 @@ public static class ChatEndpoints
                         }
 
                         assistantMessages.Add(choice.Text);
-                        services.Logger.LogInformation("Streaming chunk: {Chunk}", choice.Text);
+                        services.Logger.LogDebug("Streaming model chunk with {ChunkLength} characters", choice.Text.Length);
                         var chunkText = new ChatMessageResponseChunk(choice.Text).ToResponse(contentType);
                         if (contentType == "text/event-stream")
                             await WriteSseWithLockAsync(http, mainSseLock, chunkText, http.RequestAborted);

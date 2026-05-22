@@ -133,7 +133,10 @@ public static class AgentEndpoints
         }).ToList();
 
         var userName = user?.FirstName ?? "User";
-        services.Logger.LogInformation("Using user name {UserName} for agent conversation {ConversationId}", userName, conversation.Id);
+        services.Logger.LogInformation(
+            "Resolved user display name for agent conversation {ConversationId}: {HasUserName}",
+            conversation.Id,
+            !string.IsNullOrWhiteSpace(user?.FirstName));
 
         // Get the onboarding data for the user
         string userInformation = string.Empty;

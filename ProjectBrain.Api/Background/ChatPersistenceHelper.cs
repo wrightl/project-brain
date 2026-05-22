@@ -24,17 +24,18 @@ internal static class ChatPersistenceHelper
         };
 
         if (await chatPersistenceQueue.TryEnqueueAsync(dto, cancellationToken).ConfigureAwait(false))
+        {
+            await usageTrackingService.TrackAIQueryAsync(userId).ConfigureAwait(false);
             return;
+        }
 
         await PersistSynchronouslyAsync(chatService, usageTrackingService, conversationId, userId, userContent, assistantContent)
             .ConfigureAwait(false);
     }
 
-    public static async Task PersistSynchronouslyAsync(
+    public static async Task PersistMessagesAsync(
         IChatService chatService,
-        IUsageTrackingService usageTrackingService,
         Guid conversationId,
-        string userId,
         string userContent,
         string assistantContent)
     {
@@ -61,7 +62,18 @@ internal static class ChatPersistenceHelper
                     Status = ""
                 }
             }).ConfigureAwait(false);
+    }
 
+    public static async Task PersistSynchronouslyAsync(
+        IChatService chatService,
+        IUsageTrackingService usageTrackingService,
+        Guid conversationId,
+        string userId,
+        string userContent,
+        string assistantContent)
+    {
+        await PersistMessagesAsync(chatService, conversationId, userContent, assistantContent)
+            .ConfigureAwait(false);
         await usageTrackingService.TrackAIQueryAsync(userId).ConfigureAwait(false);
     }
 }

@@ -159,7 +159,7 @@ var cache = builder.AddAzureManagedRedis(cacheName)
         // Default HA requires availability zones; disable when subscription lacks zone metadata.
         cluster.HighAvailability = RedisEnterpriseHighAvailability.Disabled;
 
-        cluster.Zones = new BicepList<string>();
+        cluster.Zones = null;
     })
     .RunAsContainer();
 

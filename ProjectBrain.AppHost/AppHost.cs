@@ -7,6 +7,7 @@ using Azure.Provisioning.CognitiveServices;
 using Azure.Provisioning.RedisEnterprise;
 using Azure.Provisioning.Search;
 using Azure.Provisioning.Storage;
+using Azure.Provisioning;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -157,6 +158,8 @@ var cache = builder.AddAzureManagedRedis(cacheName)
 
         // Default HA requires availability zones; disable when subscription lacks zone metadata.
         cluster.HighAvailability = RedisEnterpriseHighAvailability.Disabled;
+
+        cluster.Zones = new BicepList<string>();
     })
     .RunAsContainer();
 

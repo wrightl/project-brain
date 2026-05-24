@@ -8,6 +8,7 @@ using Azure.Provisioning.RedisEnterprise;
 using Azure.Provisioning.Search;
 using Azure.Provisioning.Storage;
 using Azure.Provisioning;
+using Azure.Provisioning.Sql;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -232,7 +233,14 @@ if (builder.ExecutionContext.IsPublishMode)
     var otelResourceAttributes = builder.AddParameter("otel-resource-attributes");
 
     // sql azure
-    var azureSql = builder.AddAzureSqlServer(sqlServerName);
+    var azureSql = builder.AddAzureSqlServer(sqlServerName).ConfigureInfrastructure(infra =>
+    {
+        var database = infra.GetProvisionableResources()
+            .OfType<SqlDatabase>()
+            .Single();
+
+        database.FreeLimitExhaustionBehavior = FreeLimitExhaustionBehavior.BillOverUsage;
+    });
 
     var azureDb = azureSql.AddDatabase(sqlDbName);
 

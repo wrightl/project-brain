@@ -103,9 +103,8 @@ public sealed class ChatPersistenceQueueProcessor : BackgroundService
             if (message.DequeueCount >= ChatPersistenceConstants.MaxDequeueAttemptsBeforePoison)
             {
                 _logger.LogCritical(
-                    "Giving up on chat persistence queue message after max attempts. Deleting. MessageId={MessageId}",
+                    "Chat persistence queue message has reached max attempts but will remain queued for retry. MessageId={MessageId}",
                     message.MessageId);
-                await client.DeleteMessageAsync(message.MessageId, message.PopReceipt, cancellationToken: ct).ConfigureAwait(false);
             }
         }
     }

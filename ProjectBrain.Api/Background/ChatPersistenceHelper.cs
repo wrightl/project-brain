@@ -14,18 +14,6 @@ internal static class ChatPersistenceHelper
         string assistantContent,
         CancellationToken cancellationToken)
     {
-        var dto = new ChatPersistenceQueueMessage
-        {
-            SchemaVersion = "1",
-            ConversationId = conversationId,
-            UserId = userId,
-            UserContent = userContent,
-            AssistantContent = assistantContent
-        };
-
-        if (await chatPersistenceQueue.TryEnqueueAsync(dto, cancellationToken).ConfigureAwait(false))
-            return;
-
         await PersistSynchronouslyAsync(chatService, usageTrackingService, conversationId, userId, userContent, assistantContent)
             .ConfigureAwait(false);
     }

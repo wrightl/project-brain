@@ -2,10 +2,8 @@ import { callBackendApi } from '@/_lib/backend-api';
 
 export interface CoachMessage {
     id: string;
-    // userId: string;
-    // coachId: string;
-    connectionId?: string; // Added for SignalR message updates
-    senderId: string;
+    connectionId?: string;
+    isFromCurrentUser: boolean;
     messageType: 'text' | 'voice';
     content: string;
     voiceNoteUrl?: string;
@@ -15,7 +13,6 @@ export interface CoachMessage {
     readAt?: string;
     createdAt: string;
     sender?: {
-        // id: string;
         fullName: string;
         email: string;
     };

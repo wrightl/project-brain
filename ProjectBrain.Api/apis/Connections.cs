@@ -65,6 +65,8 @@ public static class ConnectionEndpoints
             id = connection.Id.ToString(),
             userProfileId = userProfile?.Id,
             coachProfileId = coachProfile?.Id,
+            userName = userProfile?.User?.FullName,
+            coachName = coachProfile?.User?.FullName,
             status = connection.Status,
             requestedAt = connection.RequestedAt,
             respondedAt = connection.RespondedAt,

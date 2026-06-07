@@ -1,0 +1,61 @@
+name: Scale staging container apps
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  scale:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      RESOURCE_GROUP: rg-projectbrain-staging
+      CONTAINER_APPS: api frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
+      - name: Log in with Azure (Federated Credentials)
+        uses: azure/login@v3.0.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Compute target min replicas
+        id: replicas
+        run: .github/scripts/compute-min-replicas.sh
+
+      - name: Apply min replicas to container apps
+        env:
+          TARGET: ${{ steps.replicas.outputs.target_min_replicas }}
+        run: |
+          set -euo pipefail
+
+          for app in $CONTAINER_APPS; do
+            current=$(az containerapp show \
+              --name "$app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "properties.template.scale.minReplicas" \
+              -o tsv)
+
+            echo "$app: current=$current target=$TARGET"
+
+            if [[ "$current" == "$TARGET" ]]; then
+              echo "$app already at target minReplicas=$TARGET, skipping"
+              continue
+            fi
+
+            az containerapp update \
+              --name "$app" \
+              --resource-group "$RESOURCE_GROUP" \
+              --min-replicas "$TARGET"
+
+            echo "$app updated to minReplicas=$TARGET"
+          done

@@ -24,7 +24,6 @@ export default function ConversationList() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [sortBy, setSortBy] = useState<SortOption>('most-recent');
-    const [currentUserId, setCurrentUserId] = useState<string>('');
 
     // Load conversations
     const loadConversations = useCallback(async () => {
@@ -58,26 +57,6 @@ export default function ConversationList() {
         loadConversations();
     }, [loadConversations]);
 
-    // Load current user ID (needed for SignalR message handling)
-    useEffect(() => {
-        const loadCurrentUser = async () => {
-            try {
-                const response = await fetchWithAuth('/api/user/me');
-                if (response.ok) {
-                    const user = await response.json();
-                    const userId =
-                        (user as any).id ||
-                        (user as any).userProfileId ||
-                        (user as any).coachProfileId;
-                    setCurrentUserId(userId);
-                }
-            } catch (err) {
-                console.error('Error loading current user:', err);
-            }
-        };
-        loadCurrentUser();
-    }, []);
-
     // Handle new message from SignalR - update the conversation list
     const handleNewMessage = useCallback(
         (message: CoachMessage) => {
@@ -93,10 +72,9 @@ export default function ConversationList() {
                                 : 'Voice message';
 
                         // Increment unread count if message is from other person
-                        const unreadCount =
-                            message.senderId !== currentUserId
-                                ? conv.unreadCount + 1
-                                : conv.unreadCount;
+                        const unreadCount = !message.isFromCurrentUser
+                            ? conv.unreadCount + 1
+                            : conv.unreadCount;
 
                         return {
                             ...conv,
@@ -112,7 +90,7 @@ export default function ConversationList() {
                 return updated;
             });
         },
-        [currentUserId]
+        [],
     );
 
     // Handle typing indicator (not needed for list, but required by hook)

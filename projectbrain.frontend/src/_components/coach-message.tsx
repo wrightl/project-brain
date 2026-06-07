@@ -13,14 +13,12 @@ import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 interface CoachMessageComponentProps {
     message: CoachMessage;
-    currentUserId: string;
     onDelete?: () => void;
     onDeleteError?: (error: string) => void;
 }
 
 export default function CoachMessageComponent({
     message,
-    currentUserId,
     onDelete,
     onDeleteError,
 }: CoachMessageComponentProps) {
@@ -34,7 +32,7 @@ export default function CoachMessageComponent({
     const [audioSrc, setAudioSrc] = useState<string | null>(null);
     const blobUrlRef = useRef<string | null>(null);
 
-    const isOwnMessage = message.senderId === currentUserId;
+    const isOwnMessage = message.isFromCurrentUser;
 
     // Load audio for voice messages
     useEffect(() => {

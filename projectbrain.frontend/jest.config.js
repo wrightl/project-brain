@@ -38,8 +38,8 @@ module.exports = async () => {
   // MSW v2 ships ESM dependencies that Jest must transform.
   // next/jest includes default transformIgnorePatterns, so we overwrite them.
   config.transformIgnorePatterns = [
-    '/node_modules/(?!.pnpm)(?!(geist|msw|@mswjs|until-async)/)',
-    '/node_modules/.pnpm/(?!(geist|msw|@mswjs|until-async)@)',
+    '/node_modules/(?!.pnpm)(?!(geist|msw|@mswjs|until-async|rettime|@open-draft|headers-polyfill|is-node-process|outvariant|strict-event-emitter)/)',
+    '/node_modules/.pnpm/(?!(geist|msw|@mswjs|until-async|rettime|@open-draft|headers-polyfill|is-node-process|outvariant|strict-event-emitter)@)',
     '^.+\\.module\\.(css|sass|scss)$',
   ]
 

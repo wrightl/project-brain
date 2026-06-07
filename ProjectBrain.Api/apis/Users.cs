@@ -492,7 +492,11 @@ public static class UserEndpoints
             var coachDto = coachProfile.ToCoachDto();
 
             // Set online status (30-minute window for coaches)
-            await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
+            await coachDto.SetOnlineStatusAsync(
+                services.UserActivityService,
+                services.CoachMessageService,
+                activityWindowMinutes: 30,
+                configuration: services.Configuration);
 
             return Results.Ok(coachDto);
         }

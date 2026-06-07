@@ -8,6 +8,7 @@ import {
     UserGroupIcon,
     AcademicCapIcon,
 } from '@heroicons/react/24/outline';
+import { CheckIcon } from '@heroicons/react/24/solid';
 import { Coach, CoachSearchParams, SubscriptionUserType } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import AvailabilityBadge from '@/_components/coach/availability-badge';
@@ -27,6 +28,14 @@ interface ConnectionStatus {
 
 const FIND_COACHES_SEARCH_STATE_KEY = 'projectbrain.findCoachesSearchState.v1';
 const FIND_COACHES_SEARCH_STATE_TTL_MS = 1000 * 60 * 60; // 1 hour
+
+function getFilterChipClassName(isSelected: boolean): string {
+    const base =
+        'inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2';
+    return isSelected
+        ? `${base} border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm`
+        : `${base} border-gray-300 bg-gray-50 text-gray-700 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600`;
+}
 
 type PersistedFindCoachesState = {
     savedAt: number;
@@ -365,10 +374,12 @@ export default function FindCoachesClient({
                 );
             }
 
-            // Update connection status to pending
+            const data = await response.json();
+            const status =
+                data.status === 'connected' ? 'connected' : 'pending';
             setConnectionStatuses((prev) => ({
                 ...prev,
-                [coach.coachProfileId]: { status: 'pending' },
+                [coach.coachProfileId]: { status },
             }));
         } catch (err) {
             setError(
@@ -602,53 +613,78 @@ export default function FindCoachesClient({
 
                     {/* Age Groups */}
                     <div>
-                        <h3 className="text-sm font-medium text-gray-900 mb-4 flex items-center">
+                        <h3 className="text-sm font-medium text-gray-900 mb-1 flex items-center">
                             <UserGroupIcon className="h-5 w-5 mr-2 text-gray-400" />
                             Age Groups
                         </h3>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Select one or more to filter results.
+                        </p>
                         <div className="flex flex-wrap gap-2">
-                            {commonAgeGroups.map((ageGroup) => (
-                                <button
-                                    key={ageGroup}
-                                    type="button"
-                                    onClick={() => toggleAgeGroup(ageGroup)}
-                                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                                        searchParams.ageGroups?.includes(
-                                            ageGroup,
-                                        )
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    {ageGroup}
-                                </button>
-                            ))}
+                            {commonAgeGroups.map((ageGroup) => {
+                                const isSelected =
+                                    searchParams.ageGroups?.includes(ageGroup) ??
+                                    false;
+                                return (
+                                    <button
+                                        key={ageGroup}
+                                        type="button"
+                                        aria-pressed={isSelected}
+                                        onClick={() => toggleAgeGroup(ageGroup)}
+                                        className={getFilterChipClassName(
+                                            isSelected,
+                                        )}
+                                    >
+                                        {ageGroup}
+                                        {isSelected && (
+                                            <CheckIcon
+                                                className="h-4 w-4"
+                                                aria-hidden="true"
+                                            />
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
                     {/* Specialisms */}
                     <div>
-                        <h3 className="text-sm font-medium text-gray-900 mb-4 flex items-center">
+                        <h3 className="text-sm font-medium text-gray-900 mb-1 flex items-center">
                             <AcademicCapIcon className="h-5 w-5 mr-2 text-gray-400" />
                             Specialisms
                         </h3>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Select one or more to filter results.
+                        </p>
                         <div className="flex flex-wrap gap-2">
-                            {commonSpecialisms.map((specialism) => (
-                                <button
-                                    key={specialism}
-                                    type="button"
-                                    onClick={() => toggleSpecialism(specialism)}
-                                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                                        searchParams.specialisms?.includes(
-                                            specialism,
-                                        )
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    {specialism}
-                                </button>
-                            ))}
+                            {commonSpecialisms.map((specialism) => {
+                                const isSelected =
+                                    searchParams.specialisms?.includes(
+                                        specialism,
+                                    ) ?? false;
+                                return (
+                                    <button
+                                        key={specialism}
+                                        type="button"
+                                        aria-pressed={isSelected}
+                                        onClick={() =>
+                                            toggleSpecialism(specialism)
+                                        }
+                                        className={getFilterChipClassName(
+                                            isSelected,
+                                        )}
+                                    >
+                                        {specialism}
+                                        {isSelected && (
+                                            <CheckIcon
+                                                className="h-4 w-4"
+                                                aria-hidden="true"
+                                            />
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 

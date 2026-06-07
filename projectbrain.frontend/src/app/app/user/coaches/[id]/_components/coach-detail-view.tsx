@@ -36,6 +36,8 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
         useState<ConnectionStatus | null>(null);
     const [loadingConnectionStatus, setLoadingConnectionStatus] =
         useState(true);
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [connectError, setConnectError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchConnectionStatus = async () => {
@@ -61,14 +63,92 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
         fetchConnectionStatus();
     }, [coach.coachProfileId]);
 
-    const handleContactCoach = async () => {
+    const handleContactCoach = () => {
         if (
             connectionStatus?.status === 'connected' &&
             connectionStatus.connectionId
         ) {
             router.push(`/app/user/messages/${connectionStatus.connectionId}`);
         }
-        // If not connected, the button should be disabled or handle connection request
+    };
+
+    const handleConnectCoach = async () => {
+        if (isConnecting) return;
+        if (connectionStatus?.status !== 'none') return;
+
+        setIsConnecting(true);
+        setConnectError(null);
+        try {
+            const response = await fetchWithAuth(
+                `/api/coaches/${coach.coachProfileId}/connections`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(
+                    errorData.error?.message ||
+                        'Failed to send connection request',
+                );
+            }
+
+            const data = await response.json();
+            setConnectionStatus({
+                status: data.status === 'connected' ? 'connected' : 'pending',
+                connectionId: data.id,
+                requestedAt: data.requestedAt,
+            });
+        } catch (err) {
+            setConnectError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to send connection request',
+            );
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
+    const renderConnectionAction = (variant: 'header' | 'footer') => {
+        const status = connectionStatus?.status ?? 'none';
+
+        if (status === 'connected') {
+            return (
+                <button
+                    onClick={handleContactCoach}
+                    disabled={!connectionStatus?.connectionId}
+                    className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                    {variant === 'header' ? 'Message Coach' : 'Start Conversation'}
+                </button>
+            );
+        }
+
+        if (status === 'pending') {
+            return (
+                <button
+                    disabled
+                    className="px-6 py-3 text-gray-600 bg-gray-200 font-medium rounded-md cursor-not-allowed"
+                >
+                    Connection Pending
+                </button>
+            );
+        }
+
+        return (
+            <button
+                onClick={handleConnectCoach}
+                disabled={isConnecting || loadingConnectionStatus}
+                className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {isConnecting ? 'Connecting...' : 'Connect with Coach'}
+            </button>
+        );
     };
 
     return (
@@ -155,18 +235,7 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
                                 </div>
                             )}
                     </div>
-                    <button
-                        onClick={handleContactCoach}
-                        disabled={
-                            connectionStatus?.status !== 'connected' ||
-                            !connectionStatus?.connectionId
-                        }
-                        className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    >
-                        {connectionStatus?.status === 'connected'
-                            ? 'Message Coach'
-                            : 'Contact Coach'}
-                    </button>
+                    {renderConnectionAction('header')}
                 </div>
             </div>
 
@@ -241,22 +310,12 @@ export default function CoachDetailView({ coach }: CoachDetailViewProps) {
                         ? `You're connected with ${coach.fullName}. Start a conversation via text or voice.`
                         : connectionStatus?.status === 'pending'
                         ? `Your connection request to ${coach.fullName} is pending. Once accepted, you can start chatting.`
-                        : `Contact ${coach.fullName} to discuss how they can help you. You can chat via text or voice.`}
+                        : `Connect with ${coach.fullName} to discuss how they can help you. Once connected, you can chat via text or voice.`}
                 </p>
-                <button
-                    onClick={handleContactCoach}
-                    disabled={
-                        connectionStatus?.status !== 'connected' ||
-                        !connectionStatus?.connectionId
-                    }
-                    className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                    {connectionStatus?.status === 'connected'
-                        ? 'Start Conversation'
-                        : connectionStatus?.status === 'pending'
-                        ? 'Connection Pending'
-                        : 'Contact Coach'}
-                </button>
+                {connectError && (
+                    <p className="text-sm text-red-700 mb-4">{connectError}</p>
+                )}
+                {renderConnectionAction('footer')}
             </div>
         </div>
     );

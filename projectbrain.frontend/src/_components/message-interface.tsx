@@ -1,21 +1,35 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { CoachMessage } from '@/_services/coach-message-service';
-import CoachMessageComponent from '@/_components/coach-message';
-import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { CoachMessage } from "@/_services/coach-message-service";
+import CoachMessageComponent from "@/_components/coach-message";
+import { fetchWithAuth } from "@/_lib/fetch-with-auth";
 import {
     PaperAirplaneIcon,
     MagnifyingGlassIcon,
     ArrowUpIcon,
     ArrowDownIcon,
     XMarkIcon,
-} from '@heroicons/react/24/outline';
-import VoiceRecorder from '@/_components/VoiceRecorder';
-import { useCoachMessagesSignalR } from '@/_hooks/use-coach-messages-signalr';
-import { Coach, User } from '@/_lib/types';
-import { getUserId } from '@/_lib/user-utils';
-import { ConnectionDetails } from '@/app/api/connections/[connectionId]/route';
+} from "@heroicons/react/24/outline";
+import VoiceRecorder from "@/_components/VoiceRecorder";
+import { useCoachMessagesSignalR } from "@/_hooks/use-coach-messages-signalr";
+import { Coach, User } from "@/_lib/types";
+import { isCoach } from "@/_lib/user-utils";
+import { ConnectionDetails } from "@/app/api/connections/[connectionId]/route";
+
+function mergeMessages(
+    prev: CoachMessage[],
+    incoming: CoachMessage[],
+): CoachMessage[] {
+    const byId = new Map(prev.map((m) => [m.id, m]));
+    for (const message of incoming) {
+        byId.set(message.id, message);
+    }
+    return Array.from(byId.values()).sort(
+        (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+}
 
 interface MessageInterfaceProps {
     connectionId: string;
@@ -25,21 +39,18 @@ export default function MessageInterface({
     connectionId,
 }: MessageInterfaceProps) {
     const [messages, setMessages] = useState<CoachMessage[]>([]);
-    const [input, setInput] = useState('');
+    const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
-    const [isTyping, setIsTyping] = useState(false);
     const [otherUserTyping, setOtherUserTyping] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<CoachMessage[]>([]);
     const [searchIndex, setSearchIndex] = useState(-1);
     const [showSearch, setShowSearch] = useState(false);
     const [hasMore, setHasMore] = useState(true);
 
     // Connection and user state
-    const [currentUserId, setCurrentUserId] = useState<string>('');
-    const [otherUserId, setOtherUserId] = useState<string>('');
-    const [otherUserName, setOtherUserName] = useState<string>('Loading...');
+    const [otherUserName, setOtherUserName] = useState<string>("Loading...");
     const [isLoadingConnection, setIsLoadingConnection] = useState(true);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -50,17 +61,7 @@ export default function MessageInterface({
 
     // Handle new message from SignalR
     const handleNewMessage = useCallback((message: CoachMessage) => {
-        setMessages((prev) => {
-            // Avoid duplicates
-            if (prev.some((m) => m.id === message.id)) {
-                return prev;
-            }
-            return [message, ...prev].sort(
-                (a, b) =>
-                    new Date(a.createdAt).getTime() -
-                    new Date(b.createdAt).getTime()
-            );
-        });
+        setMessages((prev) => mergeMessages(prev, [message]));
     }, []);
 
     // Handle message delivered status update from SignalR
@@ -73,8 +74,8 @@ export default function MessageInterface({
                           status: message.status,
                           deliveredAt: message.deliveredAt,
                       }
-                    : m
-            )
+                    : m,
+            ),
         );
     }, []);
 
@@ -89,38 +90,14 @@ export default function MessageInterface({
                           readAt: message.readAt,
                           deliveredAt: message.deliveredAt,
                       }
-                    : m
-            )
+                    : m,
+            ),
         );
     }, []);
 
     // Handle typing indicator from SignalR
-    const handleTypingIndicator = useCallback(
-        (senderId: string, typing: boolean) => {
-            if (senderId !== currentUserId) {
-                console.log('handleTypingIndicator', senderId, typing),
-                    setOtherUserTyping(typing);
-            }
-        },
-        [currentUserId]
-    );
-
-    // Load current user ID on mount
-    useEffect(() => {
-        const loadCurrentUser = async () => {
-            try {
-                const currentUserResponse = await fetchWithAuth('/api/user/me');
-                if (currentUserResponse.ok) {
-                    const currentUser: User | Coach =
-                        await currentUserResponse.json();
-                    const currentUserIdValue = getUserId(currentUser);
-                    setCurrentUserId(currentUserIdValue);
-                }
-            } catch (error) {
-                console.error('Error loading current user:', error);
-            }
-        };
-        loadCurrentUser();
+    const handleTypingIndicator = useCallback((typing: boolean) => {
+        setOtherUserTyping(typing);
     }, []);
 
     // Load connection details and user/coach info on mount
@@ -133,66 +110,29 @@ export default function MessageInterface({
         try {
             setIsLoadingConnection(true);
 
-            // 2. Get connection details
-            const connectionResponse = await fetchWithAuth(
-                `/api/connections/${connectionId}`
-            );
+            const [connectionResponse, currentUserResponse] = await Promise.all([
+                fetchWithAuth(`/api/connections/${connectionId}`),
+                fetchWithAuth("/api/user/me"),
+            ]);
+
             if (!connectionResponse.ok) {
-                throw new Error('Failed to fetch connection details');
+                throw new Error("Failed to fetch connection details");
             }
+            if (!currentUserResponse.ok) {
+                throw new Error("Failed to fetch current user");
+            }
+
             const connection: ConnectionDetails =
                 await connectionResponse.json();
+            const currentUser: User | Coach = await currentUserResponse.json();
 
-            // 3. Get current user ID if not already set
-            let currentUserIdValue = currentUserId;
-            if (!currentUserIdValue) {
-                const currentUserResponse = await fetchWithAuth('/api/user/me');
-                if (currentUserResponse.ok) {
-                    const currentUser: User | Coach =
-                        await currentUserResponse.json();
-                    currentUserIdValue = getUserId(currentUser);
-                    setCurrentUserId(currentUserIdValue);
-                }
-            }
-
-            // 4. Determine other user ID
-            const otherUserIdValue =
-                currentUserIdValue === connection.userProfileId
-                    ? connection.coachProfileId
-                    : connection.userProfileId;
-            setOtherUserId(otherUserIdValue);
-
-            // Set userId and coachId for SignalR (always userId < coachId for consistency)
-            const userIdValue =
-                connection.userProfileId < connection.coachProfileId
-                    ? connection.userProfileId
-                    : connection.coachProfileId;
-            const coachIdValue =
-                connection.userProfileId < connection.coachProfileId
-                    ? connection.coachProfileId
-                    : connection.userProfileId;
-
-            // 4. Fetch other user's details
-            try {
-                // Try fetching as coach first
-                const coachResponse = await fetchWithAuth(
-                    `/api/coaches/${otherUserIdValue}`
-                );
-                if (coachResponse.ok) {
-                    const coach: Coach = await coachResponse.json();
-                    setOtherUserName(coach.fullName);
-                } else {
-                    // If not a coach, we'll try to get name from messages later
-                    // For now, set a placeholder
-                    setOtherUserName('User');
-                }
-            } catch (error) {
-                console.error('Error fetching other user details:', error);
-                setOtherUserName('User');
-            }
+            const displayName = isCoach(currentUser)
+                ? connection.userName
+                : connection.coachName;
+            setOtherUserName(displayName || "User");
         } catch (error) {
-            console.error('Error loading connection details:', error);
-            setOtherUserName('Error loading user');
+            console.error("Error loading connection details:", error);
+            setOtherUserName("Error loading user");
         } finally {
             setIsLoadingConnection(false);
         }
@@ -200,7 +140,7 @@ export default function MessageInterface({
 
     // Initialize SignalR connection via custom hook - only when we have connectionId
     const { sendTypingIndicator } = useCoachMessagesSignalR({
-        connectionId: connectionId || '',
+        connectionId: connectionId || "",
         onNewMessage: handleNewMessage,
         onTypingIndicator: handleTypingIndicator,
         onMessageDelivered: handleMessageDelivered,
@@ -217,15 +157,15 @@ export default function MessageInterface({
 
     // Auto-scroll to bottom
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
     // Auto-resize textarea
     useEffect(() => {
         if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = "auto";
             textareaRef.current.style.height =
-                textareaRef.current.scrollHeight + 'px';
+                textareaRef.current.scrollHeight + "px";
         }
     }, [input]);
 
@@ -233,7 +173,7 @@ export default function MessageInterface({
     useEffect(() => {
         if (messages.length > 0) {
             fetchWithAuth(`/api/coach-messages/conversation/${connectionId}`, {
-                method: 'PUT',
+                method: "PUT",
             }).catch(console.error);
         }
     }, [connectionId, messages.length]);
@@ -253,28 +193,28 @@ export default function MessageInterface({
         try {
             setIsLoading(true);
             const params = new URLSearchParams();
-            params.append('pageSize', '20');
+            params.append("pageSize", "20");
             if (beforeDate) {
-                params.append('beforeDate', beforeDate.toISOString());
+                params.append("beforeDate", beforeDate.toISOString());
             }
 
             const response = await fetchWithAuth(
-                `/api/coach-messages/conversation/${connectionId}?${params.toString()}`
+                `/api/coach-messages/conversation/${connectionId}?${params.toString()}`,
             );
 
             if (!response.ok) {
-                throw new Error('Failed to load messages');
+                throw new Error("Failed to load messages");
             }
 
             const newMessages: CoachMessage[] = await response.json();
 
             // Try to get other user's name from messages if we don't have it yet
-            if (otherUserName === 'User' || otherUserName === 'Loading...') {
+            if (otherUserName === "User" || otherUserName === "Loading...") {
                 const otherUserMessage = newMessages.find(
-                    (m) => m.senderId === otherUserId && (m as any).sender
+                    (m) => !m.isFromCurrentUser && m.sender?.fullName,
                 );
-                if (otherUserMessage && (otherUserMessage as any).sender) {
-                    setOtherUserName((otherUserMessage as any).sender.fullName);
+                if (otherUserMessage?.sender?.fullName) {
+                    setOtherUserName(otherUserMessage.sender.fullName);
                 }
             }
 
@@ -284,7 +224,7 @@ export default function MessageInterface({
                     return combined.sort(
                         (a, b) =>
                             new Date(a.createdAt).getTime() -
-                            new Date(b.createdAt).getTime()
+                            new Date(b.createdAt).getTime(),
                     );
                 });
             } else {
@@ -292,14 +232,14 @@ export default function MessageInterface({
                     newMessages.sort(
                         (a, b) =>
                             new Date(a.createdAt).getTime() -
-                            new Date(b.createdAt).getTime()
-                    )
+                            new Date(b.createdAt).getTime(),
+                    ),
                 );
             }
 
             setHasMore(newMessages.length === 20);
         } catch (error) {
-            console.error('Error loading messages:', error);
+            console.error("Error loading messages:", error);
         } finally {
             setIsLoading(false);
         }
@@ -322,8 +262,8 @@ export default function MessageInterface({
     useEffect(() => {
         const container = messagesContainerRef.current;
         if (container) {
-            container.addEventListener('scroll', handleScroll);
-            return () => container.removeEventListener('scroll', handleScroll);
+            container.addEventListener("scroll", handleScroll);
+            return () => container.removeEventListener("scroll", handleScroll);
         }
     }, [handleScroll]);
 
@@ -332,7 +272,7 @@ export default function MessageInterface({
             clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = null;
         }
-        console.log('stopTypingIndicator');
+        console.log("stopTypingIndicator");
         sendTypingIndicator(false);
     }, [sendTypingIndicator]);
 
@@ -344,10 +284,10 @@ export default function MessageInterface({
 
         setIsSending(true);
         try {
-            const response = await fetchWithAuth('/api/coach-messages', {
-                method: 'POST',
+            const response = await fetchWithAuth("/api/coach-messages", {
+                method: "POST",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                     connectionId,
@@ -356,17 +296,17 @@ export default function MessageInterface({
             });
 
             if (!response.ok) {
-                throw new Error('Failed to send message');
+                throw new Error("Failed to send message");
             }
 
             const message: CoachMessage = await response.json();
-            setMessages((prev) => [...prev, message]);
-            setInput('');
+            setMessages((prev) => mergeMessages(prev, [message]));
+            setInput("");
             if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
+                textareaRef.current.style.height = "auto";
             }
         } catch (error) {
-            console.error('Error sending message:', error);
+            console.error("Error sending message:", error);
         } finally {
             setIsSending(false);
         }
@@ -381,22 +321,22 @@ export default function MessageInterface({
         setIsSending(true);
         try {
             const formData = new FormData();
-            formData.append('file', audioBlob, 'voice-message.m4a');
-            formData.append('connectionId', connectionId);
+            formData.append("file", audioBlob, "voice-message.m4a");
+            formData.append("connectionId", connectionId);
 
-            const response = await fetchWithAuth('/api/coach-messages/voice', {
-                method: 'POST',
+            const response = await fetchWithAuth("/api/coach-messages/voice", {
+                method: "POST",
                 body: formData,
             });
 
             if (!response.ok) {
-                throw new Error('Failed to send voice message');
+                throw new Error("Failed to send voice message");
             }
 
             const message: CoachMessage = await response.json();
-            setMessages((prev) => [...prev, message]);
+            setMessages((prev) => mergeMessages(prev, [message]));
         } catch (error) {
-            console.error('Error sending voice message:', error);
+            console.error("Error sending voice message:", error);
         } finally {
             setIsSending(false);
         }
@@ -434,21 +374,21 @@ export default function MessageInterface({
 
         try {
             const params = new URLSearchParams();
-            params.append('searchTerm', term);
+            params.append("searchTerm", term);
 
             const response = await fetchWithAuth(
-                `/api/coach-messages/conversation/${connectionId}/search?${params.toString()}`
+                `/api/coach-messages/conversation/${connectionId}/search?${params.toString()}`,
             );
 
             if (!response.ok) {
-                throw new Error('Failed to search messages');
+                throw new Error("Failed to search messages");
             }
 
             const results: CoachMessage[] = await response.json();
             setSearchResults(results);
             setSearchIndex(results.length > 0 ? 0 : -1);
         } catch (error) {
-            console.error('Error searching messages:', error);
+            console.error("Error searching messages:", error);
         }
     };
 
@@ -471,19 +411,19 @@ export default function MessageInterface({
         const messageId = searchResults[index].id;
         const element = document.getElementById(`message-${messageId}`);
         if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            element.classList.add('ring-2', 'ring-indigo-500');
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+            element.classList.add("ring-2", "ring-indigo-500");
             setTimeout(() => {
-                element.classList.remove('ring-2', 'ring-indigo-500');
+                element.classList.remove("ring-2", "ring-indigo-500");
             }, 2000);
         }
     };
 
-    const handleSearchNavigation = (direction: 'up' | 'down') => {
+    const handleSearchNavigation = (direction: "up" | "down") => {
         if (searchResults.length === 0) return;
 
         let newIndex = searchIndex;
-        if (direction === 'up') {
+        if (direction === "up") {
             newIndex =
                 searchIndex <= 0 ? searchResults.length - 1 : searchIndex - 1;
         } else {
@@ -496,7 +436,7 @@ export default function MessageInterface({
     };
 
     const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
@@ -539,7 +479,7 @@ export default function MessageInterface({
                         {searchResults.length > 0 && (
                             <div className="flex items-center space-x-1">
                                 <button
-                                    onClick={() => handleSearchNavigation('up')}
+                                    onClick={() => handleSearchNavigation("up")}
                                     className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
                                     title="Previous result"
                                 >
@@ -550,7 +490,7 @@ export default function MessageInterface({
                                 </span>
                                 <button
                                     onClick={() =>
-                                        handleSearchNavigation('down')
+                                        handleSearchNavigation("down")
                                     }
                                     className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
                                     title="Next result"
@@ -562,7 +502,7 @@ export default function MessageInterface({
                         <button
                             onClick={() => {
                                 setShowSearch(false);
-                                setSearchTerm('');
+                                setSearchTerm("");
                                 setSearchResults([]);
                                 setSearchIndex(-1);
                             }}
@@ -589,12 +529,11 @@ export default function MessageInterface({
                             <div key={message.id} id={`message-${message.id}`}>
                                 <CoachMessageComponent
                                     message={message}
-                                    currentUserId={currentUserId}
                                     onDelete={() => {
                                         setMessages((prev) =>
                                             prev.filter(
-                                                (m) => m.id !== message.id
-                                            )
+                                                (m) => m.id !== message.id,
+                                            ),
                                         );
                                     }}
                                 />
@@ -606,15 +545,15 @@ export default function MessageInterface({
                                     <div className="flex space-x-1">
                                         <div
                                             className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                            style={{ animationDelay: '0ms' }}
+                                            style={{ animationDelay: "0ms" }}
                                         />
                                         <div
                                             className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                            style={{ animationDelay: '150ms' }}
+                                            style={{ animationDelay: "150ms" }}
                                         />
                                         <div
                                             className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                            style={{ animationDelay: '300ms' }}
+                                            style={{ animationDelay: "300ms" }}
                                         />
                                     </div>
                                 </div>

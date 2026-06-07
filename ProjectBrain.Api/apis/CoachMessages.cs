@@ -11,7 +11,8 @@ public class CoachMessageServices(
     IIdentityService identityService,
     Storage storage,
     IConfiguration configuration,
-    IHubContext<CoachMessageHub> hubContext)
+    IHubContext<CoachMessageHub> hubContext,
+    IFakeCoachAutoReplyService fakeCoachAutoReplyService)
 {
     public ILogger<CoachMessageServices> Logger { get; } = logger;
     public ICoachMessageService CoachMessageService { get; } = coachMessageService;
@@ -20,6 +21,7 @@ public class CoachMessageServices(
     public Storage Storage { get; } = storage;
     public IConfiguration Configuration { get; } = configuration;
     public IHubContext<CoachMessageHub> HubContext { get; } = hubContext;
+    public IFakeCoachAutoReplyService FakeCoachAutoReplyService { get; } = fakeCoachAutoReplyService;
 }
 
 public static class CoachMessageEndpoints
@@ -132,29 +134,7 @@ public static class CoachMessageEndpoints
                 pageSize,
                 beforeDate);
 
-            // TODO: Remove the userId, coachId, senderId, and sender properties from the response
-            var response = messages.Select(m => new
-            {
-                id = m.Id.ToString(),
-                // userId = m.UserId,
-                // coachId = m.CoachId,
-                connectionId = m.ConnectionId.ToString(),
-                // senderId = m.SenderId,
-                messageType = m.MessageType,
-                content = m.Content,
-                voiceNoteUrl = m.VoiceNoteUrl,
-                voiceNoteFileName = m.VoiceNoteFileName,
-                status = m.Status,
-                deliveredAt = m.DeliveredAt?.ToString("O"),
-                readAt = m.ReadAt?.ToString("O"),
-                createdAt = m.CreatedAt.ToString("O"),
-                sender = m.Sender != null ? new
-                {
-                    // id = m.Sender.Id,
-                    fullName = m.Sender.FullName,
-                    email = m.Sender.Email
-                } : null
-            }).ToList();
+            var response = messages.Select(m => BuildMessageResponse(m, currentUserId)).ToList();
 
             return Results.Ok(response);
         }
@@ -213,34 +193,16 @@ public static class CoachMessageEndpoints
             // Load sender information
             var messageWithSender = await services.CoachMessageService.GetById(savedMessage.Id);
 
-            var response = new
-            {
-                id = messageWithSender!.Id.ToString(),
-                userId = messageWithSender.UserId,
-                coachId = messageWithSender.CoachId,
-                connectionId = messageWithSender.ConnectionId.ToString(),
-                senderId = messageWithSender.SenderId,
-                messageType = messageWithSender.MessageType,
-                content = messageWithSender.Content,
-                voiceNoteUrl = messageWithSender.VoiceNoteUrl,
-                voiceNoteFileName = messageWithSender.VoiceNoteFileName,
-                status = messageWithSender.Status,
-                deliveredAt = messageWithSender.DeliveredAt?.ToString("O"),
-                readAt = messageWithSender.ReadAt?.ToString("O"),
-                createdAt = messageWithSender.CreatedAt.ToString("O"),
-                sender = messageWithSender.Sender != null ? new
-                {
-                    id = messageWithSender.Sender.Id,
-                    fullName = messageWithSender.Sender.FullName,
-                    email = messageWithSender.Sender.Email
-                } : null
-            };
+            var response = BuildMessageResponse(messageWithSender!, currentUserId);
 
             // Notify other party via SignalR
             var recipientId = currentUserId == connection.UserId ? connection.CoachId : connection.UserId;
-            await services.HubContext.Clients.Group($"user_{recipientId}").SendAsync("NewMessage", response);
+            await services.HubContext.Clients.Group($"user_{recipientId}").SendAsync("NewMessage", BuildMessageResponse(messageWithSender!, recipientId));
 
             await SendUnreadCountUpdatedToUserAsync(services, recipientId, recipientId == connection.CoachId);
+
+            if (isUser)
+                await TrySendFakeCoachAutoReplyAsync(services, connection, currentUserId, savedMessage.CreatedAt);
 
             return Results.Created($"/coach-messages/{savedMessage.Id}", response);
         }
@@ -395,34 +357,16 @@ public static class CoachMessageEndpoints
             // Load sender information
             var messageWithSender = await services.CoachMessageService.GetById(savedMessage.Id);
 
-            var response = new
-            {
-                id = messageWithSender!.Id.ToString(),
-                userId = messageWithSender.UserId,
-                coachId = messageWithSender.CoachId,
-                connectionId = messageWithSender.ConnectionId.ToString(),
-                senderId = messageWithSender.SenderId,
-                messageType = messageWithSender.MessageType,
-                content = messageWithSender.Content,
-                voiceNoteUrl = messageWithSender.VoiceNoteUrl,
-                voiceNoteFileName = messageWithSender.VoiceNoteFileName,
-                status = messageWithSender.Status,
-                deliveredAt = messageWithSender.DeliveredAt?.ToString("O"),
-                readAt = messageWithSender.ReadAt?.ToString("O"),
-                createdAt = messageWithSender.CreatedAt.ToString("O"),
-                sender = messageWithSender.Sender != null ? new
-                {
-                    id = messageWithSender.Sender.Id,
-                    fullName = messageWithSender.Sender.FullName,
-                    email = messageWithSender.Sender.Email
-                } : null
-            };
+            var response = BuildMessageResponse(messageWithSender!, currentUserId);
 
             // Notify other party via SignalR
             var recipientId = currentUserId == connection.UserId ? connection.CoachId : connection.UserId;
-            await services.HubContext.Clients.Group($"user_{recipientId}").SendAsync("NewMessage", response);
+            await services.HubContext.Clients.Group($"user_{recipientId}").SendAsync("NewMessage", BuildMessageResponse(messageWithSender!, recipientId));
 
             await SendUnreadCountUpdatedToUserAsync(services, recipientId, recipientId == connection.CoachId);
+
+            if (isUser)
+                await TrySendFakeCoachAutoReplyAsync(services, connection, currentUserId, savedMessage.CreatedAt);
 
             return Results.Created($"/coach-messages/{savedMessage.Id}", response);
         }
@@ -484,29 +428,7 @@ public static class CoachMessageEndpoints
             var updatedMessage = await services.CoachMessageService.GetById(messageId);
             if (updatedMessage != null)
             {
-                // Format message object for SignalR
-                var messageUpdate = new
-                {
-                    id = updatedMessage.Id.ToString(),
-                    userId = updatedMessage.UserId,
-                    coachId = updatedMessage.CoachId,
-                    connectionId = updatedMessage.ConnectionId.ToString(),
-                    senderId = updatedMessage.SenderId,
-                    messageType = updatedMessage.MessageType,
-                    content = updatedMessage.Content,
-                    voiceNoteUrl = updatedMessage.VoiceNoteUrl,
-                    voiceNoteFileName = updatedMessage.VoiceNoteFileName,
-                    status = updatedMessage.Status,
-                    deliveredAt = updatedMessage.DeliveredAt?.ToString("O"),
-                    readAt = updatedMessage.ReadAt?.ToString("O"),
-                    createdAt = updatedMessage.CreatedAt.ToString("O"),
-                    sender = updatedMessage.Sender != null ? new
-                    {
-                        id = updatedMessage.Sender.Id,
-                        fullName = updatedMessage.Sender.FullName,
-                        email = updatedMessage.Sender.Email
-                    } : null
-                };
+                var messageUpdate = BuildMessageResponse(updatedMessage, updatedMessage.SenderId);
 
                 // Notify sender via SignalR
                 try
@@ -580,29 +502,7 @@ public static class CoachMessageEndpoints
             var updatedMessage = await services.CoachMessageService.GetById(messageId);
             if (updatedMessage != null)
             {
-                // Format message object for SignalR
-                var messageUpdate = new
-                {
-                    id = updatedMessage.Id.ToString(),
-                    userId = updatedMessage.UserId,
-                    coachId = updatedMessage.CoachId,
-                    connectionId = updatedMessage.ConnectionId.ToString(),
-                    senderId = updatedMessage.SenderId,
-                    messageType = updatedMessage.MessageType,
-                    content = updatedMessage.Content,
-                    voiceNoteUrl = updatedMessage.VoiceNoteUrl,
-                    voiceNoteFileName = updatedMessage.VoiceNoteFileName,
-                    status = updatedMessage.Status,
-                    deliveredAt = updatedMessage.DeliveredAt?.ToString("O"),
-                    readAt = updatedMessage.ReadAt?.ToString("O"),
-                    createdAt = updatedMessage.CreatedAt.ToString("O"),
-                    sender = updatedMessage.Sender != null ? new
-                    {
-                        id = updatedMessage.Sender.Id,
-                        fullName = updatedMessage.Sender.FullName,
-                        email = updatedMessage.Sender.Email
-                    } : null
-                };
+                var messageUpdate = BuildMessageResponse(updatedMessage, updatedMessage.SenderId);
 
                 // Notify sender via SignalR
                 try
@@ -679,6 +579,52 @@ public static class CoachMessageEndpoints
         }
     }
 
+    private static object BuildMessageResponse(CoachMessage messageWithSender, string viewerUserId) => new
+    {
+        id = messageWithSender.Id.ToString(),
+        connectionId = messageWithSender.ConnectionId.ToString(),
+        isFromCurrentUser = string.Equals(messageWithSender.SenderId, viewerUserId, StringComparison.OrdinalIgnoreCase),
+        messageType = messageWithSender.MessageType,
+        content = messageWithSender.Content,
+        voiceNoteUrl = messageWithSender.VoiceNoteUrl,
+        voiceNoteFileName = messageWithSender.VoiceNoteFileName,
+        status = messageWithSender.Status,
+        deliveredAt = messageWithSender.DeliveredAt?.ToString("O"),
+        readAt = messageWithSender.ReadAt?.ToString("O"),
+        createdAt = messageWithSender.CreatedAt.ToString("O"),
+        sender = messageWithSender.Sender != null ? new
+        {
+            fullName = messageWithSender.Sender.FullName,
+            email = messageWithSender.Sender.Email
+        } : null
+    };
+
+    private static async Task TrySendFakeCoachAutoReplyAsync(
+        CoachMessageServices services,
+        Connection connection,
+        string senderId,
+        DateTime userMessageCreatedAt)
+    {
+        try
+        {
+            var autoReply = await services.FakeCoachAutoReplyService.TryCreateAutoReplyAsync(
+                connection,
+                senderId,
+                userMessageCreatedAt);
+            if (autoReply == null)
+                return;
+
+            var autoReplyResponse = BuildMessageResponse(autoReply, connection.UserId);
+            await services.HubContext.Clients.Group($"user_{connection.UserId}")
+                .SendAsync("NewMessage", autoReplyResponse);
+            await SendUnreadCountUpdatedToUserAsync(services, connection.UserId, isCoach: false);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error sending fake coach auto-reply for connection {ConnectionId}", connection.Id);
+        }
+    }
+
     private static async Task<IResult> SearchMessages(
         [AsParameters] CoachMessageServices services,
         string connectionId,
@@ -722,28 +668,7 @@ public static class CoachMessageEndpoints
         {
             var messages = await services.CoachMessageService.SearchMessagesAsync(connectionGuid, searchTerm);
 
-            var response = messages.Select(m => new
-            {
-                id = m.Id.ToString(),
-                userId = m.UserId,
-                coachId = m.CoachId,
-                connectionId = m.ConnectionId.ToString(),
-                senderId = m.SenderId,
-                messageType = m.MessageType,
-                content = m.Content,
-                voiceNoteUrl = m.VoiceNoteUrl,
-                voiceNoteFileName = m.VoiceNoteFileName,
-                status = m.Status,
-                deliveredAt = m.DeliveredAt?.ToString("O"),
-                readAt = m.ReadAt?.ToString("O"),
-                createdAt = m.CreatedAt.ToString("O"),
-                sender = m.Sender != null ? new
-                {
-                    id = m.Sender.Id,
-                    fullName = m.Sender.FullName,
-                    email = m.Sender.Email
-                } : null
-            }).ToList();
+            var response = messages.Select(m => BuildMessageResponse(m, currentUserId)).ToList();
 
             return Results.Ok(response);
         }

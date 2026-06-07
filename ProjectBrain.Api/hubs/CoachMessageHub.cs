@@ -92,7 +92,7 @@ public class CoachMessageHub : Hub
         }
 
         var groupName = GetConversationGroupName(connectionId);
-        await Clients.GroupExcept(groupName, Context.ConnectionId).SendAsync("TypingIndicator", currentUserId, isTyping);
+        await Clients.GroupExcept(groupName, Context.ConnectionId).SendAsync("TypingIndicator", isTyping);
     }
 
     private string? GetUserId()

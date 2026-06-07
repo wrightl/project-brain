@@ -1,6 +1,9 @@
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
+using ProjectBrain.Database;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Database.Models;
 
 namespace ProjectBrain.Domain.Mappers;
@@ -145,8 +148,18 @@ public static class DomainToDtoMapper
         this CoachDto coachDto,
         IUserActivityService userActivityService,
         ICoachMessageService coachMessageService,
-        int activityWindowMinutes = 30)
+        int activityWindowMinutes = 30,
+        IConfiguration? configuration = null)
     {
+        if (configuration != null
+            && FakeCoachEnvironment.IsEnabled(configuration)
+            && TestUsers.IsTestCoachEmail(coachDto.Email))
+        {
+            coachDto.AvailabilityStatus = AvailabilityStatus.Available;
+            coachDto.LastActivityAt = DateTime.UtcNow;
+            return coachDto;
+        }
+
         try
         {
             var isActive = await userActivityService.IsUserActiveAsync(coachDto.Id, activityWindowMinutes);
@@ -212,7 +225,8 @@ public static class DomainToDtoMapper
         this List<CoachDto> coachDtos,
         IUserActivityService userActivityService,
         ICoachMessageService coachMessageService,
-        int activityWindowMinutes = 30)
+        int activityWindowMinutes = 30,
+        IConfiguration? configuration = null)
     {
         if (coachDtos == null || !coachDtos.Any())
             return coachDtos ?? new List<CoachDto>();
@@ -224,7 +238,11 @@ public static class DomainToDtoMapper
             {
                 try
                 {
-                    await coachDto.SetOnlineStatusAsync(userActivityService, coachMessageService, activityWindowMinutes);
+                    await coachDto.SetOnlineStatusAsync(
+                        userActivityService,
+                        coachMessageService,
+                        activityWindowMinutes,
+                        configuration);
                 }
                 catch
                 {

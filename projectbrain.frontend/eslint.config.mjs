@@ -4,6 +4,11 @@ import typescript from 'eslint-config-next/typescript';
 const config = [
     ...coreWebVitals,
     ...typescript,
+    {
+        settings: {
+            react: { version: '19' },
+        },
+    },
     // The Next.js/ESLint ecosystem evolves quickly; when upgrading deps we keep
     // some rules as warnings to avoid large refactors unrelated to the upgrade.
     {
@@ -12,6 +17,9 @@ const config = [
             'react/no-unescaped-entities': 'warn',
             'react-hooks/set-state-in-effect': 'warn',
             'react-hooks/error-boundaries': 'warn',
+            'react-hooks/immutability': 'warn',
+            'react-hooks/refs': 'warn',
+            'react-hooks/purity': 'warn',
             'import/no-anonymous-default-export': 'off',
         },
     },

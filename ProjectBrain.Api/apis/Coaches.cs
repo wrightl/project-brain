@@ -1,6 +1,8 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Database;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain.Mappers;
@@ -22,7 +24,9 @@ public class CoachServices(
     IUsageTrackingService usageTrackingService,
     ICoachMessageService coachMessageService,
     ICoachRatingService coachRatingService,
-    IGeocodingService geocodingService)
+    IGeocodingService geocodingService,
+    IFakeCoachAutoAcceptService fakeCoachAutoAcceptService,
+    IConfiguration configuration)
 {
     public ILogger<CoachServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -37,6 +41,8 @@ public class CoachServices(
     public ICoachMessageService CoachMessageService { get; } = coachMessageService;
     public ICoachRatingService CoachRatingService { get; } = coachRatingService;
     public IGeocodingService GeocodingService { get; } = geocodingService;
+    public IFakeCoachAutoAcceptService FakeCoachAutoAcceptService { get; } = fakeCoachAutoAcceptService;
+    public IConfiguration Configuration { get; } = configuration;
 }
 
 public static class CoachEndpoints
@@ -103,7 +109,11 @@ public static class CoachEndpoints
                 .ToList();
 
             // Set online status for all coaches (30-minute window for coaches)
-            await coachDtos.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
+            await coachDtos.SetOnlineStatusAsync(
+                services.UserActivityService,
+                services.CoachMessageService,
+                activityWindowMinutes: 30,
+                configuration: services.Configuration);
 
             // Create CoachWithConnectionStatusDto list with connection details
             var coachesWithStatus = new List<CoachWithConnectionStatusDto>();
@@ -133,6 +143,7 @@ public static class CoachEndpoints
                     Specialisms = coachDto.Specialisms,
                     AgeGroups = coachDto.AgeGroups,
                     AvailabilityStatus = coachDto.AvailabilityStatus,
+                    IsOnline = coachDto.AvailabilityStatus == AvailabilityStatus.Available,
 
                     // Connection status properties
                     ConnectionStatus = connectionStatusMap.GetValueOrDefault(coachDto.Id, "pending"), // "pending" or "accepted"
@@ -425,7 +436,11 @@ public static class CoachEndpoints
             .ToList();
 
         // Set online status for all coaches (30-minute window for coaches)
-        await coachDtos.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
+        await coachDtos.SetOnlineStatusAsync(
+            services.UserActivityService,
+            services.CoachMessageService,
+            activityWindowMinutes: 30,
+            configuration: services.Configuration);
 
         // Populate rating data for all coaches
         foreach (var coachDto in coachDtos)
@@ -482,7 +497,11 @@ public static class CoachEndpoints
         // };
 
         // Set online status (30-minute window for coaches)
-        await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
+        await coachDto.SetOnlineStatusAsync(
+            services.UserActivityService,
+            services.CoachMessageService,
+            activityWindowMinutes: 30,
+            configuration: services.Configuration);
 
         // Populate rating data
         coachDto.AverageRating = await services.CoachRatingService.GetAverageRatingAsync(coachDto.Id);
@@ -605,7 +624,11 @@ public static class CoachEndpoints
         var coachDto = updatedCoachProfile.ToCoachDto();
 
         // Set online status (30-minute window for coaches)
-        await coachDto.SetOnlineStatusAsync(services.UserActivityService, services.CoachMessageService, activityWindowMinutes: 30);
+        await coachDto.SetOnlineStatusAsync(
+            services.UserActivityService,
+            services.CoachMessageService,
+            activityWindowMinutes: 30,
+            configuration: services.Configuration);
 
         return Results.Ok(coachDto);
     }
@@ -662,6 +685,25 @@ public static class CoachEndpoints
         return Results.Ok(response);
     }
 
+    private static async Task<Connection> ApplyFakeCoachAutoAcceptAsync(
+        CoachServices services,
+        Connection connection,
+        string? coachEmail)
+    {
+        var accepted = await services.FakeCoachAutoAcceptService.TryAutoAcceptAsync(connection, coachEmail);
+        return accepted ?? connection;
+    }
+
+    private static ConnectionResponse ToConnectionResponse(Connection connection) =>
+        new()
+        {
+            Id = connection.Id.ToString(),
+            Status = connection.Status == "accepted" ? "connected" : "pending",
+            RequestedAt = connection.RequestedAt,
+            CoachId = connection.CoachId,
+            UserId = connection.UserId
+        };
+
     private static async Task<IResult> SendConnectionRequest(
         [AsParameters] CoachServices services,
         string coachId,
@@ -671,19 +713,6 @@ public static class CoachEndpoints
         var user = await services.IdentityService.GetUserAsync();
         var isCoach = user?.Roles?.Any(r => string.Equals(r, AppRoles.Coach, StringComparison.OrdinalIgnoreCase)) ?? false;
         var userType = isCoach ? UserType.Coach : UserType.User;
-
-        // Validate user cannot connect to themselves
-        if (string.Equals(userId, coachId, StringComparison.OrdinalIgnoreCase))
-        {
-            return Results.BadRequest(new ErrorResponse
-            {
-                Error = new ErrorDetail
-                {
-                    Code = "CANNOT_CONNECT_TO_SELF",
-                    Message = "You cannot send a connection request to yourself"
-                }
-            });
-        }
 
         // Check connection limits based on user type
         if (userType == UserType.User)
@@ -719,8 +748,18 @@ public static class CoachEndpoints
             }
         }
 
-        // Validate coach exists
-        var coachProfile = await services.CoachProfileService.GetByUserId(coachId);
+        // Resolve coach by profile ID (web) or Auth0 user ID (mobile)
+        CoachProfile? coachProfile = null;
+        if (int.TryParse(coachId, out var profileId))
+        {
+            coachProfile = await services.CoachProfileService.GetByIdWithRelated(profileId);
+        }
+
+        if (coachProfile == null)
+        {
+            coachProfile = await services.CoachProfileService.GetByUserId(coachId);
+        }
+
         if (coachProfile == null || coachProfile.User == null)
         {
             return Results.NotFound(new ErrorResponse
@@ -733,23 +772,33 @@ public static class CoachEndpoints
             });
         }
 
+        var coachUserId = coachProfile.UserId;
+
+        if (string.Equals(userId, coachUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.BadRequest(new ErrorResponse
+            {
+                Error = new ErrorDetail
+                {
+                    Code = "CANNOT_CONNECT_TO_SELF",
+                    Message = "You cannot send a connection request to yourself"
+                }
+            });
+        }
+
         // Check if connection already exists
-        var existingConnection = await services.ConnectionService.GetConnectionAsync(userId, coachId);
+        var existingConnection = await services.ConnectionService.GetConnectionAsync(userId, coachUserId);
 
         if (existingConnection != null)
         {
             // If connection exists and is pending or accepted, return it (idempotent)
             if (existingConnection.Status == "pending" || existingConnection.Status == "accepted")
             {
-                var response = new ConnectionResponse
-                {
-                    Id = existingConnection.Id.ToString(),
-                    Status = existingConnection.Status == "accepted" ? "connected" : "pending",
-                    RequestedAt = existingConnection.RequestedAt,
-                    CoachId = existingConnection.CoachId,
-                    UserId = existingConnection.UserId
-                };
-                return Results.Ok(response);
+                var connection = await ApplyFakeCoachAutoAcceptAsync(
+                    services,
+                    existingConnection,
+                    coachProfile.User.Email);
+                return Results.Ok(ToConnectionResponse(connection));
             }
         }
 
@@ -758,20 +807,16 @@ public static class CoachEndpoints
         {
             var connection = await services.ConnectionService.CreateConnectionRequestAsync(
                 userId,
-                coachId,
+                coachUserId,
                 UserType.User.ToString(),
                 request?.Message);
 
-            var response = new ConnectionResponse
-            {
-                Id = connection.Id.ToString(),
-                Status = connection.Status == "accepted" ? "connected" : "pending",
-                RequestedAt = connection.RequestedAt,
-                CoachId = connection.CoachId,
-                UserId = connection.UserId
-            };
+            connection = await ApplyFakeCoachAutoAcceptAsync(
+                services,
+                connection,
+                coachProfile.User.Email);
 
-            return Results.Created($"/api/coaches/{coachId}/connections", response);
+            return Results.Created($"/api/coaches/{coachId}/connections", ToConnectionResponse(connection));
         }
         catch (Exception ex)
         {

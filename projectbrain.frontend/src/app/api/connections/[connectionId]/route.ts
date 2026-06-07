@@ -6,6 +6,8 @@ export interface ConnectionDetails {
     id: string;
     userProfileId: string;
     coachProfileId: string;
+    userName?: string;
+    coachName?: string;
     status: string;
     requestedAt: string;
     respondedAt?: string;

@@ -5,7 +5,7 @@ import { CoachMessage } from '@/_services/coach-message-service';
 interface UseCoachMessagesSignalRProps {
     connectionId: string;
     onNewMessage: (message: CoachMessage) => void;
-    onTypingIndicator: (senderId: string, typing: boolean) => void;
+    onTypingIndicator: (typing: boolean) => void;
     onMessageDelivered?: (message: CoachMessage) => void;
     onMessageRead?: (message: CoachMessage) => void;
 }
@@ -89,12 +89,9 @@ export function useCoachMessagesSignalR({
             onNewMessageRef.current(message);
         });
 
-        newConnection.on(
-            'TypingIndicator',
-            (senderId: string, typing: boolean) => {
-                onTypingIndicatorRef.current(senderId, typing);
-            },
-        );
+        newConnection.on('TypingIndicator', (typing: boolean) => {
+            onTypingIndicatorRef.current(typing);
+        });
 
         newConnection.on('MessageDelivered', (message: CoachMessage) => {
             onMessageDeliveredRef.current?.(message);

@@ -35,6 +35,7 @@ var blobName = "blobs";
 var environmentName = builder.AddParameter("deploy-env");
 var replicas = builder.AddParameter("minReplicas");
 var sqlPassword = builder.AddParameter($"{sqlServerName}-password", secret: true);
+var fakeCoachAutoReplyEnabled = builder.AddParameter("fake-coach-auto-reply-enabled");
 
 // Parameters - Azure AI Search
 var searchSku = builder.Configuration["AI_SEARCH_SKU"] ?? defaultSearchSku;
@@ -186,6 +187,7 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("TestUsers__Password", testUsersPassword)
                         .WithEnvironment("deploy-env", environmentName)
                         .WithEnvironment("GoogleMaps__GeocodingApiKey", googleMapsGeocodingApiKey)
+                        .WithEnvironment("FakeCoachAutoReply__Enabled", fakeCoachAutoReplyEnabled)
                         .WithHttpHealthCheck("/alive")
                         .PublishAsAzureContainerApp((module, app) =>
                         {

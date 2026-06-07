@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Database;
 using ProjectBrain.Database.Constants;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.Database.Models;
@@ -69,6 +70,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         try
         {
             await SeedTestUsersAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
+            await AcceptPendingFakeCoachConnectionsAsync(context, configuration, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -366,7 +368,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         for (var i = 1; i <= 5; i++)
         {
             var fullName = $"TestUser{i}";
-            var email = $"testuser{i}@{TestEmailDomain}";
+            var email = $"testuser{i}@{TestUsers.EmailDomain}";
             await EnsureTestUserSeededAsync(
                 context,
                 identitySeedingService,
@@ -383,7 +385,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
 
         foreach (var coach in TestCoachDefinitions)
         {
-            var email = $"{SlugifyTestUserEmail(coach.FullName)}@{TestEmailDomain}";
+            var email = $"{SlugifyTestUserEmail(coach.FullName)}@{TestUsers.EmailDomain}";
             var auth0UserId = await EnsureTestUserSeededAsync(
                 context,
                 identitySeedingService,
@@ -407,6 +409,40 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         }
 
         logger.LogInformation("Test user and coach seeding completed.");
+    }
+
+    private async Task AcceptPendingFakeCoachConnectionsAsync(
+        AppDbContext context,
+        IConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        if (!FakeCoachEnvironment.IsEnabled(configuration))
+            return;
+
+        var pendingConnections = await context.Connections
+            .Include(c => c.Coach)
+            .Where(c => c.Status == "pending")
+            .ToListAsync(cancellationToken);
+
+        var acceptedCount = 0;
+        foreach (var connection in pendingConnections)
+        {
+            if (!TestUsers.IsTestCoachEmail(connection.Coach?.Email))
+                continue;
+
+            connection.Status = "accepted";
+            connection.RespondedAt = DateTime.UtcNow;
+            connection.UpdatedAt = DateTime.UtcNow;
+            acceptedCount++;
+        }
+
+        if (acceptedCount > 0)
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            logger.LogInformation(
+                "Auto-accepted {Count} pending connection(s) to fake coaches.",
+                acceptedCount);
+        }
     }
 
     public static bool ShouldSeedTestUsers(IConfiguration configuration, IHostEnvironment? environment = null)
@@ -478,6 +514,9 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             PostalCode = postalCode,
             Latitude = latitude,
             Longitude = longitude,
+            LastActivityAt = string.Equals(role, AppRoles.Coach, StringComparison.OrdinalIgnoreCase)
+                ? DateTime.UtcNow
+                : null,
         };
 
         await context.Users.AddAsync(user, cancellationToken);
@@ -560,7 +599,6 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         return slug.Trim('.');
     }
 
-    private const string TestEmailDomain = "projectbrain.test";
     private const string DefaultTestUserConnection = "Username-Password-Authentication";
 
     private static readonly TestCoachDefinition[] TestCoachDefinitions =

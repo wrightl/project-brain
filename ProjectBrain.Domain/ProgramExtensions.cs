@@ -74,6 +74,8 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IStripeService, StripeService>();
         builder.Services.AddScoped<ISubscriptionAnalyticsService, SubscriptionAnalyticsService>();
         builder.Services.AddScoped<ICoachMessageService, CoachMessageService>();
+        builder.Services.AddScoped<IFakeCoachAutoReplyService, FakeCoachAutoReplyService>();
+        builder.Services.AddScoped<IFakeCoachAutoAcceptService, FakeCoachAutoAcceptService>();
         builder.Services.AddScoped<IJournalEntryService, JournalEntryService>();
         builder.Services.AddScoped<ITagService, TagService>();
         builder.Services.AddScoped<ISystemTagService, SystemTagService>();

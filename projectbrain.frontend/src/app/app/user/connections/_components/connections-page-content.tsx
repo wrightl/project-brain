@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
     UserGroupIcon,
     ChatBubbleLeftRightIcon,
@@ -10,16 +10,28 @@ import {
     PaperAirplaneIcon,
     ClockIcon,
     StarIcon,
-} from '@heroicons/react/24/outline';
-import { useConnections, useConversations, useDeleteConnection } from '@/_hooks/queries/use-connections';
-import toast from 'react-hot-toast';
-import { SkeletonCard, SkeletonList } from '@/_components/ui/skeleton';
+} from "@heroicons/react/24/outline";
+import {
+    useConnections,
+    useConversations,
+    useDeleteConnection,
+} from "@/_hooks/queries/use-connections";
+import toast from "react-hot-toast";
+import { SkeletonCard, SkeletonList } from "@/_components/ui/skeleton";
 
 export default function ConnectionsPageContent() {
     const router = useRouter();
-    const { data: connectionsResponse, isLoading: connectionsLoading, error: connectionsError } = useConnections();
+    const {
+        data: connectionsResponse,
+        isLoading: connectionsLoading,
+        error: connectionsError,
+    } = useConnections();
     const connections = connectionsResponse?.items || [];
-    const { data: conversations = [], isLoading: conversationsLoading, error: conversationsError } = useConversations();
+    const {
+        data: conversations = [],
+        isLoading: conversationsLoading,
+        error: conversationsError,
+    } = useConversations();
     const deleteConnection = useDeleteConnection();
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
@@ -27,17 +39,17 @@ export default function ConnectionsPageContent() {
     const error = connectionsError || conversationsError;
 
     const handleDeleteConnection = async (connectionId: string) => {
-        if (!confirm('Are you sure you want to remove this connection?')) {
+        if (!confirm("Are you sure you want to remove this connection?")) {
             return;
         }
 
         try {
             setDeletingIds((prev) => new Set(prev).add(connectionId));
             await deleteConnection.mutateAsync(connectionId);
-            toast.success('Connection removed successfully');
+            toast.success("Connection removed successfully");
         } catch (err) {
-            console.error('Error deleting connection:', err);
-            toast.error('Failed to delete connection. Please try again.');
+            console.error("Error deleting connection:", err);
+            toast.error("Failed to delete connection. Please try again.");
         } finally {
             setDeletingIds((prev) => {
                 const next = new Set(prev);
@@ -49,34 +61,34 @@ export default function ConnectionsPageContent() {
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-GB', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
+        return date.toLocaleDateString("en-GB", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
         });
     };
 
     const handleRateCoach = (coachProfileId?: string) => {
         if (!coachProfileId) {
-            toast.error('Coach profile not available');
+            toast.error("Coach profile not available");
             return;
         }
         router.push(`/app/user/coaches/${coachProfileId}/ratings`);
     };
 
     const totalConnections = connections.filter(
-        (c) => c.status === 'accepted' || c.status === 'pending'
+        (c) => c.status === "accepted" || c.status === "pending",
     ).length;
     const totalMessages = conversations.length; // Number of active conversation threads
 
     const stats = [
         {
-            name: 'Total Connections',
+            name: "Total Connections",
             value: totalConnections.toString(),
             icon: UserGroupIcon,
         },
         {
-            name: 'Total Messages',
+            name: "Total Messages",
             value: totalMessages.toString(),
             icon: ChatBubbleLeftRightIcon,
         },
@@ -84,23 +96,24 @@ export default function ConnectionsPageContent() {
 
     const quickActions = [
         {
-            title: 'Find a Coach',
-            description: 'Search for coaches by location, age groups, and specialisms',
-            href: '/app/user/find-coaches',
+            title: "Find a Coach",
+            description:
+                "Search for coaches by location, age groups, and specialisms",
+            href: "/app/user/find-coaches",
             icon: UserGroupIcon,
-            color: 'bg-purple-500',
+            color: "bg-purple-500",
         },
         {
-            title: 'Messages',
-            description: 'View and manage your messages with coaches',
-            href: '/app/user/messages',
+            title: "Messages",
+            description: "View and manage your messages with coaches",
+            href: "/app/user/messages",
             icon: ChatBubbleLeftRightIcon,
-            color: 'bg-indigo-500',
+            color: "bg-indigo-500",
         },
     ];
 
     const connectedCoaches = connections.filter(
-        (c) => c.status === 'accepted' || c.status === 'pending'
+        (c) => c.status === "accepted" || c.status === "pending",
     );
 
     if (loading) {
@@ -136,7 +149,9 @@ export default function ConnectionsPageContent() {
                 </div>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <p className="text-red-800">
-                        {error instanceof Error ? error.message : 'Failed to load connections'}
+                        {error instanceof Error
+                            ? error.message
+                            : "Failed to load connections"}
                     </p>
                 </div>
             </div>
@@ -197,7 +212,7 @@ export default function ConnectionsPageContent() {
                         return (
                             <Link
                                 key={action.href}
-                                href={action.href || ''}
+                                href={action.href || ""}
                                 className="relative group bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
                             >
                                 <div>
@@ -251,11 +266,12 @@ export default function ConnectionsPageContent() {
                     <div className="bg-white shadow rounded-lg overflow-hidden">
                         <ul className="divide-y divide-gray-200">
                             {connectedCoaches.map((connection) => {
-                                const isConnected = connection.status === 'accepted';
-                                const isPending = connection.status === 'pending';
-                                const isDeleting = deletingIds.has(connection.id);
-                                const conversation = conversations.find(
-                                    (c) => c.connectionId === connection.id
+                                const isConnected =
+                                    connection.status === "accepted";
+                                const isPending =
+                                    connection.status === "pending";
+                                const isDeleting = deletingIds.has(
+                                    connection.id,
                                 );
 
                                 return (
@@ -264,37 +280,38 @@ export default function ConnectionsPageContent() {
                                             <div className="flex-1">
                                                 <div className="flex items-center">
                                                     <h3 className="text-lg font-medium text-gray-900">
-                                                        {connection.userName || connection.coachName || 'Unknown Coach'}
+                                                        {connection.coachName ||
+                                                            "Unknown Coach"}
                                                     </h3>
                                                     <span
                                                         className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                                             isConnected
-                                                                ? 'bg-green-100 text-green-800'
-                                                                : 'bg-yellow-100 text-yellow-800'
+                                                                ? "bg-green-100 text-green-800"
+                                                                : "bg-yellow-100 text-yellow-800"
                                                         }`}
                                                     >
                                                         {isConnected
-                                                            ? 'Connected'
-                                                            : 'Pending'}
+                                                            ? "Connected"
+                                                            : "Pending"}
                                                     </span>
                                                 </div>
                                                 <div className="mt-2 flex items-center text-sm text-gray-500">
                                                     {isConnected ? (
                                                         <>
                                                             <ClockIcon className="h-4 w-4 mr-1" />
-                                                            Connected on{' '}
+                                                            Connected on{" "}
                                                             {connection.respondedAt
                                                                 ? formatDate(
-                                                                      connection.respondedAt
+                                                                      connection.respondedAt,
                                                                   )
-                                                                : 'N/A'}
+                                                                : "N/A"}
                                                         </>
                                                     ) : (
                                                         <>
                                                             <ClockIcon className="h-4 w-4 mr-1" />
-                                                            Requested on{' '}
+                                                            Requested on{" "}
                                                             {formatDate(
-                                                                connection.requestedAt
+                                                                connection.requestedAt,
                                                             )}
                                                         </>
                                                     )}
@@ -306,7 +323,7 @@ export default function ConnectionsPageContent() {
                                                         <button
                                                             onClick={() =>
                                                                 router.push(
-                                                                    `/app/user/messages/${connection.id}`
+                                                                    `/app/user/messages/${connection.id}`,
                                                                 )
                                                             }
                                                             className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -317,10 +334,12 @@ export default function ConnectionsPageContent() {
                                                         <button
                                                             onClick={() =>
                                                                 handleRateCoach(
-                                                                    connection.coachProfileId
+                                                                    connection.coachProfileId,
                                                                 )
                                                             }
-                                                            disabled={!connection.coachProfileId}
+                                                            disabled={
+                                                                !connection.coachProfileId
+                                                            }
                                                             className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50"
                                                         >
                                                             <StarIcon className="h-4 w-4 mr-1" />
@@ -329,16 +348,18 @@ export default function ConnectionsPageContent() {
                                                         <button
                                                             onClick={() =>
                                                                 handleDeleteConnection(
-                                                                    connection.id
+                                                                    connection.id,
                                                                 )
                                                             }
-                                                            disabled={isDeleting}
+                                                            disabled={
+                                                                isDeleting
+                                                            }
                                                             className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                                                         >
                                                             <XMarkIcon className="h-4 w-4 mr-1" />
                                                             {isDeleting
-                                                                ? 'Removing...'
-                                                                : 'Remove'}
+                                                                ? "Removing..."
+                                                                : "Remove"}
                                                         </button>
                                                     </>
                                                 )}
@@ -346,7 +367,7 @@ export default function ConnectionsPageContent() {
                                                     <button
                                                         onClick={() =>
                                                             handleDeleteConnection(
-                                                                connection.id
+                                                                connection.id,
                                                             )
                                                         }
                                                         disabled={isDeleting}
@@ -354,8 +375,8 @@ export default function ConnectionsPageContent() {
                                                     >
                                                         <XMarkIcon className="h-4 w-4 mr-1" />
                                                         {isDeleting
-                                                            ? 'Cancelling...'
-                                                            : 'Cancel'}
+                                                            ? "Cancelling..."
+                                                            : "Cancel"}
                                                     </button>
                                                 )}
                                             </div>
@@ -370,4 +391,3 @@ export default function ConnectionsPageContent() {
         </div>
     );
 }
-

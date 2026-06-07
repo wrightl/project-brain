@@ -1,4 +1,4 @@
-import { AppRoles } from '@/_lib/roles';
+import { AppRoles, type UserRole } from '@/_lib/roles';
 
 export type SubscriptionUserType =
     | typeof AppRoles.User
@@ -9,7 +9,7 @@ export interface Auth0Resource {
     label: string;
 }
 
-export type { UserRole } from '@/_lib/roles';
+export type { UserRole };
 
 export interface BaseUser {
     id: string; // TODO: Might need to remove this

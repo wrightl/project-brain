@@ -3,6 +3,7 @@ import { ConversationService } from '@/_services/conversation-service';
 import { notFound } from 'next/navigation';
 import ChatInterface from '../_components/chat-interface';
 
+import { AppRoles } from '@/_lib/roles';
 interface ChatPageProps {
     params: Promise<{ id: string }>;
 }
@@ -18,7 +19,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
     }
 
     return (
-        <RoleGuard allowedRoles={['user', 'admin']}>
+        <RoleGuard allowedRoles={[AppRoles.User, AppRoles.Admin]}>
             <div className="h-full w-full flex flex-col bg-gray-50">
                 <ChatInterface conversation={conversation} />
             </div>

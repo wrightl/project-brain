@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
+import { AppRoles } from '@/_lib/roles';
 import { User, UserRole } from '@/_lib/types';
 import {
     ChatBubbleLeftRightIcon,
@@ -56,7 +57,7 @@ function UserProfileDropdown({
 
     const menuItems = [];
 
-    if (role === 'user') {
+    if (role === AppRoles.User) {
         menuItems.push({
             href: '/app/user/profile',
             label: 'Profile',
@@ -82,7 +83,7 @@ function UserProfileDropdown({
             label: 'Logout',
             icon: ArrowRightStartOnRectangleIcon,
         });
-    } else if (role === 'coach') {
+    } else if (role === AppRoles.Coach) {
         menuItems.push({
             href: '/app/coach/profile',
             label: 'Profile',
@@ -93,7 +94,7 @@ function UserProfileDropdown({
             label: 'Logout',
             icon: ArrowRightStartOnRectangleIcon,
         });
-    } else if (role === 'admin') {
+    } else if (role === AppRoles.Admin) {
         menuItems.push({
             href: '/auth/logout',
             label: 'Logout',
@@ -108,7 +109,7 @@ function UserProfileDropdown({
                 className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
             >
                 <UserIcon className="h-5 w-5 mr-2" />
-                {role === 'admin'
+                {role === AppRoles.Admin
                     ? user?.fullName || 'User'
                     : user?.firstName || 'User'}
                 <ChevronDownIcon className="h-4 w-4 ml-2" />
@@ -217,9 +218,9 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
     ];
 
     const links =
-        role === 'admin'
+        role === AppRoles.Admin
             ? adminLinks
-            : role === 'coach'
+            : role === AppRoles.Coach
             ? coachLinks
             : userLinks;
 
@@ -273,9 +274,9 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
     ];
 
     const accountMenuItems =
-        role === 'admin'
+        role === AppRoles.Admin
             ? adminMenuItems
-            : role === 'coach'
+            : role === AppRoles.Coach
             ? coachMenuItems
             : userMenuItems;
 
@@ -333,7 +334,7 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                     </div>
                     <div className="flex items-center space-x-4">
                         {/* Mobile community link - visible on mobile for users only */}
-                        {role === 'user' && (
+                        {role === AppRoles.User && (
                             <a
                                 href="https://www.skool.com/neurodivergent-entrepreneurs-8159"
                                 target="_blank"
@@ -410,7 +411,7 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                             );
                                         })}
                                         {/* Community Link - only for users */}
-                                        {/* {role === 'user' && (
+                                        {/* {role === AppRoles.User && (
                                             <>
                                                 <div className="px-4 py-2 border-t border-gray-200 mt-1">
                                                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -467,8 +468,8 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
 
                         {/* Desktop view */}
                         <div className="hidden sm:flex items-center space-x-4">
-                            {role === 'coach' && <AvailabilityStatusDropdown />}
-                            {role === 'user' && (
+                            {role === AppRoles.Coach && <AvailabilityStatusDropdown />}
+                            {role === AppRoles.User && (
                                 <a
                                     href="https://www.skool.com/neurodivergent-entrepreneurs-8159"
                                     target="_blank"
@@ -486,10 +487,10 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
                                     />
                                 </a>
                             )}
-                            {role !== 'admin' && (
+                            {role !== AppRoles.Admin && (
                                 <UserProfileDropdown user={user} role={role} />
                             )}
-                            {role === 'admin' && (
+                            {role === AppRoles.Admin && (
                                 <UserProfileDropdown user={user} role={role} />
                             )}
                         </div>

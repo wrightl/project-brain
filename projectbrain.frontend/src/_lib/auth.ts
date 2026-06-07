@@ -1,4 +1,4 @@
-import { UserRole } from '@/_lib/types';
+import { AppRoles, AUTH_ROLES_CLAIM, UserRole } from '@/_lib/roles';
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import { GetAccessTokenOptions } from '@auth0/nextjs-auth0/types';
 import { NextRequest, NextResponse } from 'next/server';
@@ -34,7 +34,7 @@ export async function getUserRoles(): Promise<UserRole[] | null> {
     if (!accessToken) return null;
 
     const decoded = jwt.decode(accessToken) as JwtPayload;
-    return decoded['https://projectbrain.app/roles'] || null;
+    return decoded[AUTH_ROLES_CLAIM] || null;
 }
 
 /**
@@ -45,9 +45,9 @@ export async function hasRole(requiredRole: UserRole): Promise<boolean> {
     if (!userRole) return false;
 
     const roleHierarchy: Record<UserRole, number> = {
-        user: 1,
-        coach: 2,
-        admin: 3,
+        [AppRoles.User]: 1,
+        [AppRoles.Coach]: 2,
+        [AppRoles.Admin]: 3,
     };
 
     return roleHierarchy[userRole[0]] >= roleHierarchy[requiredRole];

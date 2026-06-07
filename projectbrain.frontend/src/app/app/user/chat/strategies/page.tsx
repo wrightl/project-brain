@@ -3,6 +3,7 @@ import { RoleGuard } from '@/_components/auth/role-guard';
 import { SkeletonCard } from '@/_components/ui/skeleton';
 import { getSession } from '@/_lib/auth';
 
+import { AppRoles } from '@/_lib/roles';
 const ChatInterface = dynamicImport(
     () => import('../_components/chat-interface'),
     {
@@ -23,7 +24,7 @@ export default async function StrategiesChatPage() {
         'there';
 
     return (
-        <RoleGuard allowedRoles={['user']}>
+        <RoleGuard allowedRoles={[AppRoles.User]}>
             <div className="h-full w-full flex flex-col bg-gray-50">
                 <ChatInterface mode="strategies" displayName={displayName} />
             </div>

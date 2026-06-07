@@ -1,6 +1,7 @@
 namespace ProjectBrain.Domain;
 
 using Microsoft.Extensions.Configuration;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Domain.Repositories;
 
 public interface IAdminUserUsageService
@@ -41,9 +42,9 @@ public class AdminUserUsageService : IAdminUserUsageService
             return null;
         }
 
-        var isCoach = user.UserRoles.Any(r => r.RoleName.Equals("coach", StringComparison.OrdinalIgnoreCase));
+        var isCoach = user.UserRoles.Any(r => r.RoleName.Equals(AppRoles.Coach, StringComparison.OrdinalIgnoreCase));
         var userTypeEnum = isCoach ? UserType.Coach : UserType.User;
-        var userType = isCoach ? "coach" : "user";
+        var userType = isCoach ? AppRoles.Coach : AppRoles.User;
 
         var tier = await _subscriptionService.GetUserTierAsync(userId, userTypeEnum);
 

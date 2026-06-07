@@ -8,8 +8,7 @@ import {
     UserGroupIcon,
     AcademicCapIcon,
 } from '@heroicons/react/24/outline';
-import { CoachSearchParams } from '@/_lib/types';
-import { Coach } from '@/_lib/types';
+import { Coach, CoachSearchParams, SubscriptionUserType } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import AvailabilityBadge from '@/_components/coach/availability-badge';
 import StarRating from '@/_components/coach/star-rating';
@@ -23,7 +22,7 @@ interface ConnectionStatus {
     connectionId?: string;
     requestedAt?: string;
     respondedAt?: string;
-    requestedBy?: 'user' | 'coach';
+    requestedBy?: SubscriptionUserType;
 }
 
 const FIND_COACHES_SEARCH_STATE_KEY = 'projectbrain.findCoachesSearchState.v1';

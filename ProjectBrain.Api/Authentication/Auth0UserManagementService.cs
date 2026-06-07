@@ -1,7 +1,9 @@
+using System.Net.Http.Headers;
 using System.Text.Json;
 using Auth0.AuthenticationApi;
 using Auth0.AuthenticationApi.Models;
 using Microsoft.Extensions.Caching.Memory;
+using Polly.Registry;
 using ProjectBrain.Domain;
 
 namespace ProjectBrain.Api.Authentication;
@@ -9,12 +11,17 @@ namespace ProjectBrain.Api.Authentication;
 public class Auth0UserManagementServices(
     ILogger<Auth0UserManagementServices> logger,
     IMemoryCache memoryCache,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    IHttpClientFactory httpClientFactory,
+    ResiliencePipelineProvider<string> pipelineProvider)
 {
     public ILogger<Auth0UserManagementServices> Logger { get; } = logger;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
+    public IHttpClientFactory HttpClientFactory { get; } = httpClientFactory;
+    public ResiliencePipelineProvider<string> PipelineProvider { get; } = pipelineProvider;
 }
+
 public interface IAuth0UserManagement
 {
     Task<string?> CreateUser(string email, string password, string fullName, string connection, bool emailVerified);
@@ -23,9 +30,17 @@ public interface IAuth0UserManagement
     Task<bool> DeleteUserById(string id);
     Task<string?> GetUserIdByEmail(string email);
 }
+
 public class Auth0UserManagement : IAuth0UserManagement
 {
+    private static readonly TimeSpan RolesCacheDuration = TimeSpan.FromHours(1);
+    private static readonly JsonSerializerOptions RoleJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
     private readonly Auth0UserManagementServices _services;
+
     public Auth0UserManagement(Auth0UserManagementServices services)
     {
         _services = services;
@@ -34,17 +49,14 @@ public class Auth0UserManagement : IAuth0UserManagement
     public async Task<string?> CreateUser(string email, string password, string fullName, string connection, bool emailVerified)
     {
         var token = await getAuth0Token();
-        var client = new HttpClient();
 
-        // Create user payload for Auth0 Management API
-        // Auth0 expects snake_case in the request
         var userPayload = new Dictionary<string, object>
         {
             { "email", email },
             { "password", password },
             { "name", fullName },
             { "connection", connection },
-            { "email_verified", emailVerified }
+            { "email_verified", emailVerified },
         };
 
         var userJson = JsonSerializer.Serialize(userPayload);
@@ -58,41 +70,34 @@ public class Auth0UserManagement : IAuth0UserManagement
             request.Headers.Add("Authorization", $"Bearer {token}");
             request.Content = new StringContent(userJson, null, "application/json");
 
-            var response = await client.SendAsync(request);
+            var response = await sendAuth0RequestAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
                 var responseContent = await response.Content.ReadAsStringAsync();
-                // Auth0 returns snake_case in responses
                 var createdUser = JsonSerializer.Deserialize<JsonElement>(responseContent);
 
-                // Auth0 returns "user_id" in snake_case
                 if (createdUser.TryGetProperty("user_id", out var userIdElement))
                 {
                     var userId = userIdElement.GetString();
                     _services.Logger.LogInformation("Created user in Auth0 with ID: {UserId}", userId);
                     return userId;
                 }
-                else
-                {
-                    _services.Logger.LogError("Auth0 user creation response missing user_id. Response: {ResponseContent}", responseContent);
-                    return null;
-                }
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                _services.Logger.LogError("Failed to create user in Auth0. Status: {StatusCode}, Response: {ErrorContent}", response.StatusCode, errorContent);
 
-                // If user already exists (409 Conflict), try to get the user by email
-                if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-                {
-                    _services.Logger.LogWarning("User already exists in Auth0, attempting to retrieve by email: {Email}", email);
-                    return await getUserIdByEmail(email, token, client);
-                }
-
+                _services.Logger.LogError("Auth0 user creation response missing user_id. Response: {ResponseContent}", responseContent);
                 return null;
             }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _services.Logger.LogError("Failed to create user in Auth0. Status: {StatusCode}, Response: {ErrorContent}", response.StatusCode, errorContent);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                _services.Logger.LogWarning("User already exists in Auth0, attempting to retrieve by email: {Email}", email);
+                return await getUserIdByEmail(email, token);
+            }
+
+            return null;
         }
         catch (HttpRequestException ex)
         {
@@ -109,13 +114,12 @@ public class Auth0UserManagement : IAuth0UserManagement
     public async Task<string?> GetUserIdByEmail(string email)
     {
         var token = await getAuth0Token();
-        var client = new HttpClient();
-        return await getUserIdByEmail(email, token, client);
+        return await getUserIdByEmail(email, token);
     }
 
-    private async Task<string?> getUserIdByEmail(string email, string token, HttpClient client)
+    private async Task<string?> getUserIdByEmail(string email, string token)
     {
-        var response = await getResponse($"/users-by-email?email={Uri.EscapeDataString(email)}", token, client, HttpMethod.Get);
+        var response = await getResponse($"/users-by-email?email={Uri.EscapeDataString(email)}", token, HttpMethod.Get);
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var users = JsonSerializer.Deserialize<JsonElement[]>(responseContent);
@@ -138,20 +142,13 @@ public class Auth0UserManagement : IAuth0UserManagement
     {
         var token = await getAuth0Token();
 
-        var client = new HttpClient();
-
-        var userResponse = await getResponse($"/users/{userId}", token, client, HttpMethod.Get);
+        var userResponse = await getResponse($"/users/{userId}", token, HttpMethod.Get);
 
         if (userResponse.IsSuccessStatusCode)
         {
             var jsonStringUser = await userResponse.Content.ReadAsStringAsync();
             var auth0User = Auth0UserDto.FromJson(jsonStringUser);
 
-            // Auth0 only allows PATCHing root attributes (name, email, nickname) on
-            // Database connection users. For social/federated users (google-oauth2,
-            // apple, windowslive, etc.) these are owned by the upstream IdP and Auth0
-            // returns 400 Bad Request. Skip the PATCH in that case; user details are
-            // still persisted locally via UserService.
             if (!isDatabaseConnection(auth0User))
             {
                 _services.Logger.LogInformation(
@@ -169,14 +166,12 @@ public class Auth0UserManagement : IAuth0UserManagement
 
             var patchRequest = Auth0UserPatchRequest.FromAuth0UserAndApply(auth0User, user);
             var userJson = Auth0UserPatchRequest.ToJson(patchRequest);
-            var result = await getResponse($"/users/{userId}", token, client, HttpMethod.Patch, new StringContent(userJson, null, "application/json"));
+            var result = await getResponse($"/users/{userId}", token, HttpMethod.Patch, new StringContent(userJson, null, "application/json"));
             return result.IsSuccessStatusCode;
         }
-        else
-        {
-            _services.Logger.LogError("Failed to get user {userId} from Auth0", userId);
-            return false;
-        }
+
+        _services.Logger.LogError("Failed to get user {userId} from Auth0", userId);
+        return false;
     }
 
     private static bool isDatabaseConnection(Auth0UserDto auth0User)
@@ -184,23 +179,17 @@ public class Auth0UserManagement : IAuth0UserManagement
         var connection = auth0User.Identities.FirstOrDefault()?.Connection;
         if (string.IsNullOrEmpty(connection))
         {
-            // Fall back to the user_id prefix: Database users are "auth0|...".
             return auth0User.Id?.StartsWith("auth0|", StringComparison.Ordinal) ?? false;
         }
-        // Auth0's "auth0" strategy is the Database connection. The default tenant
-        // connection name is "Username-Password-Authentication" but custom DB
-        // connections also report provider "auth0"; using the identity's provider
-        // would be more accurate, but the connection name suffices for our setup.
+
         return string.Equals(connection, "Username-Password-Authentication", StringComparison.Ordinal);
     }
 
-    // Keep the original method for backward compatibility with existing code
     public async Task<bool> UpdateUser(string userId, string userJson)
     {
-        // Parse the JSON to check if update is needed
         var user = JsonSerializer.Deserialize<BaseUserDto>(userJson, new JsonSerializerOptions
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         });
 
         if (user == null)
@@ -208,6 +197,7 @@ public class Auth0UserManagement : IAuth0UserManagement
             _services.Logger.LogError("Invalid user JSON provided for update");
             return false;
         }
+
         return await UpdateUser(userId, user);
     }
 
@@ -215,29 +205,17 @@ public class Auth0UserManagement : IAuth0UserManagement
     {
         var token = await getAuth0Token();
 
-        // Get roles
-        var client = new HttpClient();
+        List<Auth0Role> listOfRoles = await getCachedRolesAsync(token);
 
-        // Get roles from Auth0
-        var roleResponse = await getResponse("/roles", token, client, HttpMethod.Get);
-        var jsonString = await roleResponse.Content.ReadAsStringAsync();
-        List<Auth0Role> listOfRoles = JsonSerializer.Deserialize<List<Auth0Role>>(jsonString, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        }) ?? new List<Auth0Role>();
-
-
-        var usersRolesResponse = await getResponse($"/users/{userId}/roles", token, client, HttpMethod.Get);
+        var usersRolesResponse = await getResponse($"/users/{userId}/roles", token, HttpMethod.Get);
         var jsonStringUserRoles = await usersRolesResponse.Content.ReadAsStringAsync();
-        List<Auth0Role> listOfUsersRoles = JsonSerializer.Deserialize<List<Auth0Role>>(jsonStringUserRoles, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        }) ?? new List<Auth0Role>();
+        List<Auth0Role> listOfUsersRoles = JsonSerializer.Deserialize<List<Auth0Role>>(jsonStringUserRoles, RoleJsonOptions)
+            ?? new List<Auth0Role>();
 
         _services.Logger.LogInformation("Roles for user {userId}: {roleList}", userId, JsonSerializer.Serialize(listOfUsersRoles));
 
-        List<string> roleIdsToAssign = new List<string>();
-        List<string> roleIdsToRemove = new List<string>();
+        List<string> roleIdsToAssign = [];
+        List<string> roleIdsToRemove = [];
 
         foreach (var role in listOfRoles)
         {
@@ -259,7 +237,7 @@ public class Auth0UserManagement : IAuth0UserManagement
             var roleIdsStringToRemove = JsonSerializer.Serialize(roleIdsToRemove);
             _services.Logger.LogInformation("Removing roles from user {roleIdsStringToRemove}", roleIdsStringToRemove);
 
-            await getResponse($"/users/{userId}/roles", token, client, HttpMethod.Delete, new StringContent("{\"roles\":" + roleIdsStringToRemove + "}", null, "application/json"));
+            await getResponse($"/users/{userId}/roles", token, HttpMethod.Delete, new StringContent("{\"roles\":" + roleIdsStringToRemove + "}", null, "application/json"));
         }
 
         if (roleIdsToAssign.Count > 0)
@@ -267,7 +245,7 @@ public class Auth0UserManagement : IAuth0UserManagement
             var roleIdsStringToAssign = JsonSerializer.Serialize(roleIdsToAssign);
             _services.Logger.LogInformation("Assigning roles to user {roleIdsStringToAssign}", roleIdsStringToAssign);
 
-            await getResponse($"/users/{userId}/roles", token, client, HttpMethod.Post, new StringContent("{\"roles\":" + roleIdsStringToAssign + "}", null, "application/json"));
+            await getResponse($"/users/{userId}/roles", token, HttpMethod.Post, new StringContent("{\"roles\":" + roleIdsStringToAssign + "}", null, "application/json"));
         }
 
         return true;
@@ -276,12 +254,34 @@ public class Auth0UserManagement : IAuth0UserManagement
     public async Task<bool> DeleteUserById(string id)
     {
         var token = await getAuth0Token();
-        var client = new HttpClient();
-        var response = await getResponse($"/users/{id}", token, client, HttpMethod.Delete);
+        var response = await getResponse($"/users/{id}", token, HttpMethod.Delete);
         return response.IsSuccessStatusCode;
     }
 
-    private async Task<HttpResponseMessage> getResponse(string url, string token, HttpClient client, HttpMethod method, HttpContent? content = null)
+    private async Task<List<Auth0Role>> getCachedRolesAsync(string token)
+    {
+        var domain = _services.Configuration.GetSection("Auth0")["Domain"]
+            ?? throw new InvalidOperationException("Auth0 Domain is not configured");
+        var cacheKey = BuildRolesCacheKey(domain);
+        var cache = _services.MemoryCache;
+
+        if (cache.TryGetValue(cacheKey, out List<Auth0Role>? cachedRoles) && cachedRoles is { Count: > 0 })
+        {
+            return cachedRoles;
+        }
+
+        var roleResponse = await getResponse("/roles", token, HttpMethod.Get);
+        var jsonString = await roleResponse.Content.ReadAsStringAsync();
+        var listOfRoles = JsonSerializer.Deserialize<List<Auth0Role>>(jsonString, RoleJsonOptions)
+            ?? new List<Auth0Role>();
+
+        cache.Set(cacheKey, listOfRoles, RolesCacheDuration);
+        return listOfRoles;
+    }
+
+    internal static string BuildRolesCacheKey(string domain) => $"Auth0ManagementApiRoles:{domain}";
+
+    private async Task<HttpResponseMessage> getResponse(string url, string token, HttpMethod method, HttpContent? content = null)
     {
         var config = _services.Configuration.GetSection("Auth0");
         var domain = config["Domain"];
@@ -292,18 +292,80 @@ public class Auth0UserManagement : IAuth0UserManagement
         {
             request.Content = content;
         }
-        var response = await client.SendAsync(request);
+
+        var response = await sendAuth0RequestAsync(request);
         response.EnsureSuccessStatusCode();
         return response;
+    }
+
+    private async Task<HttpResponseMessage> sendAuth0RequestAsync(HttpRequestMessage requestTemplate, CancellationToken cancellationToken = default)
+    {
+        var buffered = await bufferRequestAsync(requestTemplate, cancellationToken);
+        var pipeline = _services.PipelineProvider.GetPipeline<HttpResponseMessage>(Auth0ManagementHttp.PipelineName);
+        var client = _services.HttpClientFactory.CreateClient(Auth0ManagementHttp.ClientName);
+
+        var response = await pipeline.ExecuteAsync(
+            async ct =>
+            {
+                using var request = cloneRequest(buffered);
+                return await client.SendAsync(request, ct);
+            },
+            cancellationToken);
+
+        return response;
+    }
+
+    private static async Task<BufferedAuth0Request> bufferRequestAsync(HttpRequestMessage template, CancellationToken cancellationToken)
+    {
+        byte[]? body = null;
+        string? mediaType = null;
+        string? charset = null;
+
+        if (template.Content != null)
+        {
+            body = await template.Content.ReadAsByteArrayAsync(cancellationToken);
+            mediaType = template.Content.Headers.ContentType?.MediaType;
+            charset = template.Content.Headers.ContentType?.CharSet;
+        }
+
+        return new BufferedAuth0Request(
+            template.Method,
+            template.RequestUri ?? throw new InvalidOperationException("Auth0 request URI is required."),
+            template.Headers,
+            body,
+            mediaType,
+            charset);
+    }
+
+    private static HttpRequestMessage cloneRequest(BufferedAuth0Request buffered)
+    {
+        var request = new HttpRequestMessage(buffered.Method, buffered.Uri);
+        foreach (var header in buffered.Headers)
+        {
+            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+
+        if (buffered.Body != null)
+        {
+            var content = new ByteArrayContent(buffered.Body);
+            if (buffered.MediaType != null)
+            {
+                content.Headers.ContentType = string.IsNullOrEmpty(buffered.Charset)
+                    ? new MediaTypeHeaderValue(buffered.MediaType)
+                    : new MediaTypeHeaderValue(buffered.MediaType) { CharSet = buffered.Charset };
+            }
+
+            request.Content = content;
+        }
+
+        return request;
     }
 
     private async Task<string> getAuth0Token()
     {
         var config = _services.Configuration.GetSection("Auth0");
-
         var cache = _services.MemoryCache;
 
-        // Check if we have a valid, non-expired token in the cache
         if (cache.TryGetValue("Auth0ManagementApiToken", out string? token) && !string.IsNullOrEmpty(token))
         {
             return token;
@@ -315,7 +377,6 @@ public class Auth0UserManagement : IAuth0UserManagement
 
         var authClient = new AuthenticationApiClient(domain);
 
-        // Fetch the access token using the Client Credentials.
         var accessTokenResponse = await authClient.GetTokenAsync(new ClientCredentialsTokenRequest()
         {
             Audience = $"https://{domain}/api/v2/",
@@ -323,13 +384,19 @@ public class Auth0UserManagement : IAuth0UserManagement
             ClientSecret = clientSecret ?? throw new InvalidOperationException("Auth0 ManagementApiClientSecret is not configured"),
         });
 
-        // Cache the new token, setting its expiration to 5 minutes before it *actually* expires
         cache.Set(
             "Auth0ManagementApiToken",
             accessTokenResponse.AccessToken,
-            TimeSpan.FromSeconds(accessTokenResponse.ExpiresIn - 300)
-        );
+            TimeSpan.FromSeconds(accessTokenResponse.ExpiresIn - 300));
 
         return accessTokenResponse.AccessToken;
     }
+
+    private sealed record BufferedAuth0Request(
+        HttpMethod Method,
+        Uri Uri,
+        HttpRequestHeaders Headers,
+        byte[]? Body,
+        string? MediaType,
+        string? Charset);
 }

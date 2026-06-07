@@ -1,11 +1,12 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
 import { MagnifyingGlassIcon, MapPinIcon } from '@heroicons/react/24/outline';
 
+import { AppRoles } from '@/_lib/roles';
 export default async function CoachSearchPage() {
     // TODO: Implement user search API endpoint
 
     return (
-        <RoleGuard allowedRoles={['coach']}>
+        <RoleGuard allowedRoles={[AppRoles.Coach]}>
             <div className="space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">

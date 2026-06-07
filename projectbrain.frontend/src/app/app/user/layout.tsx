@@ -8,6 +8,7 @@ import { SessionExpiredError } from '@/_lib/backend-api';
 import { redirect } from 'next/navigation';
 import TimezoneInitializer from './_components/timezone-initializer';
 
+import { AppRoles } from '@/_lib/roles';
 export const metadata: Metadata = {
     title: 'User',
     description: 'User dashboard and features',
@@ -26,7 +27,7 @@ export default async function UserLayout({
         const roles = await getUserRoles();
 
         return (
-            <RoleGuard allowedRoles={['user']} redirectTo="/app">
+            <RoleGuard allowedRoles={[AppRoles.User]} redirectTo="/app">
                 <div className="min-h-screen bg-gray-50">
                     <DashboardNav user={user as User | null} role={roles?.[0] ?? null} />
                     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

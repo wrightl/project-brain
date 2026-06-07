@@ -3,6 +3,7 @@ namespace ProjectBrain.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Database.Constants;
 
 public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
 {
@@ -97,9 +98,9 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
 
             decimal monthlyPrice = tierName switch
             {
-                "Pro" when userType == "user" => isAnnual ? 10m : 12m,
-                "Ultimate" when userType == "user" => isAnnual ? 20m : 24m,
-                "Pro" when userType == "coach" => isAnnual ? 50m : 60m,
+                "Pro" when userType == AppRoles.User => isAnnual ? 10m : 12m,
+                "Ultimate" when userType == AppRoles.User => isAnnual ? 20m : 24m,
+                "Pro" when userType == AppRoles.Coach => isAnnual ? 50m : 60m,
                 _ => 0m
             };
 

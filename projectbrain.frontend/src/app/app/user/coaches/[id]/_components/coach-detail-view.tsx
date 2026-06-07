@@ -10,7 +10,7 @@ import {
     CheckCircleIcon,
     ClockIcon,
 } from '@heroicons/react/24/outline';
-import { Coach } from '@/_lib/types';
+import { Coach, SubscriptionUserType } from '@/_lib/types';
 import { useState, useEffect } from 'react';
 import AvailabilityBadge from '@/_components/coach/availability-badge';
 import StarRating from '@/_components/coach/star-rating';
@@ -22,7 +22,7 @@ interface ConnectionStatus {
     connectionId?: string;
     requestedAt?: string;
     respondedAt?: string;
-    requestedBy?: 'user' | 'coach';
+    requestedBy?: SubscriptionUserType;
 }
 
 interface CoachDetailViewProps {

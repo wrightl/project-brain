@@ -1,6 +1,7 @@
 namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;
@@ -48,6 +49,11 @@ public class UserManagementService : IUserManagementService
         if (user == null)
         {
             throw new Exception($"User with ID {userId} not found.");
+        }
+
+        if (roles.Any(r => !AppRoles.IsValid(r)))
+        {
+            throw new ArgumentException($"Invalid role. Allowed: {string.Join(", ", AppRoles.All)}");
         }
 
         // Remove existing roles

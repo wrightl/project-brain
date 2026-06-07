@@ -1,11 +1,12 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
 
+import { AppRoles } from '@/_lib/roles';
 export default async function CoachSettingsPage() {
     // TODO: Uncomment after Auth0 API is configured
     // const user = await getCurrentUser();
 
     return (
-        <RoleGuard allowedRoles={['coach']}>
+        <RoleGuard allowedRoles={[AppRoles.Coach]}>
             <div className="space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">

@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { AppRoles } from '@/_lib/roles';
 import { Coach } from '@/_lib/types';
 import { UserService } from '@/_services/user-service';
 import { callBackendApi } from '@/_lib/backend-api';
@@ -22,7 +23,7 @@ export default async function CoachProfilePage() {
             error = 'User not found';
         } else {
             // Check if user is a coach
-            const isCoach = user.roles?.includes('coach');
+            const isCoach = user.roles?.includes(AppRoles.Coach);
             if (!isCoach) {
                 error = 'User is not a coach';
             } else {

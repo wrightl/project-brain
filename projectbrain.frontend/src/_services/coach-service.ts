@@ -1,14 +1,8 @@
 import { callBackendApi } from '@/_lib/backend-api';
-import { Coach, User } from '@/_lib/types';
+import { ClientWithConnectionStatus as ClientWithConnectionStatusType, Coach, User } from '@/_lib/types';
 import { convertAvailabilityStatus } from '@/_lib/availability-status';
 
-export interface ClientWithConnectionStatus {
-    user: User;
-    connectionStatus: 'pending' | 'accepted';
-    requestedAt: string;
-    requestedBy: 'user' | 'coach';
-    message?: string;
-}
+export type ClientWithConnectionStatus = ClientWithConnectionStatusType;
 
 export interface CoachSearchParams {
     city?: string;

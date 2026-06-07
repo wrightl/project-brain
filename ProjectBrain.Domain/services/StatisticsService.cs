@@ -1,6 +1,7 @@
 namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Database.Constants;
 using System.Linq.Expressions;
 
 public class StatisticsService : IStatisticsService
@@ -73,7 +74,7 @@ public class StatisticsService : IStatisticsService
     {
         return await _context.Users
             .Include(u => u.UserRoles)
-            .Where(u => u.UserRoles.Any(ur => ur.RoleName.ToLower() == "coach"))
+            .Where(u => u.UserRoles.Any(ur => ur.RoleName == AppRoles.Coach))
             .CountAsync();
     }
 
@@ -81,7 +82,7 @@ public class StatisticsService : IStatisticsService
     {
         return await _context.Users
             .Include(u => u.UserRoles)
-            .Where(u => !u.UserRoles.Any(ur => ur.RoleName.ToLower() == "coach" || ur.RoleName.ToLower() == "admin"))
+            .Where(u => !u.UserRoles.Any(ur => ur.RoleName == AppRoles.Coach || ur.RoleName == AppRoles.Admin))
             .CountAsync();
     }
 

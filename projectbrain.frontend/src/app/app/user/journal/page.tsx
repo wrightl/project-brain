@@ -1,9 +1,10 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
 import JournalList from './_components/journal-list';
 
+import { AppRoles } from '@/_lib/roles';
 export default async function JournalPage() {
     return (
-        <RoleGuard allowedRoles={['user']}>
+        <RoleGuard allowedRoles={[AppRoles.User]}>
             <div className="space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">

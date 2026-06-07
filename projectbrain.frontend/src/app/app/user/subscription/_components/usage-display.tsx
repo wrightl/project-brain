@@ -1,5 +1,6 @@
 'use client';
 
+import { AppRoles } from '@/_lib/roles';
 import { useSubscription, useUsage } from '@/_hooks/queries/use-subscription';
 import UsageMeter from '@/_components/usage-meter';
 import { SkeletonCard } from '@/_components/ui/skeleton';
@@ -29,8 +30,8 @@ export default function UsageDisplay() {
 
     const tier = subscription?.tier || 'Free';
     // Backend stores userType as e.g. "User"/"Coach" (or sometimes enum), so normalize.
-    const userType = String((subscription as { userType?: unknown })?.userType ?? 'user').toLowerCase();
-    const isCoach = userType === 'coach';
+    const userType = String((subscription as { userType?: unknown })?.userType ?? AppRoles.User).toLowerCase();
+    const isCoach = userType === AppRoles.Coach;
 
     // Safely extract usage values with defaults
     const aiQueriesDaily: number = usage.aiQueries?.daily ?? 0;

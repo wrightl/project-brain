@@ -1,9 +1,10 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
 import VoiceNotesList from './_components/voicenotes-list';
 
+import { AppRoles } from '@/_lib/roles';
 export default async function VoiceNotesPage() {
     return (
-        <RoleGuard allowedRoles={['user']}>
+        <RoleGuard allowedRoles={[AppRoles.User]}>
             <div className="space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">

@@ -1,9 +1,10 @@
 import { RoleGuard } from '@/_components/auth/role-guard';
 import QuizList from './_components/quiz-list';
 
+import { AppRoles } from '@/_lib/roles';
 export default async function QuizzesPage() {
     return (
-        <RoleGuard allowedRoles={['user']}>
+        <RoleGuard allowedRoles={[AppRoles.User]}>
             <div className="space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">

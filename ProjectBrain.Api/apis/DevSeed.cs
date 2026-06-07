@@ -19,6 +19,27 @@ public static class DevSeedEndpoints
             .WithName("SeedCoachData")
             .Produces<SeedCoachDataResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapPost("test-users", SeedTestUsers)
+            .WithName("SeedTestUsers")
+            .Produces(StatusCodes.Status204NoContent);
+    }
+
+    private static async Task<IResult> SeedTestUsers(
+        [FromServices] ProjectBrainDbInitializer dbInitializer,
+        [FromServices] AppDbContext context,
+        [FromServices] IIdentitySeedingService identitySeedingService,
+        IConfiguration configuration,
+        IHostEnvironment hostEnvironment,
+        CancellationToken cancellationToken)
+    {
+        await dbInitializer.SeedTestUsersAsync(
+            context,
+            identitySeedingService,
+            configuration,
+            hostEnvironment,
+            cancellationToken);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> SeedUser(

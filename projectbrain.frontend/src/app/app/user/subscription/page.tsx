@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { RoleGuard } from '@/_components/auth/role-guard';
 import SubscriptionManagement from './_components/subscription-management';
 
+import { AppRoles } from '@/_lib/roles';
 export const metadata: Metadata = {
     title: 'Subscription',
     description: 'Manage your subscription and billing',
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default async function SubscriptionPage() {
     return (
-        <RoleGuard allowedRoles={['user']}>
+        <RoleGuard allowedRoles={[AppRoles.User]}>
             <div className="space-y-6">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">

@@ -2,6 +2,7 @@ import { RoleGuard } from '@/_components/auth/role-guard';
 import { CoachService, ClientWithConnectionStatus } from '@/_services/coach-service';
 import ClientsList from './_components/clients-list';
 
+import { AppRoles } from '@/_lib/roles';
 export default async function CoachClientsPage() {
     let clients: ClientWithConnectionStatus[] = [];
     let error: string | null = null;
@@ -14,7 +15,7 @@ export default async function CoachClientsPage() {
     }
 
     return (
-        <RoleGuard allowedRoles={['coach']}>
+        <RoleGuard allowedRoles={[AppRoles.Coach]}>
             <div className="space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">

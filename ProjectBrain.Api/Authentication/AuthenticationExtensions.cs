@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using ProjectBrain.Database.Constants;
 
 public static class AuthenticationExtensions
 {
@@ -59,20 +60,20 @@ public static class AuthenticationExtensions
             {
                 options.AddPolicy("AdminOnly", policy =>
                     {
-                        policy.RequireClaim("https://projectbrain.app/roles", "admin");
+                        policy.RequireClaim(AuthClaimTypes.Roles, AppRoles.Admin);
                     });
                 options.AddPolicy("CoachOnly", policy =>
                     {
-                        policy.RequireClaim("https://projectbrain.app/roles", "coach");
+                        policy.RequireClaim(AuthClaimTypes.Roles, AppRoles.Coach);
                     });
                 options.AddPolicy("UserOnly", policy =>
                     {
-                        policy.RequireClaim("https://projectbrain.app/roles", "user");
+                        policy.RequireClaim(AuthClaimTypes.Roles, AppRoles.User);
 
                         // Make sure the user is not a coach
                         policy.RequireAssertion(context =>
                             {
-                                return !context.User.HasClaim(c => c.Type == "https://projectbrain.app/roles" && c.Value == "coach");
+                                return !context.User.HasClaim(c => c.Type == AuthClaimTypes.Roles && c.Value == AppRoles.Coach);
                             });
                     });
             });

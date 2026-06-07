@@ -1,5 +1,6 @@
 import { createApiRoute } from '@/_lib/api-route-handler';
 import { callBackendApi } from '@/_lib/backend-api';
+import { SubscriptionUserType } from '@/_lib/types';
 import { NextRequest } from 'next/server';
 
 export interface ConnectionStatusResponse {
@@ -7,7 +8,7 @@ export interface ConnectionStatusResponse {
     connectionId?: string;
     requestedAt?: string;
     respondedAt?: string;
-    requestedBy?: 'user' | 'coach';
+    requestedBy?: SubscriptionUserType;
 }
 
 export const GET = createApiRoute<ConnectionStatusResponse>(

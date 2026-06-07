@@ -4,6 +4,7 @@ using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain.Mappers;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Database.Models;
 using ProjectBrain.Shared.Dtos.CoachRatings;
 using ProjectBrain.Shared.Dtos.Pagination;
@@ -136,7 +137,7 @@ public static class CoachEndpoints
                     // Connection status properties
                     ConnectionStatus = connectionStatusMap.GetValueOrDefault(coachDto.Id, "pending"), // "pending" or "accepted"
                     RequestedAt = fullConnection?.RequestedAt ?? DateTime.UtcNow,
-                    RequestedBy = fullConnection?.RequestedBy ?? "user",
+                    RequestedBy = fullConnection?.RequestedBy ?? AppRoles.User,
                     Message = fullConnection?.Message,
                 });
             }
@@ -223,7 +224,7 @@ public static class CoachEndpoints
                         User = user,
                         ConnectionStatus = connectionWithStatus.Status, // "pending" or "accepted"
                         RequestedAt = fullConnection?.RequestedAt ?? DateTime.UtcNow,
-                        RequestedBy = fullConnection?.RequestedBy ?? "user",
+                        RequestedBy = fullConnection?.RequestedBy ?? AppRoles.User,
                         Message = fullConnection?.Message,
                         NeurodiverseTraits = user.NeurodiverseTraits ?? new List<string>(),
                         PreferredPronoun = user.PreferredPronoun,
@@ -668,7 +669,7 @@ public static class CoachEndpoints
     {
         var userId = services.IdentityService.UserId!;
         var user = await services.IdentityService.GetUserAsync();
-        var isCoach = user?.Roles?.Any(r => r.ToLower() == "coach") ?? false;
+        var isCoach = user?.Roles?.Any(r => string.Equals(r, AppRoles.Coach, StringComparison.OrdinalIgnoreCase)) ?? false;
         var userType = isCoach ? UserType.Coach : UserType.User;
 
         // Validate user cannot connect to themselves

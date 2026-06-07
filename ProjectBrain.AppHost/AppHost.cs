@@ -55,6 +55,7 @@ var mailgunApiKey = builder.AddParameter("mailgun-api-key", secret: true);
 var mailgunDomain = builder.AddParameter("mailgun-domain", secret: true);
 var firebaseCredentialsJson = builder.AddParameter("firebase-credentials-json", secret: true);
 var adminUserPassword = builder.AddParameter("admin-user-password", secret: true);
+var testUsersPassword = builder.AddParameter("test-users-password", secret: true);
 var googleMapsGeocodingApiKey = builder.AddParameter("google-maps-geocoding-api-key", secret: true);
 
 // custom domain and certificate for container app - these are only needed for the deployment to azure
@@ -182,6 +183,8 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("Mailgun__ApiKey", mailgunApiKey)
                         .WithEnvironment("Mailgun__Domain", mailgunDomain)
                         .WithEnvironment("AdminUser__Password", adminUserPassword)
+                        .WithEnvironment("TestUsers__Password", testUsersPassword)
+                        .WithEnvironment("deploy-env", environmentName)
                         .WithEnvironment("GoogleMaps__GeocodingApiKey", googleMapsGeocodingApiKey)
                         .WithHttpHealthCheck("/alive")
                         .PublishAsAzureContainerApp((module, app) =>

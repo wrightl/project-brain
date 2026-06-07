@@ -4,6 +4,7 @@ import { getSession } from '@/_lib/auth';
 import { notFound } from 'next/navigation';
 import ChatInterface from '../../_components/chat-interface';
 
+import { AppRoles } from '@/_lib/roles';
 interface StrategiesChatPageProps {
     params: Promise<{ id: string }>;
 }
@@ -28,7 +29,7 @@ export default async function StrategiesChatPage({
         'there';
 
     return (
-        <RoleGuard allowedRoles={['user', 'admin']}>
+        <RoleGuard allowedRoles={[AppRoles.User, AppRoles.Admin]}>
             <div className="h-full w-full flex flex-col bg-gray-50">
                 <ChatInterface
                     conversation={conversation}

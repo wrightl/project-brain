@@ -5,7 +5,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Database.Interfaces;
+using ProjectBrain.Database.Models;
 
 public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
     ILogger<ProjectBrainDbInitializer> logger)
@@ -20,18 +22,19 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var identitySeedingService = scope.ServiceProvider.GetRequiredService<IIdentitySeedingService>();
         var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var hostEnvironment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
 
         using var activity = _activitySource.StartActivity("Initializing catalog database", ActivityKind.Client);
-        await InitializeAsync(context, identitySeedingService, configuration, cancellationToken);
+        await InitializeAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
     }
 
-    public async Task InitializeAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, IHostEnvironment hostEnvironment, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
 
         await EnsureDatabaseAsync(context, cancellationToken);
         await RunMigrationAsync(context, cancellationToken);
-        await SeedAsync(context, identitySeedingService, configuration, cancellationToken);
+        await SeedAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
 
         logger.LogInformation("Database initialization completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
     }
@@ -52,7 +55,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         });
     }
 
-    private async Task SeedAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, CancellationToken cancellationToken)
+    private async Task SeedAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, IHostEnvironment hostEnvironment, CancellationToken cancellationToken)
     {
         // Seed roles
         await SeedRolesAsync(context, cancellationToken);
@@ -62,6 +65,15 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
 
         // Get first admin user
         User? adminUser = await SeedAdminUserAsync(context, identitySeedingService, configuration, cancellationToken);
+
+        try
+        {
+            await SeedTestUsersAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to seed test users, skipping");
+        }
 
         // Seed ApplicationSettings
         await SeedApplicationSettingsAsync(context, adminUser, cancellationToken);
@@ -268,7 +280,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
     private async Task<User?> SeedAdminUserAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, CancellationToken cancellationToken)
     {
         var adminUser = await context.Users
-                    .FirstOrDefaultAsync(u => u.UserRoles.Any(ur => ur.RoleName == "admin"), cancellationToken);
+                    .FirstOrDefaultAsync(u => u.UserRoles.Any(ur => ur.RoleName == AppRoles.Admin), cancellationToken);
 
         // If no admin user exists, create a system user
         if (adminUser == null)
@@ -284,15 +296,15 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
 
             string auth0UserId = await identitySeedingService.EnsureAdminUserSeededAsync(adminEmail, adminPassword, adminFullName, adminConnection);
 
-            // Get the admin role
-            var adminRole = await context.Roles
-                .FirstOrDefaultAsync(r => r.Name == "admin", cancellationToken);
+            // // Get the admin role
+            // var adminRole = await context.Roles
+            //     .FirstOrDefaultAsync(r => r.Name == AppRoles.Admin, cancellationToken);
 
-            if (adminRole == null)
-            {
-                logger.LogError("Admin role not found. Cannot create admin user.");
-                throw new InvalidOperationException("Admin role must exist before creating admin user.");
-            }
+            // if (adminRole == null)
+            // {
+            //     logger.LogError("Admin role not found. Cannot create admin user.");
+            //     throw new InvalidOperationException("Admin role must exist before creating admin user.");
+            // }
 
             // Create admin user in database
             var systemUser = new User
@@ -314,7 +326,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             var systemUserRole = new UserRole
             {
                 UserId = auth0UserId,
-                RoleName = "admin",
+                RoleName = AppRoles.Admin,
                 AssignedAt = DateTime.UtcNow
             };
 
@@ -331,6 +343,247 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
 
         return adminUser;
     }
+
+    public async Task SeedTestUsersAsync(
+        AppDbContext context,
+        IIdentitySeedingService identitySeedingService,
+        IConfiguration configuration,
+        IHostEnvironment hostEnvironment,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ShouldSeedTestUsers(configuration, hostEnvironment))
+        {
+            logger.LogInformation("Test user seeding skipped (disabled or not configured for this environment).");
+            return;
+        }
+
+        var section = configuration.GetSection("TestUsers");
+        var password = section["Password"] ?? throw new InvalidOperationException("TestUsers:Password must be configured to seed test users. Set it via environment variable or user secrets.");
+        var connection = section["Connection"] ?? DefaultTestUserConnection;
+
+        logger.LogInformation("Seeding test users and coaches...");
+
+        for (var i = 1; i <= 5; i++)
+        {
+            var fullName = $"TestUser{i}";
+            var email = $"testuser{i}@{TestEmailDomain}";
+            await EnsureTestUserSeededAsync(
+                context,
+                identitySeedingService,
+                email,
+                password,
+                fullName,
+                connection,
+                AppRoles.User,
+                isOnboarded: false,
+                city: null,
+                country: null,
+                cancellationToken: cancellationToken);
+        }
+
+        foreach (var coach in TestCoachDefinitions)
+        {
+            var email = $"{SlugifyTestUserEmail(coach.FullName)}@{TestEmailDomain}";
+            var auth0UserId = await EnsureTestUserSeededAsync(
+                context,
+                identitySeedingService,
+                email,
+                password,
+                coach.FullName,
+                connection,
+                AppRoles.Coach,
+                isOnboarded: true,
+                city: coach.City,
+                country: coach.Country,
+                postalCode: coach.PostalCode,
+                latitude: coach.Latitude,
+                longitude: coach.Longitude,
+                cancellationToken: cancellationToken);
+
+            if (auth0UserId != null)
+            {
+                await EnsureCoachProfileSeededAsync(context, auth0UserId, cancellationToken);
+            }
+        }
+
+        logger.LogInformation("Test user and coach seeding completed.");
+    }
+
+    public static bool ShouldSeedTestUsers(IConfiguration configuration, IHostEnvironment? environment = null)
+    {
+        var section = configuration.GetSection("TestUsers");
+        var password = section["Password"];
+        if (string.IsNullOrWhiteSpace(password))
+            return false;
+
+        var deployEnv = configuration["deploy-env"] ?? configuration["DEPLOY_ENV"];
+        if (string.Equals(deployEnv, "production", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (string.Equals(deployEnv, "staging", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (environment?.IsDevelopment() == true)
+            return section.GetValue<bool>("Enabled");
+
+        if (environment?.IsProduction() == true && !section.GetValue<bool>("Enabled"))
+            return false;
+
+        return section.GetValue<bool>("Enabled");
+    }
+
+    private async Task<string?> EnsureTestUserSeededAsync(
+        AppDbContext context,
+        IIdentitySeedingService identitySeedingService,
+        string email,
+        string password,
+        string fullName,
+        string connection,
+        string role,
+        bool isOnboarded,
+        string? city,
+        string? country,
+        string? postalCode = null,
+        double? latitude = null,
+        double? longitude = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var existingDbUser = await context.Users
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
+
+        if (existingDbUser != null)
+        {
+            logger.LogInformation("Test account already exists in database: {Email}", email);
+            return existingDbUser.Id;
+        }
+
+        var auth0UserId = await identitySeedingService.EnsureAuth0UserAsync(email, password, fullName, connection);
+        var roleAssigned = await identitySeedingService.AssignAuth0RolesAsync(auth0UserId, [role]);
+        if (!roleAssigned)
+        {
+            logger.LogWarning("Failed to assign {Role} role in Auth0 for {Email}", role, email);
+        }
+
+        var user = new User
+        {
+            Id = auth0UserId,
+            Email = email,
+            FullName = fullName,
+            EmailVerified = true,
+            IsOnboarded = isOnboarded,
+            Connection = connection,
+            City = city,
+            Country = country,
+            PostalCode = postalCode,
+            Latitude = latitude,
+            Longitude = longitude,
+        };
+
+        await context.Users.AddAsync(user, cancellationToken);
+        await context.UserRoles.AddAsync(new UserRole
+        {
+            UserId = auth0UserId,
+            RoleName = role,
+            AssignedAt = DateTime.UtcNow,
+        }, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Created test account {Email} with role {Role}, IsOnboarded={IsOnboarded}",
+            email,
+            role,
+            isOnboarded);
+
+        return auth0UserId;
+    }
+
+    private static async Task EnsureCoachProfileSeededAsync(
+        AppDbContext context,
+        string coachUserId,
+        CancellationToken cancellationToken)
+    {
+        var profile = await context.CoachProfiles.FirstOrDefaultAsync(p => p.UserId == coachUserId, cancellationToken);
+        if (profile == null)
+        {
+            profile = new CoachProfile
+            {
+                UserId = coachUserId,
+                Bio = "Sample coach bio for development and testing.",
+                AvailabilityStatus = AvailabilityStatus.Available,
+            };
+            await context.CoachProfiles.AddAsync(profile, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        if (!await context.CoachQualifications.AnyAsync(q => q.CoachProfileId == profile.Id, cancellationToken))
+        {
+            await context.CoachQualifications.AddRangeAsync(
+                [
+                    new CoachQualification { CoachProfileId = profile.Id, Qualification = "Sample qualification 1" },
+                    new CoachQualification { CoachProfileId = profile.Id, Qualification = "Sample qualification 2" },
+                ],
+                cancellationToken);
+        }
+
+        if (!await context.CoachSpecialisms.AnyAsync(s => s.CoachProfileId == profile.Id, cancellationToken))
+        {
+            await context.CoachSpecialisms.AddRangeAsync(
+                [
+                    new CoachSpecialism { CoachProfileId = profile.Id, Specialism = "Anxiety" },
+                    new CoachSpecialism { CoachProfileId = profile.Id, Specialism = "Stress" },
+                ],
+                cancellationToken);
+        }
+
+        if (!await context.CoachAgeGroups.AnyAsync(a => a.CoachProfileId == profile.Id, cancellationToken))
+        {
+            await context.CoachAgeGroups.AddRangeAsync(
+                [
+                    new CoachAgeGroup { CoachProfileId = profile.Id, AgeGroup = "Adults" },
+                    new CoachAgeGroup { CoachProfileId = profile.Id, AgeGroup = "Young adults" },
+                ],
+                cancellationToken);
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string SlugifyTestUserEmail(string fullName)
+    {
+        var slug = fullName.ToLowerInvariant().Replace(' ', '.');
+        foreach (var c in slug.Where(ch => !char.IsLetterOrDigit(ch) && ch != '.').ToList())
+        {
+            slug = slug.Replace(c.ToString(), string.Empty);
+        }
+
+        return slug.Trim('.');
+    }
+
+    private const string TestEmailDomain = "projectbrain.test";
+    private const string DefaultTestUserConnection = "Username-Password-Authentication";
+
+    private static readonly TestCoachDefinition[] TestCoachDefinitions =
+    [
+        new("Sarah Mitchell", "London", "United Kingdom", "SW1A 1AA", 51.5014, -0.1419),
+        new("James Okonkwo", "Manchester", "United Kingdom", "M1 1AD", 53.4808, -2.2426),
+        new("Elena Vasquez", "Birmingham", "United Kingdom", "B2 4QA", 52.4796, -1.9027),
+        new("Oliver Chen", "Leeds", "United Kingdom", "LS1 2TW", 53.7974, -1.5438),
+        new("Amelia Brooks", "Bristol", "United Kingdom", "BS1 4ST", 51.4545, -2.5920),
+        new("Noah Patel", "Edinburgh", "United Kingdom", "EH1 1BQ", 55.9533, -3.1883),
+        new("Isla Fraser", "Glasgow", "United Kingdom", "G2 3BZ", 55.8611, -4.2500),
+        new("Lucas Bergström", "Cardiff", "United Kingdom", "CF10 3AT", 51.4816, -3.1791),
+        new("Maya Singh", "Belfast", "United Kingdom", "BT1 5GS", 54.5969, -5.9263),
+        new("Ethan O'Connor", "Cambridge", "United Kingdom", "CB2 1RP", 52.2044, 0.1149),
+    ];
+
+    private sealed record TestCoachDefinition(
+        string FullName,
+        string City,
+        string Country,
+        string PostalCode,
+        double Latitude,
+        double Longitude);
 
     private async Task SeedSubscriptionTiersAsync(AppDbContext context, CancellationToken cancellationToken)
     {
@@ -375,21 +628,21 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             {
                 new()
                 {
-                    Name = "user",
+                    Name = AppRoles.User,
                     Description = "Standard user with access to basic features",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 },
                 new()
                 {
-                    Name = "coach",
+                    Name = AppRoles.Coach,
                     Description = "Coach user with access to coaching features and tools",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 },
                 new()
                 {
-                    Name = "admin",
+                    Name = AppRoles.Admin,
                     Description = "Administrator with full system access and management capabilities",
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow

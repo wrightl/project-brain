@@ -1,9 +1,15 @@
+import { AppRoles } from '@/_lib/roles';
+
+export type SubscriptionUserType =
+    | typeof AppRoles.User
+    | typeof AppRoles.Coach;
+
 export interface Auth0Resource {
     path: string;
     label: string;
 }
 
-export type UserRole = 'admin' | 'coach' | 'user';
+export type { UserRole } from '@/_lib/roles';
 
 export interface BaseUser {
     id: string; // TODO: Might need to remove this
@@ -337,6 +343,6 @@ export interface ClientWithConnectionStatus {
     user: User;
     connectionStatus: 'pending' | 'accepted';
     requestedAt: string;
-    requestedBy: 'user' | 'coach';
+    requestedBy: SubscriptionUserType;
     message?: string;
 }

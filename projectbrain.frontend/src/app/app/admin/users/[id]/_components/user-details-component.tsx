@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
-import { User } from '@/_lib/types';
+import { AppRoles } from '@/_lib/roles';
+import { SubscriptionUserType, User } from '@/_lib/types';
 import {
     ArrowLeftIcon,
     CheckCircleIcon,
@@ -31,7 +32,7 @@ interface SubscriptionData {
 
 interface UserUsageResponse {
     userId: string;
-    userType: 'user' | 'coach';
+    userType: SubscriptionUserType;
     tier: string;
     usage: {
         aiQueries: { daily: number; monthly: number };
@@ -123,7 +124,7 @@ export default function UserDetailsComponent({
     const handleAddExclusion = async () => {
         try {
             setExclusionLoading(true);
-            const userType = subscription?.userType || 'user';
+            const userType = subscription?.userType || AppRoles.User;
             const response = await fetchWithAuth(
                 `/api/admin/users/${userId}/subscription/exclusion`,
                 {
@@ -380,7 +381,7 @@ export default function UserDetailsComponent({
                                 Usage
                             </h3>
 
-                            {usageStats.userType === 'user' ? (
+                            {usageStats.userType === AppRoles.User ? (
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <UsagePieCard
                                         title="AI queries (daily)"

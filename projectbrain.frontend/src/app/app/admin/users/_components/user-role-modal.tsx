@@ -3,6 +3,7 @@
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 
 import { useState, useEffect } from 'react';
+import { ALL_APP_ROLES } from '@/_lib/roles';
 import { User, UserRole } from '@/_lib/types';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
@@ -13,7 +14,7 @@ interface UserRoleModalProps {
     onSave: () => void;
 }
 
-const availableRoles: UserRole[] = ['user', 'coach', 'admin'];
+const availableRoles: UserRole[] = ALL_APP_ROLES;
 
 export default function UserRoleModal({
     user,

@@ -1,6 +1,7 @@
 import { createApiRoute } from '@/_lib/api-route-handler';
 import { NextRequest } from 'next/server';
 import { callBackendApi } from '@/_lib/backend-api';
+import { AppRoles } from '@/_lib/roles';
 
 export const POST = createApiRoute(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
@@ -16,7 +17,7 @@ export const POST = createApiRoute(async (req: NextRequest) => {
     const unescapedId = decodeURIComponent(id);
 
     const body = await req.json();
-    const { userType = 'user', notes } = body;
+    const { userType = AppRoles.User, notes } = body;
 
     // Call backend API to add exclusion
     const response = await callBackendApi('/admin/subscriptions/exclusions', {

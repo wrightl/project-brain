@@ -14,7 +14,6 @@ permissions:
   id-token: write
   contents: read
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -40,6 +39,7 @@ jobs:
       AZURE_MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
       AZURE_PROJECTBRAIN_PASSWORD: ${{ secrets.SQL_PASSWORD }}
       AZURE_ADMIN_USER_PASSWORD: ${{ secrets.ADMIN_USER_PASSWORD }}
+      AZURE_TEST_USERS_PASSWORD: ${{ secrets.TEST_USERS_PASSWORD }}
       AZURE_AUTH0_CLIENTID: ${{ secrets.AUTH0_CLIENT_ID }}
       AZURE_GOOGLE_MAPS_GEOCODING_API_KEY: ${{ secrets.GOOGLE_MAPS_GEOCODING_API_KEY }}
       AZURE_AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
@@ -57,15 +57,14 @@ jobs:
       AZURE_OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
       AZURE_OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${{ inputs.deploy_environment }}
     steps:
-
       - name: Checkout
-        uses: actions/checkout@v4
-        
+        uses: actions/checkout@v6.0.3
+
       - name: Install azd
-        uses: Azure/setup-azd@v2.2.1
+        uses: Azure/setup-azd@v2.3.0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5.3.0
         with:
           dotnet-version: 10.0.x
 

@@ -1,6 +1,7 @@
 
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using System.Text;
@@ -107,7 +108,7 @@ public static class UserEndpoints
         else
         {
             // Assign the role provided in the request
-            user.Roles.Add("user");
+            user.Roles.Add(AppRoles.User);
         }
 
         // Update auth0
@@ -436,7 +437,7 @@ public static class UserEndpoints
         else
         {
             // Assign the role provided in the request
-            user.Roles.Add("coach");
+            user.Roles.Add(AppRoles.Coach);
         }
 
         // Update auth0
@@ -476,7 +477,7 @@ public static class UserEndpoints
         }
 
         // Check if user is a coach
-        var isCoach = user.Roles?.Any(r => string.Equals(r, "coach", StringComparison.OrdinalIgnoreCase)) ?? false;
+        var isCoach = user.Roles?.Any(r => string.Equals(r, AppRoles.Coach, StringComparison.OrdinalIgnoreCase)) ?? false;
 
         if (isCoach)
         {
@@ -612,7 +613,7 @@ public static class UserEndpoints
         }
 
         // Check if user is a coach
-        var isCoach = user.Roles?.Any(r => string.Equals(r, "coach", StringComparison.OrdinalIgnoreCase)) ?? false;
+        var isCoach = user.Roles?.Any(r => string.Equals(r, AppRoles.Coach, StringComparison.OrdinalIgnoreCase)) ?? false;
 
         // Get user profile to access preferences
         var userProfile = await services.UserProfileService.GetByUserId(userId);

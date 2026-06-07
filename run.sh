@@ -1,0 +1,1 @@
+dotnet watch run --project ./projectbrain.apphost/projectbrain.apphost.csproj --launch-profile https

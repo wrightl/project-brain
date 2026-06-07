@@ -1,6 +1,7 @@
 import { createApiRoute } from '@/_lib/api-route-handler';
 import { NextRequest } from 'next/server';
 import { callBackendApi } from '@/_lib/backend-api';
+import { AppRoles } from '@/_lib/roles';
 
 export const GET = createApiRoute(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
@@ -22,7 +23,7 @@ export const GET = createApiRoute(async (req: NextRequest) => {
             return Response.json({
                 tier: 'Free',
                 status: 'active',
-                userType: 'user',
+                userType: AppRoles.User,
                 isExcluded: false,
             });
         }

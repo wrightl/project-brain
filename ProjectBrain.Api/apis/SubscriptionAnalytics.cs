@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Domain;
 
 public class SubscriptionAnalyticsServices(
@@ -37,14 +38,14 @@ public static class SubscriptionAnalyticsEndpoints
         {
             var results = new Dictionary<string, int>();
             
-            if (string.IsNullOrEmpty(userType) || userType == "user")
+            if (string.IsNullOrEmpty(userType) || userType == AppRoles.User)
             {
-                results["user"] = await services.AnalyticsService.GetPaidSubscribersCountAsync("user", startDate, endDate);
+                results[AppRoles.User] = await services.AnalyticsService.GetPaidSubscribersCountAsync(AppRoles.User, startDate, endDate);
             }
             
-            if (string.IsNullOrEmpty(userType) || userType == "coach")
+            if (string.IsNullOrEmpty(userType) || userType == AppRoles.Coach)
             {
-                results["coach"] = await services.AnalyticsService.GetPaidSubscribersCountAsync("coach", startDate, endDate);
+                results[AppRoles.Coach] = await services.AnalyticsService.GetPaidSubscribersCountAsync(AppRoles.Coach, startDate, endDate);
             }
 
             return Results.Ok(results);
@@ -66,14 +67,14 @@ public static class SubscriptionAnalyticsEndpoints
         {
             var results = new Dictionary<string, int>();
             
-            if (string.IsNullOrEmpty(userType) || userType == "user")
+            if (string.IsNullOrEmpty(userType) || userType == AppRoles.User)
             {
-                results["user"] = await services.AnalyticsService.GetCancelledSubscriptionsCountAsync("user", startDate, endDate);
+                results[AppRoles.User] = await services.AnalyticsService.GetCancelledSubscriptionsCountAsync(AppRoles.User, startDate, endDate);
             }
             
-            if (string.IsNullOrEmpty(userType) || userType == "coach")
+            if (string.IsNullOrEmpty(userType) || userType == AppRoles.Coach)
             {
-                results["coach"] = await services.AnalyticsService.GetCancelledSubscriptionsCountAsync("coach", startDate, endDate);
+                results[AppRoles.Coach] = await services.AnalyticsService.GetCancelledSubscriptionsCountAsync(AppRoles.Coach, startDate, endDate);
             }
 
             return Results.Ok(results);
@@ -95,14 +96,14 @@ public static class SubscriptionAnalyticsEndpoints
         {
             var results = new Dictionary<string, int>();
             
-            if (string.IsNullOrEmpty(userType) || userType == "user")
+            if (string.IsNullOrEmpty(userType) || userType == AppRoles.User)
             {
-                results["user"] = await services.AnalyticsService.GetExpiredSubscriptionsCountAsync("user", startDate, endDate);
+                results[AppRoles.User] = await services.AnalyticsService.GetExpiredSubscriptionsCountAsync(AppRoles.User, startDate, endDate);
             }
             
-            if (string.IsNullOrEmpty(userType) || userType == "coach")
+            if (string.IsNullOrEmpty(userType) || userType == AppRoles.Coach)
             {
-                results["coach"] = await services.AnalyticsService.GetExpiredSubscriptionsCountAsync("coach", startDate, endDate);
+                results[AppRoles.Coach] = await services.AnalyticsService.GetExpiredSubscriptionsCountAsync(AppRoles.Coach, startDate, endDate);
             }
 
             return Results.Ok(results);

@@ -2,6 +2,7 @@ import dynamicImport from 'next/dynamic';
 import { RoleGuard } from '@/_components/auth/role-guard';
 import { SkeletonCard } from '@/_components/ui/skeleton';
 
+import { AppRoles } from '@/_lib/roles';
 const ChatInterface = dynamicImport(
     () => import('./_components/chat-interface'),
     {
@@ -15,7 +16,7 @@ const ChatInterface = dynamicImport(
 
 export default function ChatPage() {
     return (
-        <RoleGuard allowedRoles={['user']}>
+        <RoleGuard allowedRoles={[AppRoles.User]}>
             <div className="h-full w-full flex flex-col bg-gray-50">
                 <ChatInterface />
             </div>

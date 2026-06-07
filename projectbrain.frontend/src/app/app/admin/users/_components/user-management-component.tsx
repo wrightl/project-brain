@@ -1,5 +1,6 @@
 'use client';
 
+import { AppRoles } from '@/_lib/roles';
 import { User, UserRole } from '@/_lib/types';
 import { useEffect, useState } from 'react';
 import {
@@ -182,9 +183,9 @@ export default function UserManagementComponent() {
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                         >
                             <option value="">All Roles</option>
-                            <option value="user">User</option>
-                            <option value="coach">Coach</option>
-                            <option value="admin">Admin</option>
+                            <option value={AppRoles.User}>User</option>
+                            <option value={AppRoles.Coach}>Coach</option>
+                            <option value={AppRoles.Admin}>Admin</option>
                         </select>
                     </div>
                     <div>

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Database.Constants;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.Database.Models;
 
@@ -223,7 +224,7 @@ public class DevelopmentDataSeeder(AppDbContext context, ILogger<DevelopmentData
                     UserId = clientUser.Id,
                     CoachId = coachUserId,
                     Status = "accepted",
-                    RequestedBy = "user",
+                    RequestedBy = AppRoles.User,
                     Message = "Sample connection request",
                     RequestedAt = DateTime.UtcNow.AddDays(-1),
                     RespondedAt = DateTime.UtcNow,

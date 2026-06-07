@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 using FluentAssertions;
+using ProjectBrain.Database.Constants;
 
 namespace ProjectBrain.Database.Tests;
 
@@ -28,21 +29,21 @@ public class RoleSeedingTests : IDisposable
         {
             new()
             {
-                Name = "User",
+                Name = AppRoles.User,
                 Description = "Standard user with access to basic features",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
             new()
             {
-                Name = "Coach",
+                Name = AppRoles.Coach,
                 Description = "Coach user with access to coaching features and tools",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             },
             new()
             {
-                Name = "Admin",
+                Name = AppRoles.Admin,
                 Description = "Administrator with full system access and management capabilities",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -58,9 +59,9 @@ public class RoleSeedingTests : IDisposable
         savedRoles.Should().HaveCount(3);
 
         var roleNames = savedRoles.Select(r => r.Name).ToList();
-        roleNames.Should().Contain("User");
-        roleNames.Should().Contain("Coach");
-        roleNames.Should().Contain("Admin");
+        roleNames.Should().Contain(AppRoles.User);
+        roleNames.Should().Contain(AppRoles.Coach);
+        roleNames.Should().Contain(AppRoles.Admin);
     }
 
     [Fact]
@@ -71,9 +72,9 @@ public class RoleSeedingTests : IDisposable
         {
             var roles = new List<Role>
             {
-                new() { Name = "User", Description = "Standard user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { Name = "Coach", Description = "Coach user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { Name = "Admin", Description = "Administrator", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+                new() { Name = AppRoles.User, Description = "Standard user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { Name = AppRoles.Coach, Description = "Coach user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { Name = AppRoles.Admin, Description = "Administrator", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
             };
             await _context.Roles.AddRangeAsync(roles);
             await _context.SaveChangesAsync();
@@ -86,9 +87,9 @@ public class RoleSeedingTests : IDisposable
         {
             var roles = new List<Role>
             {
-                new() { Name = "User", Description = "Standard user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { Name = "Coach", Description = "Coach user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { Name = "Admin", Description = "Administrator", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+                new() { Name = AppRoles.User, Description = "Standard user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { Name = AppRoles.Coach, Description = "Coach user", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { Name = AppRoles.Admin, Description = "Administrator", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
             };
             await _context.Roles.AddRangeAsync(roles);
             await _context.SaveChangesAsync();
@@ -106,7 +107,7 @@ public class RoleSeedingTests : IDisposable
         // Arrange & Act
         var role = new Role
         {
-            Name = "User",
+            Name = AppRoles.User,
             Description = "Standard user with access to basic features",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -115,9 +116,9 @@ public class RoleSeedingTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Assert
-        var userRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "User");
+        var userRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == AppRoles.User);
         userRole.Should().NotBeNull();
-        userRole!.Name.Should().Be("User");
+        userRole!.Name.Should().Be(AppRoles.User);
         userRole.Description.Should().Contain("Standard user");
         userRole.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
         userRole.UpdatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
@@ -129,7 +130,7 @@ public class RoleSeedingTests : IDisposable
         // Arrange & Act
         var role = new Role
         {
-            Name = "Coach",
+            Name = AppRoles.Coach,
             Description = "Coach user with access to coaching features and tools",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -138,9 +139,9 @@ public class RoleSeedingTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Assert
-        var coachRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Coach");
+        var coachRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == AppRoles.Coach);
         coachRole.Should().NotBeNull();
-        coachRole!.Name.Should().Be("Coach");
+        coachRole!.Name.Should().Be(AppRoles.Coach);
         coachRole.Description.Should().Contain("Coach");
     }
 
@@ -150,7 +151,7 @@ public class RoleSeedingTests : IDisposable
         // Arrange & Act
         var role = new Role
         {
-            Name = "Admin",
+            Name = AppRoles.Admin,
             Description = "Administrator with full system access and management capabilities",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -159,9 +160,9 @@ public class RoleSeedingTests : IDisposable
         await _context.SaveChangesAsync();
 
         // Assert
-        var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Admin");
+        var adminRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == AppRoles.Admin);
         adminRole.Should().NotBeNull();
-        adminRole!.Name.Should().Be("Admin");
+        adminRole!.Name.Should().Be(AppRoles.Admin);
         adminRole.Description.Should().Contain("Administrator");
     }
 

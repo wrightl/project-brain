@@ -5,15 +5,17 @@ import FindCoachesClient from '../find-coaches-client';
 import type { Coach } from '@/_lib/types';
 
 const mockPush = jest.fn();
-const mockReplace = jest.fn();
-const mockSearchParams = new URLSearchParams('restore=1');
+let mockCurrentSearchParams = new URLSearchParams('restore=1');
+const mockReplace = jest.fn(() => {
+    mockCurrentSearchParams = new URLSearchParams();
+});
 
 jest.mock('next/navigation', () => ({
     useRouter: () => ({
         push: mockPush,
         replace: mockReplace,
     }),
-    useSearchParams: () => mockSearchParams,
+    useSearchParams: () => mockCurrentSearchParams,
 }));
 
 jest.mock('@/_components/location/country-combobox', () => ({
@@ -82,6 +84,7 @@ describe('FindCoachesClient', () => {
     beforeEach(() => {
         mockPush.mockClear();
         mockReplace.mockClear();
+        mockCurrentSearchParams = new URLSearchParams('restore=1');
         sessionStorage.clear();
     });
 

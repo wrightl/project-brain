@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Coach } from '@/_lib/types';
 import { apiClient } from '@/_lib/api-client';
+import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import { CountryCombobox } from '@/_components/location/country-combobox';
 import { CityCombobox } from '@/_components/location/city-combobox';
 import type { CityOption, CountryOption } from '@/_lib/location-types';
@@ -42,9 +43,50 @@ export default function CoachProfileForm({
     );
     const [selectedCity, setSelectedCity] = useState<CityOption | null>(null);
 
+    const [availableSpecialisms, setAvailableSpecialisms] = useState<string[]>(
+        [],
+    );
+    const [specialismsLoading, setSpecialismsLoading] = useState(true);
+    const [specialismsLoadError, setSpecialismsLoadError] = useState<
+        string | null
+    >(null);
+
     const [newQualification, setNewQualification] = useState('');
-    const [newSpecialism, setNewSpecialism] = useState('');
     const [newAgeGroup, setNewAgeGroup] = useState('');
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadSpecialisms() {
+            try {
+                const response = await fetchWithAuth('/api/coaches/specialisms');
+                if (!response.ok) {
+                    throw new Error('Failed to load specialisms');
+                }
+                const data = (await response.json()) as string[];
+                if (!cancelled) {
+                    setAvailableSpecialisms(data);
+                    setSpecialismsLoadError(null);
+                }
+            } catch {
+                if (!cancelled) {
+                    setSpecialismsLoadError(
+                        'Failed to load specialisms. Please refresh and try again.',
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setSpecialismsLoading(false);
+                }
+            }
+        }
+
+        void loadSpecialisms();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         setCoach(initialCoach);
@@ -142,25 +184,24 @@ export default function CoachProfileForm({
         }));
     };
 
-    const addSpecialism = () => {
-        if (
-            newSpecialism.trim() &&
-            !formData.specialisms.includes(newSpecialism.trim())
-        ) {
-            setFormData((prev) => ({
+    const toggleSpecialism = (specialism: string) => {
+        setFormData((prev) => {
+            const isSelected = prev.specialisms.includes(specialism);
+            return {
                 ...prev,
-                specialisms: [...prev.specialisms, newSpecialism.trim()],
-            }));
-            setNewSpecialism('');
-        }
+                specialisms: isSelected
+                    ? prev.specialisms.filter((s) => s !== specialism)
+                    : [...prev.specialisms, specialism],
+            };
+        });
     };
 
-    const removeSpecialism = (spec: string) => {
-        setFormData((prev) => ({
-            ...prev,
-            specialisms: prev.specialisms.filter((s) => s !== spec),
-        }));
-    };
+    const legacySpecialisms =
+        availableSpecialisms.length > 0
+            ? (coach.specialisms || []).filter(
+                  (s) => !availableSpecialisms.includes(s),
+              )
+            : [];
 
     const addAgeGroup = () => {
         if (
@@ -189,6 +230,13 @@ export default function CoachProfileForm({
         setIsSubmitting(true);
 
         try {
+            const validSpecialisms =
+                availableSpecialisms.length > 0
+                    ? formData.specialisms.filter((s) =>
+                          availableSpecialisms.includes(s),
+                      )
+                    : formData.specialisms;
+
             const updatedCoach = await apiClient<Coach>(
                 `/api/coaches/me/${coach.id}`,
                 {
@@ -208,8 +256,8 @@ export default function CoachProfileForm({
                                 ? formData.qualifications
                                 : undefined,
                         specialisms:
-                            formData.specialisms.length > 0
-                                ? formData.specialisms
+                            validSpecialisms.length > 0
+                                ? validSpecialisms
                                 : undefined,
                         ageGroups:
                             formData.ageGroups.length > 0
@@ -553,47 +601,62 @@ export default function CoachProfileForm({
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Specialisms
                         </label>
-                        <div className="flex gap-2 mb-2">
-                            <input
-                                type="text"
-                                value={newSpecialism}
-                                onChange={(e) =>
-                                    setNewSpecialism(e.target.value)
-                                }
-                                onKeyPress={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        addSpecialism();
-                                    }
-                                }}
-                                placeholder="Add a specialism"
-                                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            />
-                            <button
-                                type="button"
-                                onClick={addSpecialism}
-                                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700"
-                            >
-                                Add
-                            </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {formData.specialisms.map((spec, index) => (
-                                <span
-                                    key={index}
-                                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
-                                >
-                                    {spec}
-                                    <button
-                                        type="button"
-                                        onClick={() => removeSpecialism(spec)}
-                                        className="ml-2 text-green-600 hover:text-green-800"
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Select your coaching specialisms from the list
+                            below.
+                        </p>
+
+                        {specialismsLoading && (
+                            <p className="text-sm text-gray-500">
+                                Loading specialisms...
+                            </p>
+                        )}
+
+                        {specialismsLoadError && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm mb-3">
+                                {specialismsLoadError}
+                            </div>
+                        )}
+
+                        {!specialismsLoading && !specialismsLoadError && (
+                            <div className="flex flex-wrap gap-3">
+                                {availableSpecialisms.map((specialism) => {
+                                    const isSelected =
+                                        formData.specialisms.includes(
+                                            specialism,
+                                        );
+                                    return (
+                                        <button
+                                            key={specialism}
+                                            type="button"
+                                            onClick={() =>
+                                                toggleSpecialism(specialism)
+                                            }
+                                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                                                isSelected
+                                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            {specialism}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {legacySpecialisms.length > 0 && (
+                            <div className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                                <p className="font-medium">
+                                    Outdated specialisms on your profile
+                                </p>
+                                <p className="mt-1">
+                                    {legacySpecialisms.join(', ')} — these are
+                                    no longer in the catalog and will be
+                                    removed when you save.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     <div className="sm:col-span-2">

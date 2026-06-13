@@ -84,6 +84,8 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         await SeedAchievementsAsync(context, cancellationToken);
 
         await SeedSystemTagsAsync(context, cancellationToken);
+
+        await SeedCoachSpecialismOptionsAsync(context, cancellationToken);
     }
 
     private async Task SeedAchievementsAsync(AppDbContext context, CancellationToken cancellationToken)
@@ -695,6 +697,42 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         else
         {
             logger.LogInformation("Roles already exist, skipping seed");
+        }
+    }
+
+    private async Task SeedCoachSpecialismOptionsAsync(AppDbContext context, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Ensuring coach specialism options exist...");
+
+        var existingNames = await context.CoachSpecialismOptions
+            .Select(o => o.Name)
+            .ToListAsync(cancellationToken);
+        var existingSet = existingNames.ToHashSet(StringComparer.Ordinal);
+
+        var toAdd = new List<CoachSpecialismOption>();
+        for (var i = 0; i < CoachSpecialismCatalog.DefaultOptions.Count; i++)
+        {
+            var name = CoachSpecialismCatalog.DefaultOptions[i];
+            if (!existingSet.Contains(name))
+            {
+                toAdd.Add(new CoachSpecialismOption
+                {
+                    Name = name,
+                    SortOrder = i + 1,
+                    IsActive = true,
+                });
+            }
+        }
+
+        if (toAdd.Count > 0)
+        {
+            await context.CoachSpecialismOptions.AddRangeAsync(toAdd, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Seeded {Count} coach specialism options", toAdd.Count);
+        }
+        else
+        {
+            logger.LogInformation("Coach specialism options already up to date");
         }
     }
 

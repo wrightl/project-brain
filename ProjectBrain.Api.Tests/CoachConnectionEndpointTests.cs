@@ -25,6 +25,7 @@ public class CoachConnectionEndpointTests
     private readonly Mock<ICoachRatingService> _mockCoachRatingService = new();
     private readonly Mock<IGeocodingService> _mockGeocodingService = new();
     private readonly Mock<IFakeCoachAutoAcceptService> _mockFakeCoachAutoAcceptService = new();
+    private readonly Mock<ICoachSpecialismOptionService> _mockCoachSpecialismOptionService = new();
     private readonly IConfiguration _configuration;
     private readonly CoachServices _coachServices;
 
@@ -59,6 +60,7 @@ public class CoachConnectionEndpointTests
             _mockCoachRatingService.Object,
             _mockGeocodingService.Object,
             _mockFakeCoachAutoAcceptService.Object,
+            _mockCoachSpecialismOptionService.Object,
             _configuration);
     }
 

@@ -269,6 +269,14 @@ Test coaches are created with real UK postcodes and latitude/longitude (one per 
 - Log in with the **Username-Password-Authentication** connection using the shared test password.
 - Re-run locally without restart: `POST /dev/seed/test-users` (Development only).
 
+When `FakeCoachAutoReply:Enabled` is `true` (local dev via `appsettings.Development.json`; staging via GitHub var `FAKE_COACH_AUTO_REPLY_ENABLED`), fake coaches (`@projectbrain.test`) also:
+
+- Auto-accept connection requests immediately
+- Appear always online/available in coach search
+- Auto-reply to user messages on accepted connections
+
+Set `FakeCoachAutoReply:Enabled` to `false` in production configuration to disable this behavior.
+
 ## Auth0 and configuration
 
 - **Backend:** JWT Bearer validation; Auth0 domain/audience and parameters come from configuration (e.g. App Host parameters, `appsettings`, or `azd` env).

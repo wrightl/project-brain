@@ -26,6 +26,7 @@ public class CoachServices(
     ICoachRatingService coachRatingService,
     IGeocodingService geocodingService,
     IFakeCoachAutoAcceptService fakeCoachAutoAcceptService,
+    ICoachSpecialismOptionService coachSpecialismOptionService,
     IConfiguration configuration)
 {
     public ILogger<CoachServices> Logger { get; } = logger;
@@ -42,6 +43,7 @@ public class CoachServices(
     public ICoachRatingService CoachRatingService { get; } = coachRatingService;
     public IGeocodingService GeocodingService { get; } = geocodingService;
     public IFakeCoachAutoAcceptService FakeCoachAutoAcceptService { get; } = fakeCoachAutoAcceptService;
+    public ICoachSpecialismOptionService CoachSpecialismOptionService { get; } = coachSpecialismOptionService;
     public IConfiguration Configuration { get; } = configuration;
 }
 
@@ -52,6 +54,7 @@ public static class CoachEndpoints
         var group = app.MapGroup("coaches").RequireAuthorization();
 
         group.MapGet("/search", SearchCoaches).WithName("SearchCoaches");
+        group.MapGet("/specialisms", GetCoachSpecialisms).WithName("GetCoachSpecialisms");
         group.MapGet("/connected", GetConnectedCoaches).WithName("GetConnectedCoaches");
         group.MapGet("/clients", GetConnectedClients).WithName("GetConnectedClients").RequireAuthorization("CoachOnly");
         group.MapPost("/clients/{userId}/accept", AcceptClientConnection).WithName("AcceptClientConnection").RequireAuthorization("CoachOnly");
@@ -319,6 +322,13 @@ public static class CoachEndpoints
                 detail: "An error occurred while accepting the connection",
                 statusCode: 500);
         }
+    }
+
+    private static async Task<IResult> GetCoachSpecialisms(
+        [AsParameters] CoachServices services)
+    {
+        var specialisms = await services.CoachSpecialismOptionService.GetActiveNamesAsync();
+        return Results.Ok(specialisms);
     }
 
     private static async Task<IResult> SearchCoaches(

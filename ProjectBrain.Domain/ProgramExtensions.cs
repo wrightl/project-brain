@@ -34,6 +34,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
         builder.Services.AddScoped<ICoachProfileRepository, CoachProfileRepository>();
+        builder.Services.AddScoped<ICoachSpecialismOptionRepository, CoachSpecialismOptionRepository>();
         builder.Services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
         builder.Services.AddScoped<ITagRepository, TagRepository>();
         builder.Services.AddScoped<ISystemTagRepository, SystemTagRepository>();
@@ -59,6 +60,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IConversationService, ConversationService>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
         builder.Services.AddScoped<ICoachProfileService, CoachProfileService>();
+        builder.Services.AddScoped<ICoachSpecialismOptionService, CoachSpecialismOptionService>();
         builder.Services.AddScoped<IUserProfileService, UserProfileService>();
         builder.Services.AddScoped<IConnectionService, ConnectionService>();
         builder.Services.AddScoped<IVoiceNoteService, VoiceNoteService>();

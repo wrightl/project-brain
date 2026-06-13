@@ -10,12 +10,18 @@ public class CoachProfileService : ICoachProfileService
     private readonly ICoachProfileRepository _repository;
     private readonly AppDbContext _context;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICoachSpecialismOptionService _coachSpecialismOptionService;
 
-    public CoachProfileService(ICoachProfileRepository repository, AppDbContext context, IUnitOfWork unitOfWork)
+    public CoachProfileService(
+        ICoachProfileRepository repository,
+        AppDbContext context,
+        IUnitOfWork unitOfWork,
+        ICoachSpecialismOptionService coachSpecialismOptionService)
     {
         _repository = repository;
         _context = context;
         _unitOfWork = unitOfWork;
+        _coachSpecialismOptionService = coachSpecialismOptionService;
     }
 
     public async Task<CoachProfile?> GetById(int id)
@@ -41,6 +47,8 @@ public class CoachProfileService : ICoachProfileService
         string? bio = null,
         string? imageUrl = null)
     {
+        await _coachSpecialismOptionService.ValidateSpecialismsAsync(specialisms);
+
         var existingProfile = await GetByUserId(userId);
 
         if (existingProfile == null)

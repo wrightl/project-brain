@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CoachOnboardingData } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
@@ -29,6 +29,47 @@ export default function CoachOnboardingWizard({
     const [currentStep, setCurrentStep] = useState<WizardStep>('basic');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [availableSpecialisms, setAvailableSpecialisms] = useState<string[]>(
+        []
+    );
+    const [specialismsLoading, setSpecialismsLoading] = useState(true);
+    const [specialismsLoadError, setSpecialismsLoadError] = useState<
+        string | null
+    >(null);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function loadSpecialisms() {
+            try {
+                const response = await fetchWithAuth('/api/coaches/specialisms');
+                if (!response.ok) {
+                    throw new Error('Failed to load specialisms');
+                }
+                const data = (await response.json()) as string[];
+                if (!cancelled) {
+                    setAvailableSpecialisms(data);
+                    setSpecialismsLoadError(null);
+                }
+            } catch {
+                if (!cancelled) {
+                    setSpecialismsLoadError(
+                        'Failed to load specialisms. Please refresh and try again.'
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setSpecialismsLoading(false);
+                }
+            }
+        }
+
+        void loadSpecialisms();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const [formData, setFormData] = useState({
         email: userEmail,
@@ -216,6 +257,9 @@ export default function CoachOnboardingWizard({
                 {currentStep === 'specialisms' && (
                     <SpecialismsStep
                         formData={formData}
+                        availableSpecialisms={availableSpecialisms}
+                        isLoading={specialismsLoading}
+                        loadError={specialismsLoadError}
                         updateFormData={updateFormData}
                     />
                 )}

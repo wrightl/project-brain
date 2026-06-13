@@ -37,6 +37,17 @@ export class CoachService {
     }
 
     /**
+     * Get the catalog of coach specialism options
+     */
+    static async getSpecialisms(): Promise<string[]> {
+        const response = await callBackendApi('/coaches/specialisms');
+        if (!response.ok) {
+            throw new Error('Failed to fetch coach specialisms');
+        }
+        return response.json();
+    }
+
+    /**
      * Search for coaches based on location, age groups, and specialisms
      */
     static async searchCoaches(params: CoachSearchParams): Promise<Coach[]> {

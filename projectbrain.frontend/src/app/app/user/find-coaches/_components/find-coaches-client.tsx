@@ -1,37 +1,37 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
     MagnifyingGlassIcon,
     MapPinIcon,
     UserGroupIcon,
     AcademicCapIcon,
-} from '@heroicons/react/24/outline';
-import { CheckIcon } from '@heroicons/react/24/solid';
-import { Coach, CoachSearchParams, SubscriptionUserType } from '@/_lib/types';
-import { fetchWithAuth } from '@/_lib/fetch-with-auth';
-import AvailabilityBadge from '@/_components/coach/availability-badge';
-import StarRating from '@/_components/coach/star-rating';
-import { CountryCombobox } from '@/_components/location/country-combobox';
-import { CityCombobox } from '@/_components/location/city-combobox';
-import type { CityOption, CountryOption } from '@/_lib/location-types';
-import { CoachResultsMap } from '@/_components/maps/coach-results-map';
+} from "@heroicons/react/24/outline";
+import { CheckIcon } from "@heroicons/react/24/solid";
+import { Coach, CoachSearchParams, SubscriptionUserType } from "@/_lib/types";
+import { fetchWithAuth } from "@/_lib/fetch-with-auth";
+import AvailabilityBadge from "@/_components/coach/availability-badge";
+import StarRating from "@/_components/coach/star-rating";
+import { CountryCombobox } from "@/_components/location/country-combobox";
+import { CityCombobox } from "@/_components/location/city-combobox";
+import type { CityOption, CountryOption } from "@/_lib/location-types";
+import { CoachResultsMap } from "@/_components/maps/coach-results-map";
 
 interface ConnectionStatus {
-    status: 'none' | 'pending' | 'connected';
+    status: "none" | "pending" | "connected";
     connectionId?: string;
     requestedAt?: string;
     respondedAt?: string;
     requestedBy?: SubscriptionUserType;
 }
 
-const FIND_COACHES_SEARCH_STATE_KEY = 'projectbrain.findCoachesSearchState.v1';
+const FIND_COACHES_SEARCH_STATE_KEY = "projectbrain.findCoachesSearchState.v1";
 const FIND_COACHES_SEARCH_STATE_TTL_MS = 1000 * 60 * 60; // 1 hour
 
 function getFilterChipClassName(isSelected: boolean): string {
     const base =
-        'inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2';
+        "inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2";
     return isSelected
         ? `${base} border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm`
         : `${base} border-gray-300 bg-gray-50 text-gray-700 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600`;
@@ -63,9 +63,9 @@ export default function FindCoachesClient({
     const urlSearchParams = useSearchParams();
 
     const [searchParams, setSearchParams] = useState<CoachSearchParams>({
-        country: defaultCountryName || '',
-        city: '',
-        stateProvince: '',
+        country: defaultCountryName || "",
+        city: "",
+        stateProvince: "",
         ageGroups: [],
         specialisms: [],
     });
@@ -76,9 +76,9 @@ export default function FindCoachesClient({
 
     const hasUserLocation = useMemo(() => {
         return (
-            typeof userLatitude === 'number' &&
+            typeof userLatitude === "number" &&
             Number.isFinite(userLatitude) &&
-            typeof userLongitude === 'number' &&
+            typeof userLongitude === "number" &&
             Number.isFinite(userLongitude)
         );
     }, [userLatitude, userLongitude]);
@@ -97,13 +97,18 @@ export default function FindCoachesClient({
     const [highlightedCoachId, setHighlightedCoachId] = useState<string | null>(
         null,
     );
+    const [availableSpecialisms, setAvailableSpecialisms] = useState<string[]>(
+        [],
+    );
+    const [specialismsLoading, setSpecialismsLoading] = useState(true);
+
     const [connectionStatuses, setConnectionStatuses] = useState<
         Record<string, ConnectionStatus>
     >({});
     const [connectingCoaches, setConnectingCoaches] = useState<Set<string>>(
         new Set(),
     );
-    const [resultsView, setResultsView] = useState<'list' | 'map'>('list');
+    const [resultsView, setResultsView] = useState<"list" | "map">("list");
 
     const persistSearchState = (
         override?: Partial<PersistedFindCoachesState>,
@@ -132,7 +137,7 @@ export default function FindCoachesClient({
     };
 
     useEffect(() => {
-        const restore = urlSearchParams.get('restore') === '1';
+        const restore = urlSearchParams.get("restore") === "1";
         if (!restore) return;
 
         try {
@@ -164,7 +169,7 @@ export default function FindCoachesClient({
             setCoaches(parsed.coaches);
             setConnectionStatuses(parsed.connectionStatuses);
             setHasSearched(true);
-            setResultsView('list');
+            setResultsView("list");
             setHighlightedCoachId(parsed.highlightedCoachId);
 
             if (parsed.highlightedCoachId) {
@@ -172,12 +177,12 @@ export default function FindCoachesClient({
                     const el = document.getElementById(
                         `coach-${parsed.highlightedCoachId}`,
                     );
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el?.scrollIntoView({ behavior: "smooth", block: "center" });
                 }, 0);
             }
 
             // Clean up URL so refresh doesn't keep restoring forever
-            router.replace('/app/user/find-coaches');
+            router.replace("/app/user/find-coaches");
         } catch {
             // ignore parse failures
         }
@@ -205,29 +210,44 @@ export default function FindCoachesClient({
         }
     }, [selectedCity, useMyLocation]);
 
-    // Common age groups and specialisms (you may want to make these dynamic)
-    const commonAgeGroups = [
-        'Children (5-12)',
-        'Teens (13-17)',
-        'Young Adults (18-25)',
-        'Adults (26-40)',
-        'Middle-aged (41-60)',
-        'Seniors (60+)',
-    ];
+    useEffect(() => {
+        let cancelled = false;
 
-    const commonSpecialisms = [
-        'ADHD',
-        'Autism',
-        'Dyslexia',
-        'Anxiety',
-        'Depression',
-        'Executive Functioning',
-        'Social Skills',
-        'Learning Disabilities',
-        'Behavioral Issues',
-        'Career Coaching',
-        'Life Coaching',
-        'Academic Support',
+        async function loadSpecialisms() {
+            try {
+                const response = await fetchWithAuth("/api/coaches/specialisms");
+                if (!response.ok) {
+                    throw new Error("Failed to load specialisms");
+                }
+                const data = (await response.json()) as string[];
+                if (!cancelled) {
+                    setAvailableSpecialisms(data);
+                }
+            } catch {
+                if (!cancelled) {
+                    setAvailableSpecialisms([]);
+                }
+            } finally {
+                if (!cancelled) {
+                    setSpecialismsLoading(false);
+                }
+            }
+        }
+
+        void loadSpecialisms();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const commonAgeGroups = [
+        "Children (5-12)",
+        "Teens (13-17)",
+        "Young Adults (18-25)",
+        "Adults (26-40)",
+        "Middle-aged (41-60)",
+        "Seniors (60+)",
     ];
 
     const handleSearch = async (e: React.FormEvent) => {
@@ -242,23 +262,23 @@ export default function FindCoachesClient({
 
             // Geo search mode: either My Location, or a chosen city center + distance.
             if (useMyLocation) {
-                queryParams.append('useMyLocation', 'true');
-                queryParams.append('distanceMiles', String(distanceMiles));
+                queryParams.append("useMyLocation", "true");
+                queryParams.append("distanceMiles", String(distanceMiles));
             } else if (searchCenter && Number.isFinite(distanceMiles)) {
-                queryParams.append('latitude', String(searchCenter.latitude));
-                queryParams.append('longitude', String(searchCenter.longitude));
-                queryParams.append('distanceMiles', String(distanceMiles));
+                queryParams.append("latitude", String(searchCenter.latitude));
+                queryParams.append("longitude", String(searchCenter.longitude));
+                queryParams.append("distanceMiles", String(distanceMiles));
             } else {
                 // Fallback: string-based location search.
                 if (searchParams.country) {
-                    queryParams.append('country', searchParams.country);
+                    queryParams.append("country", searchParams.country);
                 }
                 if (searchParams.city) {
-                    queryParams.append('city', searchParams.city);
+                    queryParams.append("city", searchParams.city);
                 }
                 if (searchParams.stateProvince) {
                     queryParams.append(
-                        'stateProvince',
+                        "stateProvince",
                         searchParams.stateProvince,
                     );
                 }
@@ -266,7 +286,7 @@ export default function FindCoachesClient({
 
             if (searchParams.ageGroups && searchParams.ageGroups.length > 0) {
                 searchParams.ageGroups.forEach((ag) => {
-                    queryParams.append('ageGroups', ag);
+                    queryParams.append("ageGroups", ag);
                 });
             }
             if (
@@ -274,13 +294,13 @@ export default function FindCoachesClient({
                 searchParams.specialisms.length > 0
             ) {
                 searchParams.specialisms.forEach((s) => {
-                    queryParams.append('specialisms', s);
+                    queryParams.append("specialisms", s);
                 });
             }
 
             const queryString = queryParams.toString();
             const response = await fetchWithAuth(
-                `/api/coaches/search${queryString ? `?${queryString}` : ''}`,
+                `/api/coaches/search${queryString ? `?${queryString}` : ""}`,
             );
 
             if (!response.ok) {
@@ -313,7 +333,7 @@ export default function FindCoachesClient({
                 }
                 return {
                     coachId: coach.coachProfileId,
-                    status: { status: 'none' as const },
+                    status: { status: "none" as const },
                 };
             });
 
@@ -330,7 +350,7 @@ export default function FindCoachesClient({
             });
         } catch (err) {
             setError(
-                err instanceof Error ? err.message : 'Failed to search coaches',
+                err instanceof Error ? err.message : "Failed to search coaches",
             );
             setCoaches([]);
         } finally {
@@ -345,7 +365,7 @@ export default function FindCoachesClient({
         } else {
             // Fallback: if connection ID is not available, try to get it
             console.error(
-                'Connection ID not available for coach:',
+                "Connection ID not available for coach:",
                 coach.coachProfileId,
             );
         }
@@ -359,9 +379,9 @@ export default function FindCoachesClient({
             const response = await fetchWithAuth(
                 `/api/coaches/${coach.coachProfileId}/connections`,
                 {
-                    method: 'POST',
+                    method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
+                        "Content-Type": "application/json",
                     },
                 },
             );
@@ -370,13 +390,13 @@ export default function FindCoachesClient({
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(
                     errorData.error?.message ||
-                        'Failed to send connection request',
+                        "Failed to send connection request",
                 );
             }
 
             const data = await response.json();
             const status =
-                data.status === 'connected' ? 'connected' : 'pending';
+                data.status === "connected" ? "connected" : "pending";
             setConnectionStatuses((prev) => ({
                 ...prev,
                 [coach.coachProfileId]: { status },
@@ -385,7 +405,7 @@ export default function FindCoachesClient({
             setError(
                 err instanceof Error
                     ? err.message
-                    : 'Failed to send connection request',
+                    : "Failed to send connection request",
             );
         } finally {
             setConnectingCoaches((prev) => {
@@ -398,7 +418,7 @@ export default function FindCoachesClient({
 
     // Helper function to check if coach is online and available
     const isCoachOnlineAndAvailable = (coach: Coach): boolean => {
-        if (coach.availabilityStatus !== 'Available') {
+        if (coach.availabilityStatus !== "Available") {
             return false;
         }
 
@@ -439,8 +459,8 @@ export default function FindCoachesClient({
         setSearchCenter(null);
         setSearchParams((prev) => ({
             ...prev,
-            country: country?.name || '',
-            city: '',
+            country: country?.name || "",
+            city: "",
         }));
     };
 
@@ -454,16 +474,16 @@ export default function FindCoachesClient({
         );
         setSearchParams((prev) => ({
             ...prev,
-            city: city?.city || '',
+            city: city?.city || "",
             stateProvince: city?.stateProvince || prev.stateProvince,
         }));
     };
 
     const coachesWithCoords = coaches.filter(
         (c) =>
-            typeof c.latitude === 'number' &&
+            typeof c.latitude === "number" &&
             Number.isFinite(c.latitude) &&
-            typeof c.longitude === 'number' &&
+            typeof c.longitude === "number" &&
             Number.isFinite(c.longitude),
     );
 
@@ -540,8 +560,8 @@ export default function FindCoachesClient({
                                     }
                                     className={`mt-1 block w-full rounded-md border-gray-300 bg-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
                                         !searchCenter
-                                            ? 'bg-gray-50 cursor-not-allowed'
-                                            : ''
+                                            ? "bg-gray-50 cursor-not-allowed"
+                                            : ""
                                     }`}
                                 >
                                     <option value={5}>5 miles</option>
@@ -559,7 +579,7 @@ export default function FindCoachesClient({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             {/* Country first (per requirements) */}
                             <div>
                                 <CountryCombobox
@@ -573,7 +593,7 @@ export default function FindCoachesClient({
                             </div>
                             <div>
                                 <CityCombobox
-                                    key={selectedCountry?.code || 'no-country'}
+                                    key={selectedCountry?.code || "no-country"}
                                     id="city"
                                     label="City"
                                     countryCode={selectedCountry?.code || null}
@@ -582,7 +602,7 @@ export default function FindCoachesClient({
                                     disabled={useMyLocation}
                                 />
                             </div>
-                            <div>
+                            {/* <div>
                                 <label
                                     htmlFor="stateProvince"
                                     className="block text-sm font-medium text-gray-700"
@@ -592,7 +612,7 @@ export default function FindCoachesClient({
                                 <input
                                     type="text"
                                     id="stateProvince"
-                                    value={searchParams.stateProvince || ''}
+                                    value={searchParams.stateProvince || ""}
                                     disabled={useMyLocation}
                                     onChange={(e) =>
                                         setSearchParams((prev) => ({
@@ -603,11 +623,57 @@ export default function FindCoachesClient({
                                     placeholder="Enter state/province"
                                     className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
                                         useMyLocation
-                                            ? 'bg-gray-50 cursor-not-allowed'
-                                            : ''
+                                            ? "bg-gray-50 cursor-not-allowed"
+                                            : ""
                                     }`}
                                 />
-                            </div>
+                            </div> */}
+                        </div>
+                    </div>
+
+                    {/* Specialisms */}
+                    <div>
+                        <h3 className="text-sm font-medium text-gray-900 mb-1 flex items-center">
+                            <AcademicCapIcon className="h-5 w-5 mr-2 text-gray-400" />
+                            Specialisms
+                        </h3>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Select one or more to filter results.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {specialismsLoading ? (
+                                <p className="text-sm text-gray-500">
+                                    Loading specialisms...
+                                </p>
+                            ) : (
+                                availableSpecialisms.map((specialism) => {
+                                    const isSelected =
+                                        searchParams.specialisms?.includes(
+                                            specialism,
+                                        ) ?? false;
+                                    return (
+                                        <button
+                                            key={specialism}
+                                            type="button"
+                                            aria-pressed={isSelected}
+                                            onClick={() =>
+                                                toggleSpecialism(specialism)
+                                            }
+                                            className={getFilterChipClassName(
+                                                isSelected,
+                                            )}
+                                        >
+                                            {specialism}
+                                            {isSelected && (
+                                                <CheckIcon
+                                                    className="h-4 w-4"
+                                                    aria-hidden="true"
+                                                />
+                                            )}
+                                        </button>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
 
@@ -623,8 +689,9 @@ export default function FindCoachesClient({
                         <div className="flex flex-wrap gap-2">
                             {commonAgeGroups.map((ageGroup) => {
                                 const isSelected =
-                                    searchParams.ageGroups?.includes(ageGroup) ??
-                                    false;
+                                    searchParams.ageGroups?.includes(
+                                        ageGroup,
+                                    ) ?? false;
                                 return (
                                     <button
                                         key={ageGroup}
@@ -648,46 +715,6 @@ export default function FindCoachesClient({
                         </div>
                     </div>
 
-                    {/* Specialisms */}
-                    <div>
-                        <h3 className="text-sm font-medium text-gray-900 mb-1 flex items-center">
-                            <AcademicCapIcon className="h-5 w-5 mr-2 text-gray-400" />
-                            Specialisms
-                        </h3>
-                        <p className="text-xs text-gray-500 mb-3">
-                            Select one or more to filter results.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                            {commonSpecialisms.map((specialism) => {
-                                const isSelected =
-                                    searchParams.specialisms?.includes(
-                                        specialism,
-                                    ) ?? false;
-                                return (
-                                    <button
-                                        key={specialism}
-                                        type="button"
-                                        aria-pressed={isSelected}
-                                        onClick={() =>
-                                            toggleSpecialism(specialism)
-                                        }
-                                        className={getFilterChipClassName(
-                                            isSelected,
-                                        )}
-                                    >
-                                        {specialism}
-                                        {isSelected && (
-                                            <CheckIcon
-                                                className="h-4 w-4"
-                                                aria-hidden="true"
-                                            />
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
                     {/* Search Button */}
                     <div>
                         <button
@@ -696,7 +723,7 @@ export default function FindCoachesClient({
                             className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                         >
                             <MagnifyingGlassIcon className="h-5 w-5 mr-2" />
-                            {loading ? 'Searching...' : 'Search Coaches'}
+                            {loading ? "Searching..." : "Search Coaches"}
                         </button>
                     </div>
                 </div>
@@ -719,22 +746,22 @@ export default function FindCoachesClient({
                         <div className="inline-flex rounded-md shadow-sm">
                             <button
                                 type="button"
-                                onClick={() => setResultsView('list')}
+                                onClick={() => setResultsView("list")}
                                 className={`px-3 py-2 text-sm font-medium border border-gray-300 rounded-l-md ${
-                                    resultsView === 'list'
-                                        ? 'bg-gray-100 text-gray-900'
-                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                    resultsView === "list"
+                                        ? "bg-gray-100 text-gray-900"
+                                        : "bg-white text-gray-700 hover:bg-gray-50"
                                 }`}
                             >
                                 List
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setResultsView('map')}
+                                onClick={() => setResultsView("map")}
                                 className={`px-3 py-2 text-sm font-medium border border-gray-300 border-l-0 rounded-r-md ${
-                                    resultsView === 'map'
-                                        ? 'bg-gray-100 text-gray-900'
-                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                    resultsView === "map"
+                                        ? "bg-gray-100 text-gray-900"
+                                        : "bg-white text-gray-700 hover:bg-gray-50"
                                 }`}
                             >
                                 Map
@@ -757,7 +784,7 @@ export default function FindCoachesClient({
                             No coaches found matching your criteria
                         </p>
                     </div>
-                ) : resultsView === 'map' ? (
+                ) : resultsView === "map" ? (
                     <div className="space-y-3">
                         {coachesWithCoords.length < coaches.length && (
                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
@@ -775,15 +802,15 @@ export default function FindCoachesClient({
                                 searchCenter ? distanceMiles : null
                             }
                             onSelectCoach={(coachProfileId) => {
-                                setResultsView('list');
+                                setResultsView("list");
                                 setHighlightedCoachId(coachProfileId);
                                 window.setTimeout(() => {
                                     const el = document.getElementById(
                                         `coach-${coachProfileId}`,
                                     );
                                     el?.scrollIntoView({
-                                        behavior: 'smooth',
-                                        block: 'center',
+                                        behavior: "smooth",
+                                        block: "center",
                                     });
                                 }, 0);
                             }}
@@ -797,8 +824,8 @@ export default function FindCoachesClient({
                                 id={`coach-${coach.coachProfileId}`}
                                 className={`border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow ${
                                     highlightedCoachId === coach.coachProfileId
-                                        ? 'ring-2 ring-indigo-500'
-                                        : ''
+                                        ? "ring-2 ring-indigo-500"
+                                        : ""
                                 }`}
                             >
                                 <div className="flex items-start justify-between">
@@ -825,7 +852,7 @@ export default function FindCoachesClient({
                                                     coach.country,
                                                 ]
                                                     .filter(Boolean)
-                                                    .join(', ')}
+                                                    .join(", ")}
                                             </p>
                                         )}
                                         {coach.averageRating !== undefined &&
@@ -846,11 +873,11 @@ export default function FindCoachesClient({
                                                                 (
                                                                 {
                                                                     coach.ratingCount
-                                                                }{' '}
+                                                                }{" "}
                                                                 {coach.ratingCount ===
                                                                 1
-                                                                    ? 'rating'
-                                                                    : 'ratings'}
+                                                                    ? "rating"
+                                                                    : "ratings"}
                                                                 )
                                                             </span>
                                                         )}
@@ -879,7 +906,7 @@ export default function FindCoachesClient({
                                                 <span className="px-2 py-0.5 text-xs text-gray-500">
                                                     +
                                                     {coach.specialisms.length -
-                                                        3}{' '}
+                                                        3}{" "}
                                                     more
                                                 </span>
                                             )}
@@ -906,7 +933,7 @@ export default function FindCoachesClient({
                                             {coach.ageGroups.length > 2 && (
                                                 <span className="px-2 py-0.5 text-xs text-gray-500">
                                                     +
-                                                    {coach.ageGroups.length - 2}{' '}
+                                                    {coach.ageGroups.length - 2}{" "}
                                                     more
                                                 </span>
                                             )}
@@ -936,11 +963,11 @@ export default function FindCoachesClient({
                                         const connectionStatus =
                                             connectionStatuses[
                                                 coach.coachProfileId
-                                            ]?.status || 'none';
+                                            ]?.status || "none";
                                         const isConnected =
-                                            connectionStatus === 'connected';
+                                            connectionStatus === "connected";
                                         const isPending =
-                                            connectionStatus === 'pending';
+                                            connectionStatus === "pending";
                                         const canContact =
                                             isConnected &&
                                             isCoachOnlineAndAvailable(coach);
@@ -984,8 +1011,8 @@ export default function FindCoachesClient({
                                                     {connectingCoaches.has(
                                                         coach.coachProfileId,
                                                     )
-                                                        ? 'Connecting...'
-                                                        : 'Connect'}
+                                                        ? "Connecting..."
+                                                        : "Connect"}
                                                 </button>
                                             );
                                         }

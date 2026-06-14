@@ -3,13 +3,13 @@
 import { Quiz, QuizQuestion } from '@/_services/quiz-service';
 import { useState, useEffect } from 'react';
 import {
-    XMarkIcon,
     PlusIcon,
     TrashIcon,
     ArrowUpIcon,
     ArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import Modal from '@/_components/ui/modal';
 
 interface QuizFormModalProps {
     quiz: Quiz | null;
@@ -245,33 +245,41 @@ export default function QuizFormModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div className="flex min-h-screen items-center justify-center p-4">
-                <div
-                    className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                    onClick={onClose}
-                ></div>
-
-                <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-                    {/* Header */}
-                    <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                        <h2 className="text-xl font-semibold text-gray-900">
-                            {quiz ? 'Edit Quiz' : 'Create New Quiz'}
-                        </h2>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-gray-500"
-                        >
-                            <XMarkIcon className="h-6 w-6" />
-                        </button>
-                    </div>
-
-                    {/* Content */}
-                    <form
-                        onSubmit={handleSubmit}
-                        className="flex-1 overflow-y-auto"
+        <Modal
+            isOpen={true}
+            onClose={onClose}
+            title={quiz ? 'Edit Quiz' : 'Create New Quiz'}
+            size="xl"
+            scrollable
+            footer={
+                <div className="flex items-center justify-end space-x-3">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                     >
-                        <div className="p-6 space-y-6">
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        form="quiz-form"
+                        disabled={loading}
+                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        {loading
+                            ? 'Saving...'
+                            : quiz
+                              ? 'Update Quiz'
+                              : 'Create Quiz'}
+                    </button>
+                </div>
+            }
+        >
+            <form
+                id="quiz-form"
+                onSubmit={handleSubmit}
+                className="space-y-6"
+            >
                             {error && (
                                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
                                     {error}
@@ -725,32 +733,7 @@ export default function QuizFormModal({
                                     </div>
                                 )}
                             </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end space-x-3">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-                            >
-                                {loading
-                                    ? 'Saving...'
-                                    : quiz
-                                    ? 'Update Quiz'
-                                    : 'Create Quiz'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
+            </form>
+        </Modal>
     );
 }

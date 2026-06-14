@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
     useJournalEntries,
     useDeleteJournalEntry,
@@ -16,10 +15,12 @@ import {
     ClockIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 export default function JournalList() {
-    const router = useRouter();
     const [page, setPage] = useState(1);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
     const pageSize = 20;
 
     const {
@@ -42,13 +43,16 @@ export default function JournalList() {
         });
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this journal entry?')) {
-            return;
-        }
+    const handleDeleteClick = (id: string) => {
+        setEntryToDelete(id);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!entryToDelete) return;
 
         try {
-            await deleteMutation.mutateAsync(id);
+            await deleteMutation.mutateAsync(entryToDelete);
             toast.success('Journal entry deleted successfully');
         } catch (error) {
             toast.error(
@@ -175,7 +179,7 @@ export default function JournalList() {
                                             <button
                                                 onClick={(e) => {
                                                     e.preventDefault();
-                                                    handleDelete(entry.id);
+                                                    handleDeleteClick(entry.id);
                                                 }}
                                                 className="text-gray-400 hover:text-red-600"
                                                 title="Delete"
@@ -260,6 +264,18 @@ export default function JournalList() {
                     )}
                 </>
             )}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setEntryToDelete(null);
+                }}
+                onConfirm={handleDelete}
+                title="Delete journal entry"
+                message="Are you sure you want to delete this journal entry? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+            />
         </div>
     );
 }

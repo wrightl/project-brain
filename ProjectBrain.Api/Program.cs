@@ -5,6 +5,7 @@ using FluentValidation;
 using Microsoft.OpenApi;
 using ProjectBrain.AI;
 using ProjectBrain.Api;
+using ProjectBrain.Api.Webhooks;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Background;
 using ProjectBrain.Api.Goals;
@@ -108,6 +109,7 @@ builder.Services.AddScoped<IGoalSuggestionUserContext, StorageGoalSuggestionUser
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddScoped<IIdentitySeedingService, IdentitySeedingService>();
+builder.Services.AddSingleton<IWebhookIdempotencyService, WebhookIdempotencyService>();
 
 builder.AddAuth0ManagementApi();
 
@@ -147,8 +149,9 @@ builder.AddFeatureFlags();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.UseExceptionHandler();
+// GlobalExceptionHandlerMiddleware handles all unhandled exceptions.
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
+app.UseRequestLogging();
 
 // TODO - restore this?
 if (app.Environment.IsDevelopment())

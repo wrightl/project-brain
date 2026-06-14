@@ -12,6 +12,7 @@ import {
 
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function SidebarNav() {
     const items: ISidebarItem[] = [
@@ -60,7 +61,14 @@ export default function SidebarNav() {
         <div className="fixed top-0 left-0 h-screen w-64 bg-white shadow-lg z-10 p-4">
             <div className="flex flex-col space-y-10 w-full">
                 <Link href="/">
-                    <img className="h-10 w-fit" src="/dotdash.png" alt="Logo" />
+                    <Image
+                        className="h-10 w-fit"
+                        src="/dotdash.png"
+                        alt="Logo"
+                        width={120}
+                        height={40}
+                        priority
+                    />
                 </Link>
                 <div className="flex flex-col space-y-2">
                     {items.map((item, index) => (

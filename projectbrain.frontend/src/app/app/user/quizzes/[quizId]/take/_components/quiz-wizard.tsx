@@ -10,6 +10,7 @@ import {
     CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { SkeletonCard } from '@/_components/ui/skeleton';
 
 interface QuizWizardProps {
     quizId: string;
@@ -245,8 +246,8 @@ export default function QuizWizard({ quizId }: QuizWizardProps) {
 
     if (isLoading) {
         return (
-            <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+            <div className="py-8">
+                <SkeletonCard />
             </div>
         );
     }

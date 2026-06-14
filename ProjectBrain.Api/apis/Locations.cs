@@ -3,19 +3,22 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Domain;
 
 public class LocationServices(
     ILogger<LocationServices> logger,
     IIdentityService identityService,
     IConfiguration configuration,
     IMemoryCache memoryCache,
-    IHttpClientFactory httpClientFactory)
+    IHttpClientFactory httpClientFactory,
+    ICountryService countryService)
 {
     public ILogger<LocationServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public IConfiguration Configuration { get; } = configuration;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IHttpClientFactory HttpClientFactory { get; } = httpClientFactory;
+    public ICountryService CountryService { get; } = countryService;
 }
 
 public static class LocationEndpoints
@@ -23,7 +26,24 @@ public static class LocationEndpoints
     public static void MapLocationEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("locations").RequireAuthorization();
+        group.MapGet("/countries", GetCountries).WithName("GetCountries");
         group.MapGet("/cities", SearchCities).WithName("SearchCities");
+    }
+
+    private static async Task<IResult> GetCountries(
+        [AsParameters] LocationServices services,
+        CancellationToken cancellationToken)
+    {
+        var countries = await services.CountryService.GetAllActiveAsync(cancellationToken);
+        var response = countries
+            .Select(c => new CountryOptionResponse
+            {
+                Name = c.Name,
+                Code = c.Code,
+            })
+            .ToList();
+
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> SearchCities(
@@ -249,6 +269,12 @@ public static class LocationEndpoints
         [JsonPropertyName("types")]
         public List<string>? Types { get; set; }
     }
+}
+
+public class CountryOptionResponse
+{
+    public required string Name { get; init; }
+    public required string Code { get; init; }
 }
 
 public class CityOptionResponse

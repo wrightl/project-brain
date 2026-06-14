@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { BackendApiError } from '@/_lib/backend-api';
 import { ResourceService } from '@/_services/resource-service';
 
-export const GET = createApiRoute(async (req: NextRequest) => {
+export const GET = createAdminApiRoute(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     const id = pathname.split('/').pop();
 

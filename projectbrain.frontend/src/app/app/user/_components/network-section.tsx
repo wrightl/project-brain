@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { UsersIcon } from '@heroicons/react/24/outline';
 import { ConnectionService } from '@/_services/connection-service';
@@ -28,32 +29,28 @@ export default async function NetworkSection() {
 
     const accepted = connections.items.filter((c) => c.status === 'accepted');
 
-    const coaches: NetworkCoach[] = await Promise.all(
-        accepted.map(async (connection) => {
-            const coachProfileId = connection.coachProfileId;
+    const coachProfileIds = accepted
+        .map((connection) => connection.coachProfileId)
+        .filter((id): id is string => Boolean(id));
 
-            if (coachProfileId) {
-                const coach = await CoachService.getCoachById(
-                    parseInt(coachProfileId, 10),
-                );
-                return {
-                    connectionId: connection.id,
-                    coachProfileId,
-                    fullName:
-                        coach?.fullName ?? connection.coachName ?? 'Coach',
-                    bio: coach?.bio ?? null,
-                    imageUrl: coach?.imageUrl ?? null,
-                };
-            }
+    const summaries =
+        coachProfileIds.length > 0
+            ? await CoachService.getCoachSummaries(coachProfileIds)
+            : {};
 
-            return {
-                connectionId: connection.id,
-                fullName: connection.coachName ?? 'Coach',
-                bio: null,
-                imageUrl: null,
-            };
-        }),
-    );
+    const coaches: NetworkCoach[] = accepted.map((connection) => {
+        const coachProfileId = connection.coachProfileId;
+        const summary = coachProfileId ? summaries[coachProfileId] : undefined;
+
+        return {
+            connectionId: connection.id,
+            coachProfileId,
+            fullName:
+                summary?.fullName ?? connection.coachName ?? 'Coach',
+            bio: summary?.bio ?? null,
+            imageUrl: summary?.imageUrl ?? null,
+        };
+    });
 
     return (
         <section className="relative overflow-hidden rounded-lg bg-white p-6 shadow border border-gray-300">
@@ -111,10 +108,11 @@ export default async function NetworkSection() {
                             >
                                 <div className="flex items-start gap-4">
                                     {coach.imageUrl ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
+                                        <Image
                                             src={coach.imageUrl}
                                             alt={coach.fullName}
+                                            width={48}
+                                            height={48}
                                             className="h-12 w-12 rounded-full object-cover border border-gray-200"
                                         />
                                     ) : (

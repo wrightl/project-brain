@@ -1,8 +1,8 @@
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { NextRequest } from 'next/server';
 import { callBackendApi } from '@/_lib/backend-api';
 
-export const GET = createApiRoute(async (req: NextRequest) => {
+export const GET = createAdminApiRoute(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     // Path is /api/admin/users/[id]/subscription/usage
     // Split and get the user ID (4th from end)

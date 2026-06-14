@@ -19,7 +19,7 @@ public static class StatisticsEndpoints
         var group = app.MapGroup("statistics").RequireAuthorization();
 
         group.MapGet("/user-conversations", GetUserConversationsCount).WithName("GetUserConversationsCount");
-        group.MapGet("/all-conversations", GetAllConversationsCount).WithName("GetAllConversationsCount");
+        group.MapGet("/all-conversations", GetAllConversationsCount).WithName("GetAllConversationsCount").RequireAuthorization("AdminOnly");
         group.MapGet("/user-resources", GetUserResourcesCount).WithName("GetUserResourcesCount");
         group.MapGet("/user-voicenotes", GetUserVoiceNotesCount).WithName("GetUserVoiceNotesCount");
         group.MapGet("/coach-clients", GetCoachClientsCount).WithName("GetCoachClientsCount").RequireAuthorization("CoachOnly");

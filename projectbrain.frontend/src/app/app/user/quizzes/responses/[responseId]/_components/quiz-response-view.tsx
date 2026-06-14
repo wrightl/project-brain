@@ -3,6 +3,7 @@
 import { useQuizResponse, useQuiz } from '@/_hooks/queries/use-quizzes';
 import { QuizQuestion } from '@/_services/quiz-service';
 import { AcademicCapIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { SkeletonCard } from '@/_components/ui/skeleton';
 
 interface QuizResponseViewProps {
     responseId: string;
@@ -48,8 +49,8 @@ export default function QuizResponseView({ responseId }: QuizResponseViewProps) 
 
     if (isLoading) {
         return (
-            <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+            <div className="py-8">
+                <SkeletonCard />
             </div>
         );
     }

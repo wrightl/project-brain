@@ -1,7 +1,8 @@
 'use client';
 
 import { User } from '@/_lib/types';
-import { XMarkIcon, MapPinIcon, EnvelopeIcon, CalendarIcon, UserIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, EnvelopeIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import Modal from '@/_components/ui/modal';
 
 interface ClientDetailModalProps {
     client: User | null;
@@ -64,7 +65,7 @@ export default function ClientDetailModal({
     isOpen,
     onClose,
 }: ClientDetailModalProps) {
-    if (!isOpen || !client) return null;
+    if (!client) return null;
 
     const isOnline = isUserOnline(client.lastActivityAt);
     const fullAddress = [
@@ -79,27 +80,14 @@ export default function ClientDetailModal({
         .join(', ');
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div className="flex min-h-screen items-center justify-center p-4">
-                <div
-                    className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                    onClick={onClose}
-                ></div>
-
-                <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-                    <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
-                        <h2 className="text-xl font-semibold text-gray-900">
-                            Client Details
-                        </h2>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-gray-500"
-                        >
-                            <XMarkIcon className="h-6 w-6" />
-                        </button>
-                    </div>
-
-                    <div className="p-6 space-y-6">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Client Details"
+            size="lg"
+            scrollable
+        >
+            <div className="space-y-6">
                         {/* Header Section */}
                         <div className="border-b border-gray-200 pb-6">
                             <div className="flex items-start justify-between">
@@ -295,10 +283,8 @@ export default function ClientDetailModal({
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
             </div>
-        </div>
+        </Modal>
     );
 }
 

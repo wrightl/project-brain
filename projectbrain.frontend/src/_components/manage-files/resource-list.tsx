@@ -48,15 +48,11 @@ export default function ResourceList({
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [manageSharedFiles]);
 
     useEffect(() => {
-        fetchResources();
-    }, [triggerRefresh]);
-
-    useEffect(() => {
-        fetchResources();
-    }, [fetchResources]);
+        void fetchResources();
+    }, [triggerRefresh, fetchResources]);
 
     // useEffect(() => {
     //     // Listen for custom event from file upload form

@@ -236,6 +236,18 @@ public class ConnectionService : IConnectionService
     {
         return await _repository.GetByIdAsync(connectionId);
     }
+
+    public async Task<(IEnumerable<Connection> Items, int TotalCount)> GetPagedConnectionsAsync(
+        string userId,
+        bool isCoach,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var totalCount = await _repository.CountConnectionsAsync(userId, isCoach, cancellationToken);
+        var items = await _repository.GetPagedConnectionsAsync(userId, isCoach, skip, take, cancellationToken);
+        return (items, totalCount);
+    }
 }
 
 public interface IConnectionService
@@ -255,5 +267,11 @@ public interface IConnectionService
     Task<DateTime?> GetEarliestConnectionDateAsync(string userId);
     Task<Connection?> GetByIdAsync(Guid connectionId);
     Task<List<ConnectionWithStatus>> GetConnectionsAsync(string userId, bool isCoach);
+    Task<(IEnumerable<Connection> Items, int TotalCount)> GetPagedConnectionsAsync(
+        string userId,
+        bool isCoach,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
 }
 

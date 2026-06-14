@@ -27,14 +27,12 @@ public static class DevSeedEndpoints
 
     private static async Task<IResult> SeedTestUsers(
         [FromServices] ProjectBrainDbInitializer dbInitializer,
-        [FromServices] AppDbContext context,
         [FromServices] IIdentitySeedingService identitySeedingService,
         IConfiguration configuration,
         IHostEnvironment hostEnvironment,
         CancellationToken cancellationToken)
     {
-        await dbInitializer.SeedTestUsersAsync(
-            context,
+        await dbInitializer.SeedTestUsersFromEndpointAsync(
             identitySeedingService,
             configuration,
             hostEnvironment,

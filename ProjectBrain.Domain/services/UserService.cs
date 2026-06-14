@@ -78,7 +78,6 @@ public class UserService : IUserService
     public async Task<BaseUserDto?> GetByEmail(string email)
     {
         var user = await _repository.GetByEmailWithRolesAsync(email);
-        Console.WriteLine($"Fetched user: {user?.Email}, Roles count: {user?.UserRoles.Count}");
         return user?.ToBaseUserDto();
     }
 

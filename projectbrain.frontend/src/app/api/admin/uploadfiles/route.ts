@@ -1,8 +1,8 @@
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { getAccessToken } from '@/_lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
-export const POST = createApiRoute(async (req: NextRequest) => {
+export const POST = createAdminApiRoute(async (req: NextRequest) => {
     const fileData = await req.formData();
 
     // Loop through all received files and append them.

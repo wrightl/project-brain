@@ -5,7 +5,6 @@ using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
-using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Pagination;
 using ProjectBrain.Shared.Dtos.Quizzes;
 
@@ -13,15 +12,11 @@ public class QuizServices(
     ILogger<QuizServices> logger,
     IQuizService quizService,
     IQuizResponseService quizResponseService,
-    IQuizRepository quizRepository,
-    IQuizResponseRepository quizResponseRepository,
     IIdentityService identityService)
 {
     public ILogger<QuizServices> Logger { get; } = logger;
     public IQuizService QuizService { get; } = quizService;
     public IQuizResponseService QuizResponseService { get; } = quizResponseService;
-    public IQuizRepository QuizRepository { get; } = quizRepository;
-    public IQuizResponseRepository QuizResponseRepository { get; } = quizResponseRepository;
     public IIdentityService IdentityService { get; } = identityService;
 }
 
@@ -62,8 +57,7 @@ public static class QuizEndpoints
 
         var skip = pagedRequest.GetSkip();
         var take = pagedRequest.GetTake();
-        var totalCount = await services.QuizRepository.CountAllAsync(CancellationToken.None);
-        var quizzes = await services.QuizRepository.GetPagedOrderedByDateAsync(skip, take, CancellationToken.None);
+        var (quizzes, totalCount) = await services.QuizService.GetPagedAsync(skip, take, CancellationToken.None);
         var quizDtos = QuizMapper.ToDto(quizzes, includeQuestions: false);
         var response = PagedResponse<QuizResponseDto>.Create(pagedRequest, quizDtos, totalCount);
         return Results.Ok(response);
@@ -369,8 +363,8 @@ public static class QuizEndpoints
 
         var skip = pagedRequest.GetSkip();
         var take = pagedRequest.GetTake();
-        var totalCount = await services.QuizResponseService.CountForUser(userId);
-        var responses = await services.QuizResponseRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+        var (responses, totalCount) = await services.QuizResponseService.GetPagedForUserAsync(
+            userId, skip, take, CancellationToken.None);
         var responseDtos = QuizResponseMapper.ToDto(responses);
         var response = PagedResponse<QuizResponseResponseDto>.Create(pagedRequest, responseDtos, totalCount);
         return Results.Ok(response);

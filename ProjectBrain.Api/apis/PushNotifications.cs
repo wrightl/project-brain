@@ -1,28 +1,25 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Domain.Repositories;
-using ProjectBrain.Domain.UnitOfWork;
+using ProjectBrain.Domain;
 
 public class PushNotificationServices(
     ILogger<PushNotificationServices> logger,
     IIdentityService identityService,
-    IDeviceTokenRepository deviceTokenRepository,
-    IPushNotificationService pushNotificationService,
-    IUnitOfWork unitOfWork)
+    IDeviceTokenService deviceTokenService,
+    IPushNotificationService pushNotificationService)
 {
     public ILogger<PushNotificationServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
-    public IDeviceTokenRepository DeviceTokenRepository { get; } = deviceTokenRepository;
+    public IDeviceTokenService DeviceTokenService { get; } = deviceTokenService;
     public IPushNotificationService PushNotificationService { get; } = pushNotificationService;
-    public IUnitOfWork UnitOfWork { get; } = unitOfWork;
 }
 
 public static class PushNotificationEndpoints
 {
     public static void MapPushNotificationEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/push-notifications")
+        var group = app.MapGroup("push-notifications")
             .RequireAuthorization()
             .WithTags("Push Notifications");
 
@@ -59,40 +56,19 @@ public static class PushNotificationEndpoints
 
         try
         {
-            // Check if token already exists
-            var existingToken = await services.DeviceTokenRepository.GetByTokenAsync(request.Token);
+            var result = await services.DeviceTokenService.RegisterOrUpdateAsync(
+                userId,
+                request.Token,
+                request.Platform,
+                request.DeviceId);
 
-            if (existingToken != null)
+            if (!result.Succeeded)
             {
-                // Update existing token
-                existingToken.UserId = userId;
-                existingToken.Platform = request.Platform;
-                existingToken.DeviceId = request.DeviceId;
-                existingToken.LastUsedAt = DateTime.UtcNow;
-                existingToken.IsActive = true;
-                existingToken.InvalidReason = null; // Clear any previous invalid reason
-
-                services.DeviceTokenRepository.Update(existingToken);
-            }
-            else
-            {
-                // Create new token
-                var deviceToken = new DeviceToken
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    Token = request.Token,
-                    Platform = request.Platform,
-                    DeviceId = request.DeviceId,
-                    CreatedAt = DateTime.UtcNow,
-                    LastUsedAt = DateTime.UtcNow,
-                    IsActive = true
-                };
-
-                services.DeviceTokenRepository.Add(deviceToken);
+                services.Logger.LogWarning(
+                    "Rejected device token registration: token already registered to another user");
+                return Results.Conflict(result.ErrorMessage);
             }
 
-            await services.UnitOfWork.SaveChangesAsync();
             services.Logger.LogInformation("Device token registered/updated for user {UserId}", userId);
             return Results.Ok();
         }
@@ -115,8 +91,7 @@ public static class PushNotificationEndpoints
 
         try
         {
-            var tokens = await services.DeviceTokenRepository.GetActiveTokensByUserIdAsync(userId);
-            var deviceTokens = tokens.Select(t => t.Token).ToList();
+            var deviceTokens = await services.DeviceTokenService.GetActiveTokenStringsForUserAsync(userId);
 
             if (!deviceTokens.Any())
             {
@@ -124,7 +99,7 @@ public static class PushNotificationEndpoints
             }
 
             var result = await services.PushNotificationService.SendNotificationToMultipleAsync(
-                deviceTokens,
+                deviceTokens.ToList(),
                 request.Title,
                 request.Body,
                 request.Data
@@ -171,24 +146,11 @@ public static class PushNotificationEndpoints
 
         try
         {
-            var deviceToken = await services.DeviceTokenRepository.GetByTokenAsync(token);
-
-            if (deviceToken == null)
+            var removed = await services.DeviceTokenService.DeactivateTokenForUserAsync(userId, token);
+            if (!removed)
             {
                 return Results.NotFound("Device token not found");
             }
-
-            // Verify the token belongs to the current user
-            if (deviceToken.UserId != userId)
-            {
-                return Results.Forbid();
-            }
-
-            // Mark as inactive instead of deleting (allows for re-registration)
-            deviceToken.IsActive = false;
-            deviceToken.InvalidReason = "Removed by user";
-            services.DeviceTokenRepository.Update(deviceToken);
-            await services.UnitOfWork.SaveChangesAsync();
 
             services.Logger.LogInformation("Device token removed for user {UserId}", userId);
             return Results.Ok();
@@ -203,4 +165,3 @@ public static class PushNotificationEndpoints
     public record RegisterTokenRequest(string Token, string? Platform, string? DeviceId);
     public record SendNotificationRequest(string Title, string Body, Dictionary<string, string>? Data = null);
 }
-

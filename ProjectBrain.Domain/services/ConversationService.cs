@@ -36,6 +36,17 @@ public class ConversationService : IConversationService
         return await _repository.GetAllForUserAsync(userId);
     }
 
+    public async Task<(IEnumerable<Conversation> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var totalCount = await _repository.CountAsync(c => c.UserId == userId, cancellationToken);
+        var items = await _repository.GetPagedForUserAsync(userId, skip, take, cancellationToken);
+        return (items, totalCount);
+    }
+
     public async Task<Conversation> Update(Conversation conversation)
     {
         _repository.Update(conversation);
@@ -57,6 +68,11 @@ public interface IConversationService
     Task<Conversation?> GetById(Guid id, string userId);
     Task<Conversation?> GetByIdWithMessages(Guid id, string userId);
     Task<IEnumerable<Conversation>> GetAllForUser(string userId);
+    Task<(IEnumerable<Conversation> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
     Task<Conversation> Update(Conversation conversation);
     Task<Conversation> Remove(Conversation conversation);
 }

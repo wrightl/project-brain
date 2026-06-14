@@ -77,16 +77,27 @@ public static class ChatEndpoints
     {
         var summary = await services.AzureOpenAI.GetConversationSummary("Hello, how are you?", services.IdentityService.UserId!);
         var endpoint = services.Config["ai:azureOpenAIEndpoint"];
-        var key = services.Config["ai:azureOpenAIKey"];
         var deployment = services.Config["ai:azureOpenAIChatDeployment"];
-        var searchEndpoint = services.Config["ai:azureSearchEndpoint"]!;
-        var searchKey = services.Config["ai:azureSearchApiKey"]!;
+        var searchEndpoint = services.Config["ai:azureSearchEndpoint"];
         var searchIndexName = services.Config["ai:azureSearchIndexName"] ?? "azureblob-index-chunks";
         var userId = services.IdentityService.UserId;
         var user = await services.IdentityService.GetUserAsync();
         var userName = user?.FullName;
         var email = services.IdentityService.UserEmail;
-        return new { status = "ProjectBrain Chat API is running.", summary, endpoint, key, deployment, searchEndpoint, searchKey, searchIndexName, userId, userName, email };
+        return new
+        {
+            status = "ProjectBrain Chat API is running.",
+            summary,
+            endpoint,
+            deployment,
+            searchEndpoint,
+            searchIndexName,
+            hasOpenAiKey = !string.IsNullOrWhiteSpace(services.Config["ai:azureOpenAIKey"]),
+            hasSearchKey = !string.IsNullOrWhiteSpace(services.Config["ai:azureSearchApiKey"]),
+            userId,
+            userName,
+            email
+        };
     }
 
     // private static async Task<IResult> UploadKnowledge([AsParameters] ChatServices services, HttpRequest request)
@@ -270,8 +281,8 @@ public static class ChatEndpoints
 #if DEBUG
         else if (request.Content.Equals("Hello", StringComparison.OrdinalIgnoreCase))
         {
-            services.Logger.LogInformation("Received test message 'Hello' at {Time}", DateTime.Now);
-            Thread.Sleep(2000); // Simulate processing delay
+            services.Logger.LogInformation("Received test message 'Hello' at {Time}", DateTime.UtcNow);
+            await Task.Delay(2000, http.RequestAborted);
             http.Response.ContentType = contentType;
             http.Response.StatusCode = 200;
             await http.Response.WriteAsync(new ChatMessageResponseChunk($"Hello! How can I assist you today {user.FirstName ?? "there"}?").ToResponse(contentType));
@@ -523,7 +534,7 @@ public static class ChatEndpoints
                         }
 
                         assistantMessages.Add(choice.Text);
-                        services.Logger.LogInformation("Streaming chunk: {Chunk}", choice.Text);
+                        services.Logger.LogDebug("Streaming chunk received");
                         var chunkText = new ChatMessageResponseChunk(choice.Text).ToResponse(contentType);
                         if (contentType == "text/event-stream")
                             await WriteSseWithLockAsync(http, mainSseLock, chunkText, http.RequestAborted);

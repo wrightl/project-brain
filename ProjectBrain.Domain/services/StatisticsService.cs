@@ -73,7 +73,6 @@ public class StatisticsService : IStatisticsService
     public async Task<int> GetCoachesCountAsync()
     {
         return await _context.Users
-            .Include(u => u.UserRoles)
             .Where(u => u.UserRoles.Any(ur => ur.RoleName == AppRoles.Coach))
             .CountAsync();
     }
@@ -81,7 +80,6 @@ public class StatisticsService : IStatisticsService
     public async Task<int> GetNormalUsersCountAsync()
     {
         return await _context.Users
-            .Include(u => u.UserRoles)
             .Where(u => !u.UserRoles.Any(ur => ur.RoleName == AppRoles.Coach || ur.RoleName == AppRoles.Admin))
             .CountAsync();
     }

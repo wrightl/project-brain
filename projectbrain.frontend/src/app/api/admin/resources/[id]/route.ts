@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { ResourceService } from '@/_services/resource-service';
 import { Resource } from '@/_lib/types';
 import { BackendApiError } from '@/_lib/backend-api';
 
-export const GET = createApiRoute<Resource>(async (req: NextRequest) => {
+export const GET = createAdminApiRoute<Resource>(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     const id = pathname.split('/').pop();
 
@@ -21,7 +21,7 @@ export const GET = createApiRoute<Resource>(async (req: NextRequest) => {
     return resource;
 });
 
-export const DELETE = createApiRoute(async (req: NextRequest) => {
+export const DELETE = createAdminApiRoute(async (req: NextRequest) => {
     try {
         // Extract the ID from the URL pathname
         // URL format: /api/admin/resources/[id]

@@ -1,13 +1,12 @@
+using ProjectBrain.Api;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
-using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Pagination;
 
 public class ResourceServices(ILogger<ResourceServices> logger,
     IConfiguration config,
     IResourceService resourceService,
-    IResourceRepository resourceRepository,
     Storage storage,
     IIdentityService identityService,
     IFeatureGateService featureGateService,
@@ -17,7 +16,6 @@ public class ResourceServices(ILogger<ResourceServices> logger,
     public ILogger<ResourceServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
     public IResourceService ResourceService { get; } = resourceService;
-    public IResourceRepository ResourceRepository { get; } = resourceRepository;
     public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
@@ -41,9 +39,9 @@ public static class ResourceEndpoints
         group.MapGet("/shared", GetSharedResources).WithName("GetSharedResources");
         group.MapGet("/{id}/shared", GetSharedResource).WithName("GetSharedResource");
         group.MapGet("/{id}/shared/file", GetSharedFile).WithName("GetSharedFile");
-        group.MapDelete("/{id}/shared", DeleteSharedResource).WithName("DeleteSharedResource");
-        group.MapPost("/upload/shared", UploadSharedFiles).WithName("UploadSharedFiles");
-        group.MapPost("/reindex/shared", ReindexSharedResources).WithName("ReindexSharedResources");
+        group.MapDelete("/{id}/shared", DeleteSharedResource).WithName("DeleteSharedResource").RequireAuthorization("AdminOnly");
+        group.MapPost("/upload/shared", UploadSharedFiles).WithName("UploadSharedFiles").RequireAuthorization("AdminOnly");
+        group.MapPost("/reindex/shared", ReindexSharedResources).WithName("ReindexSharedResources").RequireAuthorization("AdminOnly");
     }
 
     private static async Task<IResult> GetUserResources(
@@ -70,13 +68,10 @@ public static class ResourceEndpoints
             pagedRequest.PageSize = pageSize;
         }
 
-        // Get total count for pagination
-        var totalCount = await services.ResourceRepository.CountForUserAsync(userId, CancellationToken.None);
-
-        // Get paginated results using efficient database-level pagination
         var skip = pagedRequest.GetSkip();
         var take = pagedRequest.GetTake();
-        var paginatedResources = await services.ResourceRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+        var (paginatedResources, totalCount) = await services.ResourceService.GetPagedForUserAsync(
+            userId, skip, take, CancellationToken.None);
 
         var response = PagedResponse<Resource>.Create(pagedRequest, paginatedResources, totalCount);
         return Results.Ok(response);
@@ -192,15 +187,23 @@ public static class ResourceEndpoints
         var results = new List<object>();
         foreach (var file in form.Files)
         {
-            var filename = form.TryGetValue("filename", out var fn) ? fn.ToString() : file?.FileName;
+            var rawFilename = form.TryGetValue("filename", out var fn) ? fn.ToString() : file?.FileName;
             if (file == null || file.Length == 0)
             {
-                results.Add(new { status = "error", filename, message = "File is empty" });
+                results.Add(new { status = "error", filename = rawFilename, message = "File is empty" });
                 continue;
             }
-            if (string.IsNullOrEmpty(filename))
+
+            string filename;
+            try
             {
-                results.Add(new { status = "error", filename = "unknown", message = "Filename is required" });
+                filename = FileUploadSecurity.SanitizeFileName(rawFilename);
+                FileUploadSecurity.ValidateUpload(filename, file.Length, file.ContentType);
+            }
+            catch (ValidationException ex)
+            {
+                var message = ex.Errors.Values.FirstOrDefault()?.FirstOrDefault() ?? ex.Message;
+                results.Add(new { status = "error", filename = rawFilename ?? "unknown", message });
                 continue;
             }
 

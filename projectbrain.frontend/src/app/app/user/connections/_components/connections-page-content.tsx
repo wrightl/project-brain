@@ -18,6 +18,7 @@ import {
 } from "@/_hooks/queries/use-connections";
 import toast from "react-hot-toast";
 import { SkeletonCard, SkeletonList } from "@/_components/ui/skeleton";
+import ConfirmationDialog from "@/_components/confirmation-dialog";
 
 export default function ConnectionsPageContent() {
     const router = useRouter();
@@ -34,18 +35,25 @@ export default function ConnectionsPageContent() {
     } = useConversations();
     const deleteConnection = useDeleteConnection();
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [connectionToDelete, setConnectionToDelete] = useState<string | null>(
+        null,
+    );
 
     const loading = connectionsLoading || conversationsLoading;
     const error = connectionsError || conversationsError;
 
-    const handleDeleteConnection = async (connectionId: string) => {
-        if (!confirm("Are you sure you want to remove this connection?")) {
-            return;
-        }
+    const handleDeleteConnectionClick = (connectionId: string) => {
+        setConnectionToDelete(connectionId);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleDeleteConnection = async () => {
+        if (!connectionToDelete) return;
 
         try {
-            setDeletingIds((prev) => new Set(prev).add(connectionId));
-            await deleteConnection.mutateAsync(connectionId);
+            setDeletingIds((prev) => new Set(prev).add(connectionToDelete));
+            await deleteConnection.mutateAsync(connectionToDelete);
             toast.success("Connection removed successfully");
         } catch (err) {
             console.error("Error deleting connection:", err);
@@ -53,9 +61,10 @@ export default function ConnectionsPageContent() {
         } finally {
             setDeletingIds((prev) => {
                 const next = new Set(prev);
-                next.delete(connectionId);
+                next.delete(connectionToDelete);
                 return next;
             });
+            setConnectionToDelete(null);
         }
     };
 
@@ -347,7 +356,7 @@ export default function ConnectionsPageContent() {
                                                         </button>
                                                         <button
                                                             onClick={() =>
-                                                                handleDeleteConnection(
+                                                                handleDeleteConnectionClick(
                                                                     connection.id,
                                                                 )
                                                             }
@@ -366,7 +375,7 @@ export default function ConnectionsPageContent() {
                                                 {isPending && (
                                                     <button
                                                         onClick={() =>
-                                                            handleDeleteConnection(
+                                                            handleDeleteConnectionClick(
                                                                 connection.id,
                                                             )
                                                         }
@@ -388,6 +397,18 @@ export default function ConnectionsPageContent() {
                     </div>
                 )}
             </div>
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setConnectionToDelete(null);
+                }}
+                onConfirm={handleDeleteConnection}
+                title="Remove connection"
+                message="Are you sure you want to remove this connection?"
+                confirmText="Remove"
+                variant="danger"
+            />
         </div>
     );
 }

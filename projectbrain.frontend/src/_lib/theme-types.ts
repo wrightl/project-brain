@@ -1,4 +1,10 @@
-export type Theme = 'standard' | 'dark' | 'colourful';
+import {
+    DEFAULT_THEME,
+    Theme,
+    isValidTheme,
+} from '@/_lib/theme-registry';
+
+export type { Theme };
 
 export interface ThemePreferences {
     theme: Theme;
@@ -7,24 +13,22 @@ export interface ThemePreferences {
 export function parseThemeFromPreferences(
     preferences?: string
 ): Theme {
-    if (!preferences) return 'standard';
-    
+    if (!preferences) return DEFAULT_THEME;
+
     try {
         const parsed = JSON.parse(preferences);
-        if (parsed?.theme && ['standard', 'dark', 'colourful'].includes(parsed.theme)) {
-            return parsed.theme as Theme;
+        if (parsed?.theme && isValidTheme(parsed.theme)) {
+            return parsed.theme;
         }
     } catch {
-        // If parsing fails, check if it's a plain string
-        if (['standard', 'dark', 'colourful'].includes(preferences)) {
-            return preferences as Theme;
+        if (isValidTheme(preferences)) {
+            return preferences;
         }
     }
-    
-    return 'standard';
+
+    return DEFAULT_THEME;
 }
 
 export function serializeThemePreferences(theme: Theme): string {
     return JSON.stringify({ theme });
 }
-

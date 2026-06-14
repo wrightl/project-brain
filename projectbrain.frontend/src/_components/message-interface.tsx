@@ -1,5 +1,6 @@
 "use client";
 
+import toast from 'react-hot-toast';
 import { useState, useEffect, useRef, useCallback } from "react";
 import { CoachMessage } from "@/_services/coach-message-service";
 import CoachMessageComponent from "@/_components/coach-message";
@@ -132,6 +133,7 @@ export default function MessageInterface({
             setOtherUserName(displayName || "User");
         } catch (error) {
             console.error("Error loading connection details:", error);
+            toast.error("Failed to load conversation details");
             setOtherUserName("Error loading user");
         } finally {
             setIsLoadingConnection(false);
@@ -240,6 +242,7 @@ export default function MessageInterface({
             setHasMore(newMessages.length === 20);
         } catch (error) {
             console.error("Error loading messages:", error);
+            toast.error("Failed to load messages");
         } finally {
             setIsLoading(false);
         }
@@ -307,6 +310,7 @@ export default function MessageInterface({
             }
         } catch (error) {
             console.error("Error sending message:", error);
+            toast.error("Failed to send message. Please try again.");
         } finally {
             setIsSending(false);
         }

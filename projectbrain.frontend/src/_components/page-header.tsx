@@ -22,7 +22,7 @@ export default function PageHeader() {
         <header className="fixed w-full z-50">
             <nav
                 aria-label="Global"
-                className="bg-blue-300 border-gray-200 dark:bg-gray-900 flex items-center justify-between p-6 lg:px-8"
+                className="bg-blue-300 border-gray-200 flex items-center justify-between p-6 lg:px-8"
             >
                 <div className="flex lg:flex-1">
                     <Link href="/" className="-m-1.5 p-1.5">
@@ -57,7 +57,7 @@ export default function PageHeader() {
                                     href={item.href}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-sm/6 font-semibold text-fuchsia-300 dark:text-white"
+                                    className="text-sm/6 font-semibold text-fuchsia-300"
                                 >
                                     {item.name}
                                 </a>
@@ -67,7 +67,7 @@ export default function PageHeader() {
                             <Link
                                 key={item.name}
                                 href={item.href}
-                                className="text-sm/6 font-semibold text-[rgb(245,152,255)] dark:text-white"
+                                className="text-sm/6 font-semibold text-[rgb(245,152,255)]"
                             >
                                 {item.name}
                             </Link>
@@ -84,7 +84,7 @@ export default function PageHeader() {
                 className="lg:hidden"
             >
                 <div className="fixed inset-0 z-50" />
-                <DialogPanel className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-white px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-gray-900/10 dark:bg-gray-900">
+                <DialogPanel className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-white px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-gray-900/10">
                     <div className="flex items-center justify-between">
                         <Link href="/" className="-m-1.5 p-1.5">
                             <span className="sr-only">Your Company</span>
@@ -99,7 +99,7 @@ export default function PageHeader() {
                         <button
                             type="button"
                             onClick={() => setMobileMenuOpen(false)}
-                            className="-m-2.5 rounded-md p-2.5 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:text-gray-900 "
+                            className="-m-2.5 rounded-md p-2.5 text-gray-700 hover:bg-gray-50"
                         >
                             <span className="sr-only">Close menu</span>
                             <XMarkIcon aria-hidden="true" className="size-6" />
@@ -118,7 +118,7 @@ export default function PageHeader() {
                                                 href={item.href}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="-mx-3 block rounded-lg px-3 py-2 text-base/7 font-semibold text-fuchsia-300 hover:bg-gray-50 dark:hover:text-gray-900 dark:text-white"
+                                                className="-mx-3 block rounded-lg px-3 py-2 text-base/7 font-semibold text-fuchsia-300 hover:bg-gray-50"
                                                 onClick={() =>
                                                     setMobileMenuOpen(false)
                                                 }
@@ -131,7 +131,7 @@ export default function PageHeader() {
                                         <Link
                                             key={item.name}
                                             href={item.href}
-                                            className="-mx-3 block rounded-lg px-3 py-2 text-base/7 font-semibold text-[rgb(245,152,255)] hover:bg-gray-50 dark:hover:text-gray-900 dark:text-white"
+                                            className="-mx-3 block rounded-lg px-3 py-2 text-base/7 font-semibold text-[rgb(245,152,255)] hover:bg-gray-50"
                                             onClick={() =>
                                                 setMobileMenuOpen(false)
                                             }

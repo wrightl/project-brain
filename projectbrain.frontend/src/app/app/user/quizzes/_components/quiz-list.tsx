@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuizzes } from '@/_hooks/queries/use-quizzes';
 import { Quiz } from '@/_services/quiz-service';
 import { AcademicCapIcon } from '@heroicons/react/24/outline';
+import { SkeletonList } from '@/_components/ui/skeleton';
 
 export default function QuizList() {
     const [page, setPage] = useState(1);
@@ -20,11 +21,7 @@ export default function QuizList() {
     const totalPages = quizzesResponse?.totalPages || 0;
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-            </div>
-        );
+        return <SkeletonList count={5} />;
     }
 
     if (error) {

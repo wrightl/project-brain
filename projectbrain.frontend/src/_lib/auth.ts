@@ -41,8 +41,8 @@ export async function getUserRoles(): Promise<UserRole[] | null> {
  * Check if user has required role
  */
 export async function hasRole(requiredRole: UserRole): Promise<boolean> {
-    const userRole = await getUserRoles();
-    if (!userRole) return false;
+    const userRoles = await getUserRoles();
+    if (!userRoles || userRoles.length === 0) return false;
 
     const roleHierarchy: Record<UserRole, number> = {
         [AppRoles.User]: 1,
@@ -50,7 +50,18 @@ export async function hasRole(requiredRole: UserRole): Promise<boolean> {
         [AppRoles.Admin]: 3,
     };
 
-    return roleHierarchy[userRole[0]] >= roleHierarchy[requiredRole];
+    const highestRoleLevel = Math.max(
+        ...userRoles.map((role) => roleHierarchy[role] ?? 0)
+    );
+
+    return highestRoleLevel >= roleHierarchy[requiredRole];
+}
+
+/**
+ * Require a minimum role for BFF routes (defense-in-depth).
+ */
+export async function requireRole(requiredRole: UserRole): Promise<boolean> {
+    return hasRole(requiredRole);
 }
 
 /**

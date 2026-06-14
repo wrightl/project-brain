@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Combobox } from '@headlessui/react';
+import {
+    Combobox,
+    ComboboxButton,
+    ComboboxInput,
+    ComboboxOption,
+    ComboboxOptions,
+    Label,
+} from '@headlessui/react';
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/solid';
 import { apiClient } from '@/_lib/api-client';
 import type { CountryOption } from '@/_lib/location-types';
@@ -82,14 +89,14 @@ export function CountryCombobox({
     return (
         <div>
             <Combobox value={value} onChange={onChange} disabled={disabled}>
-                <Combobox.Label
+                <Label
                     htmlFor={id}
                     className="block text-sm font-medium text-gray-700"
                 >
                     {label}
-                </Combobox.Label>
+                </Label>
                 <div className="relative mt-1">
-                    <Combobox.Input
+                    <ComboboxInput
                         id={id}
                         disabled={disabled}
                         className={classNames(
@@ -103,7 +110,7 @@ export function CountryCombobox({
                         }}
                         placeholder={placeholder}
                     />
-                    <Combobox.Button className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-none">
+                    <ComboboxButton className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-none">
                         {loading ? (
                             <span className="text-xs text-gray-400">
                                 Loading…
@@ -114,12 +121,12 @@ export function CountryCombobox({
                                 aria-hidden="true"
                             />
                         )}
-                    </Combobox.Button>
+                    </ComboboxButton>
 
                     {filtered.length > 0 && (
-                        <Combobox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
+                        <ComboboxOptions className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
                             {filtered.map((country) => (
-                                <Combobox.Option
+                                <ComboboxOption
                                     key={country.code}
                                     value={country}
                                     className={({ active }) =>
@@ -171,9 +178,9 @@ export function CountryCombobox({
                                             )}
                                         </>
                                     )}
-                                </Combobox.Option>
+                                </ComboboxOption>
                             ))}
-                        </Combobox.Options>
+                        </ComboboxOptions>
                     )}
                 </div>
             </Combobox>

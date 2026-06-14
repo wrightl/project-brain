@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
 import toast from 'react-hot-toast';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import type { Subscription } from '@/_lib/types';
+import Modal from '@/_components/ui/modal';
 
 interface ReferralSettings {
     enabled: boolean;
@@ -365,158 +365,127 @@ export default function ReferralsSection({
                 )}
             </div>
 
-            <Dialog
-                open={isModalOpen}
+            <Modal
+                isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                className="relative z-50"
-            >
-                <div
-                    className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                    aria-hidden="true"
-                />
-
-                <div className="fixed inset-0 z-10 overflow-y-auto">
-                    <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-                        <DialogPanel className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
-                            <div className="px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                                <DialogTitle
-                                    as="h3"
-                                    className="text-base font-semibold leading-6 text-gray-900"
-                                >
-                                    Invite friends
-                                </DialogTitle>
-
-                                <div className="mt-2 text-sm text-gray-600">
-                                    <p>
-                                        Invite someone by email. If they become
-                                        a paying subscriber (after the free
-                                        trial), they’ll receive{' '}
-                                        <strong>
-                                            {settings?.inviteeFreeMonths ?? 0}{' '}
-                                            free month
-                                            {(settings?.inviteeFreeMonths ??
-                                                0) === 1
-                                                ? ''
-                                                : 's'}
-                                        </strong>
-                                        .
-                                    </p>
-                                    {isPayingSubscriber && (
-                                        <p className="mt-2">
-                                            You’ll receive{' '}
-                                            <strong>
-                                                {settings?.inviterFreeMonths ??
-                                                    0}{' '}
-                                                free month
-                                                {(settings?.inviterFreeMonths ??
-                                                    0) === 1
-                                                    ? ''
-                                                    : 's'}
-                                            </strong>{' '}
-                                            (up to{' '}
-                                            <strong>
-                                                {settings?.maxRewardsPerInviter ??
-                                                    0}
-                                            </strong>{' '}
-                                            rewards).
-                                        </p>
-                                    )}
-                                    <p className="mt-2">
-                                        You can add up to{' '}
-                                        <strong>{maxInvitesPerRequest}</strong>{' '}
-                                        email addresses per send.
-                                    </p>
-                                </div>
-
-                                <div className="mt-4">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Add email addresses
-                                    </label>
-                                    <div className="mt-2 flex gap-2">
-                                        <input
-                                            type="email"
-                                            value={emailInput}
-                                            onChange={(e) =>
-                                                setEmailInput(e.target.value)
-                                            }
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    handleAddEmail();
-                                                }
-                                            }}
-                                            placeholder="name@example.com"
-                                            className="flex-1 rounded-md border border-gray-300 shadow-sm px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                            disabled={
-                                                emails.length >=
-                                                maxInvitesPerRequest
-                                            }
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleAddEmail}
-                                            className="px-3 py-2 rounded-md text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-900"
-                                            disabled={
-                                                emails.length >=
-                                                maxInvitesPerRequest
-                                            }
-                                        >
-                                            Add
-                                        </button>
-                                    </div>
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        Tip: paste multiple emails separated by
-                                        spaces or commas.
-                                    </p>
-
-                                    {emails.length > 0 && (
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                            {emails.map((email) => (
-                                                <span
-                                                    key={email}
-                                                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-800"
-                                                >
-                                                    {email}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleRemoveEmail(
-                                                                email
-                                                            )
-                                                        }
-                                                        className="text-gray-500 hover:text-gray-700"
-                                                        aria-label={`Remove ${email}`}
-                                                    >
-                                                        ×
-                                                    </button>
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
-                                <button
-                                    type="button"
-                                    onClick={handleSendInvites}
-                                    disabled={sending || emails.length === 0}
-                                    className="inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm sm:ml-3 sm:w-auto bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400"
-                                >
-                                    {sending ? 'Sending...' : 'Send invites'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </DialogPanel>
+                title="Invite friends"
+                size="md"
+                footer={
+                    <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:w-auto"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSendInvites}
+                            disabled={sending || emails.length === 0}
+                            className="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:bg-gray-400 sm:w-auto"
+                        >
+                            {sending ? 'Sending...' : 'Send invites'}
+                        </button>
                     </div>
+                }
+            >
+                <div className="text-sm text-gray-600">
+                    <p>
+                        Invite someone by email. If they become a paying
+                        subscriber (after the free trial), they’ll receive{' '}
+                        <strong>
+                            {settings?.inviteeFreeMonths ?? 0} free month
+                            {(settings?.inviteeFreeMonths ?? 0) === 1
+                                ? ''
+                                : 's'}
+                        </strong>
+                        .
+                    </p>
+                    {isPayingSubscriber && (
+                        <p className="mt-2">
+                            You’ll receive{' '}
+                            <strong>
+                                {settings?.inviterFreeMonths ?? 0} free month
+                                {(settings?.inviterFreeMonths ?? 0) === 1
+                                    ? ''
+                                    : 's'}
+                            </strong>{' '}
+                            (up to{' '}
+                            <strong>
+                                {settings?.maxRewardsPerInviter ?? 0}
+                            </strong>{' '}
+                            rewards).
+                        </p>
+                    )}
+                    <p className="mt-2">
+                        You can add up to{' '}
+                        <strong>{maxInvitesPerRequest}</strong> email addresses
+                        per send.
+                    </p>
                 </div>
-            </Dialog>
+
+                <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700">
+                        Add email addresses
+                    </label>
+                    <div className="mt-2 flex gap-2">
+                        <input
+                            type="email"
+                            value={emailInput}
+                            onChange={(e) => setEmailInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddEmail();
+                                }
+                            }}
+                            placeholder="name@example.com"
+                            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            disabled={
+                                emails.length >= maxInvitesPerRequest
+                            }
+                        />
+                        <button
+                            type="button"
+                            onClick={handleAddEmail}
+                            className="rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+                            disabled={
+                                emails.length >= maxInvitesPerRequest
+                            }
+                        >
+                            Add
+                        </button>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Tip: paste multiple emails separated by spaces or
+                        commas.
+                    </p>
+
+                    {emails.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {emails.map((email) => (
+                                <span
+                                    key={email}
+                                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-800"
+                                >
+                                    {email}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleRemoveEmail(email)
+                                        }
+                                        className="text-gray-500 hover:text-gray-700"
+                                        aria-label={`Remove ${email}`}
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 }

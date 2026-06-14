@@ -1,4 +1,4 @@
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { hasRole } from '@/_lib/auth';
 import { AppRoles } from '@/_lib/roles';
 import { NextRequest, NextResponse } from 'next/server';
@@ -38,7 +38,7 @@ function isSafeKey(key: string): boolean {
     return false;
 }
 
-export const GET = createApiRoute(async (req: NextRequest) => {
+export const GET = createAdminApiRoute(async (req: NextRequest) => {
     const allowed = await hasRole(AppRoles.Admin);
     if (!allowed) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

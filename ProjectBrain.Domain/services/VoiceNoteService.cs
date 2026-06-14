@@ -50,6 +50,17 @@ public class VoiceNoteService : IVoiceNoteService
         await _unitOfWork.SaveChangesAsync();
         return true;
     }
+
+    public async Task<(IEnumerable<VoiceNote> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var totalCount = await _repository.CountAsync(vn => vn.UserId == userId, cancellationToken);
+        var items = await _repository.GetPagedForUserAsync(userId, skip, take, cancellationToken);
+        return (items, totalCount);
+    }
 }
 
 public interface IVoiceNoteService
@@ -59,5 +70,10 @@ public interface IVoiceNoteService
     Task<IEnumerable<VoiceNote>> GetAllForUser(string userId, int? limit = null);
     Task<VoiceNote> Update(VoiceNote voiceNote);
     Task<bool> Delete(Guid id, string userId);
+    Task<(IEnumerable<VoiceNote> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
 }
 

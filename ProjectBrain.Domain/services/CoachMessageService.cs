@@ -1,20 +1,23 @@
 using Microsoft.EntityFrameworkCore;
+using ProjectBrain.Domain.UnitOfWork;
 
 namespace ProjectBrain.Domain;
 
 public class CoachMessageService : ICoachMessageService
 {
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public CoachMessageService(AppDbContext context)
+    public CoachMessageService(AppDbContext context, IUnitOfWork unitOfWork)
     {
         _context = context;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<CoachMessage> Add(CoachMessage coachMessage)
     {
         _context.CoachMessages.Add(coachMessage);
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return coachMessage;
     }
 
@@ -58,6 +61,13 @@ public class CoachMessageService : ICoachMessageService
             .ToListAsync();
     }
 
+    public async Task<bool> HasRecentMessageForCoachAsync(string coachId, DateTime sinceUtc)
+    {
+        return await _context.CoachMessages
+            .AsNoTracking()
+            .AnyAsync(cm => cm.CoachId == coachId && cm.CreatedAt >= sinceUtc);
+    }
+
     public async Task<IEnumerable<CoachMessage>> GetByUserId(string userId)
     {
         return await _context.CoachMessages
@@ -72,7 +82,7 @@ public class CoachMessageService : ICoachMessageService
     public async Task<CoachMessage> Update(CoachMessage coachMessage)
     {
         _context.CoachMessages.Update(coachMessage);
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return coachMessage;
     }
 
@@ -84,7 +94,7 @@ public class CoachMessageService : ICoachMessageService
             return false;
         }
         _context.CoachMessages.Remove(coachMessage);
-        await _context.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 
@@ -140,7 +150,7 @@ public class CoachMessageService : ICoachMessageService
         {
             message.Status = "delivered";
             message.DeliveredAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
 
         return true;
@@ -154,6 +164,11 @@ public class CoachMessageService : ICoachMessageService
             return false;
         }
 
+        if (recipientId != message.UserId && recipientId != message.CoachId)
+        {
+            return false;
+        }
+
         if (message.Status != "read")
         {
             message.Status = "read";
@@ -162,7 +177,7 @@ public class CoachMessageService : ICoachMessageService
             {
                 message.DeliveredAt = DateTime.UtcNow;
             }
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
 
         return true;
@@ -189,7 +204,7 @@ public class CoachMessageService : ICoachMessageService
 
         if (messages.Any())
         {
-            await _context.SaveChangesAsync();
+            await _unitOfWork.SaveChangesAsync();
         }
     }
 
@@ -314,6 +329,7 @@ public interface ICoachMessageService
     Task<CoachMessage?> GetById(Guid id);
     Task<IEnumerable<CoachMessage>> GetByConnectionId(Guid connectionId);
     Task<IEnumerable<CoachMessage>> GetByCoachId(string coachId);
+    Task<bool> HasRecentMessageForCoachAsync(string coachId, DateTime sinceUtc);
     Task<IEnumerable<CoachMessage>> GetByUserId(string userId);
     // Task<IEnumerable<CoachMessage>> GetAll();
     Task<CoachMessage> Update(CoachMessage coachMessage);

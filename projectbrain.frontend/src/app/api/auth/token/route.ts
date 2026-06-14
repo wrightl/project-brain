@@ -1,30 +1,22 @@
+import { createApiRoute } from '@/_lib/api-route-handler';
 import { getAccessToken } from '@/_lib/auth';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * API route to get the access token for authenticated users
- * This allows client components to get the token for SignalR connections
+ * Returns a short-lived access token for SignalR hub connections.
+ * Requires an authenticated session via createApiRoute.
  */
-export async function GET() {
-    try {
-        const accessToken = await getAccessToken();
+export const GET = createApiRoute(async () => {
+    const accessToken = await getAccessToken();
 
-        if (!accessToken) {
-            return NextResponse.json(
-                { error: 'No access token available' },
-                { status: 401 }
-            );
-        }
-
-        return NextResponse.json({ token: accessToken });
-    } catch (error) {
-        console.error('Error getting access token:', error);
+    if (!accessToken) {
         return NextResponse.json(
-            { error: 'Failed to get access token' },
-            { status: 500 }
+            { error: 'No access token available' },
+            { status: 401 }
         );
     }
-}
 
+    return { token: accessToken };
+});

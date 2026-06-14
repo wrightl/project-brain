@@ -1,38 +1,24 @@
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { callBackendApi } from '@/_lib/backend-api';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
-export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const { id } = await params;
+export const GET = createAdminApiRoute(
+    async (_req: NextRequest, context?: { params: Promise<{ id: string }> }) => {
+        const { id } = await context!.params;
         const response = await callBackendApi(`/quizes/${id}`);
         if (!response.ok) {
-            return NextResponse.json(
-                {
-                    error: 'Failed to fetch quiz',
-                },
+            return Response.json(
+                { error: 'Failed to fetch quiz' },
                 { status: response.status }
             );
         }
-        const quiz = await response.json();
-        return NextResponse.json(quiz);
-    } catch (error) {
-        console.error('Error fetching quiz:', error);
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        );
+        return await response.json();
     }
-}
+);
 
-export async function PUT(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const { id } = await params;
+export const PUT = createAdminApiRoute(
+    async (request: NextRequest, context?: { params: Promise<{ id: string }> }) => {
+        const { id } = await context!.params;
         const body = await request.json();
         const response = await callBackendApi(`/quizes/${id}`, {
             method: 'PUT',
@@ -40,38 +26,22 @@ export async function PUT(
         });
         if (!response.ok) {
             const errorData = await response.json();
-            return NextResponse.json(errorData, { status: response.status });
+            return Response.json(errorData, { status: response.status });
         }
-        const quiz = await response.json();
-        return NextResponse.json(quiz, { status: 200 });
-    } catch (error) {
-        console.error('Error updating quiz:', error);
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        );
+        return await response.json();
     }
-}
+);
 
-export async function DELETE(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const { id } = await params;
+export const DELETE = createAdminApiRoute(
+    async (_req: NextRequest, context?: { params: Promise<{ id: string }> }) => {
+        const { id } = await context!.params;
         const response = await callBackendApi(`/quizes/${id}`, {
             method: 'DELETE',
         });
         if (!response.ok) {
             const errorData = await response.json();
-            return NextResponse.json(errorData, { status: response.status });
+            return Response.json(errorData, { status: response.status });
         }
-        return NextResponse.json({ success: true }, { status: 200 });
-    } catch (error) {
-        console.error('Error deleting quiz:', error);
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        );
+        return { success: true };
     }
-}
+);

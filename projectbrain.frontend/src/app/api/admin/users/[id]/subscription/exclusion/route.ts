@@ -1,9 +1,9 @@
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { NextRequest } from 'next/server';
 import { callBackendApi } from '@/_lib/backend-api';
 import { AppRoles } from '@/_lib/roles';
 
-export const POST = createApiRoute(async (req: NextRequest) => {
+export const POST = createAdminApiRoute(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     // Path is /api/admin/users/[id]/subscription/exclusion
     // Split and get the user ID (3rd from end)
@@ -36,7 +36,7 @@ export const POST = createApiRoute(async (req: NextRequest) => {
     return await response.json();
 });
 
-export const DELETE = createApiRoute(async (req: NextRequest) => {
+export const DELETE = createAdminApiRoute(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     // Path is /api/admin/users/[id]/subscription/exclusion
     // Split and get the user ID (3rd from end)

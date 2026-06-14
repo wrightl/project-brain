@@ -337,7 +337,7 @@ public class Storage
             _logger.LogInformation("Listing blobs with prefix {Prefix} for user {UserId}", prefix, userId);
 
             var blobs = new List<BlobItem>();
-            await foreach (var blobItem in containerClient.GetBlobsAsync(prefix: prefix))
+            await foreach (var blobItem in containerClient.GetBlobsAsync(new GetBlobsOptions { Prefix = prefix }))
             {
                 blobs.Add(blobItem);
             }
@@ -401,7 +401,7 @@ public class Storage
             _logger.LogInformation("Listing blobs with prefix {Prefix} for user {UserId}", prefix, userId);
 
             var blobs = new List<BlobItem>();
-            await foreach (var blobItem in containerClient.GetBlobsAsync(prefix: prefix))
+            await foreach (var blobItem in containerClient.GetBlobsAsync(new GetBlobsOptions { Prefix = prefix }))
             {
                 blobs.Add(blobItem);
             }

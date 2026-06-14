@@ -8,27 +8,20 @@ public static class AuthenticationExtensions
 {
     public static void AddCustomAuthentication(this WebApplicationBuilder builder)
     {
+        var audience = builder.Configuration["Auth0:Audience"];
+
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
                 options.Authority = $"https://{builder.Configuration["Auth0:Domain"]}";
-                // options.Audience = $"{builder.Configuration["Auth0:Audience"]}";
+                options.Audience = audience;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    // NameClaimType = ClaimTypes.NameIdentifier,
-                    ValidateAudience = true,
+                    ValidateAudience = !string.IsNullOrWhiteSpace(audience),
                     ValidateIssuerSigningKey = true,
                     ValidateIssuer = true,
                     ValidIssuer = $"https://{builder.Configuration["Auth0:Domain"]}",
-                    AudienceValidator = (audiences, securityToken, validationParameters) =>
-                    {
-                        var httpContext = builder.Services.BuildServiceProvider().GetRequiredService<IHttpContextAccessor>().HttpContext;
-                        var requestedAudience = $"{httpContext.Request.Scheme}://{httpContext.Request.Host.Value}";
-                        var clientId = builder.Configuration["Auth0:ClientId"];
-
-                        // Accept either the API audience (access token) or the client ID (ID token)
-                        return audiences.Contains(requestedAudience) || audiences.Contains(clientId);
-                    }
+                    ValidAudience = audience,
                 };
 
                 // Handle SignalR connections - extract token from query string

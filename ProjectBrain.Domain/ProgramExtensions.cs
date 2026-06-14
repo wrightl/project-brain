@@ -35,6 +35,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
         builder.Services.AddScoped<ICoachProfileRepository, CoachProfileRepository>();
         builder.Services.AddScoped<ICoachSpecialismOptionRepository, CoachSpecialismOptionRepository>();
+        builder.Services.AddScoped<ICountryRepository, CountryRepository>();
         builder.Services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
         builder.Services.AddScoped<ITagRepository, TagRepository>();
         builder.Services.AddScoped<ISystemTagRepository, SystemTagRepository>();
@@ -61,6 +62,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IResourceService, ResourceService>();
         builder.Services.AddScoped<ICoachProfileService, CoachProfileService>();
         builder.Services.AddScoped<ICoachSpecialismOptionService, CoachSpecialismOptionService>();
+        builder.Services.AddScoped<ICountryService, CountryService>();
         builder.Services.AddScoped<IUserProfileService, UserProfileService>();
         builder.Services.AddScoped<IConnectionService, ConnectionService>();
         builder.Services.AddScoped<IVoiceNoteService, VoiceNoteService>();
@@ -110,6 +112,7 @@ public static class ProgramExtensions
         }
 
         // Register device token cleanup service
+        builder.Services.AddScoped<IDeviceTokenService, DeviceTokenService>();
         builder.Services.AddScoped<IDeviceTokenCleanupService, DeviceTokenCleanupService>();
 
         // Sync trigger for user activity (singleton so background service and request path share state)

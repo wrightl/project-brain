@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { User } from '@/_lib/types';
-import { XMarkIcon } from '@heroicons/react/24/outline';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import Modal from '@/_components/ui/modal';
 
 interface UserEditModalProps {
     user: User;
@@ -114,30 +114,38 @@ export default function UserEditModal({
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div className="flex min-h-screen items-center justify-center p-4">
-                <div
-                    className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                    onClick={onClose}
-                ></div>
-
-                <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                    <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-                        <h2 className="text-xl font-semibold text-gray-900">
-                            Edit User
-                        </h2>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-gray-500"
-                        >
-                            <XMarkIcon className="h-6 w-6" />
-                        </button>
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="Edit User"
+            size="lg"
+            scrollable
+            footer={
+                <div className="flex justify-end space-x-3">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        form="user-edit-form"
+                        disabled={isSubmitting}
+                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400"
+                    >
+                        {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    </button>
+                </div>
+            }
+        >
+            <form
+                id="user-edit-form"
+                onSubmit={handleSubmit}
+                className="space-y-6"
+            >
                         {error && (
                             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
                                 {error}
@@ -364,25 +372,7 @@ export default function UserEditModal({
                             </div>
                         </div>
 
-                        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400"
-                            >
-                                {isSubmitting ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
+            </form>
+        </Modal>
     );
 }

@@ -50,14 +50,23 @@ public class CoachMessageHub : Hub
             return;
         }
 
-        var connectionGuid = Guid.Parse(connectionId);
-        var connection = await _connectionService.GetByIdAsync(connectionGuid);
+        if (!Guid.TryParse(connectionId, out var connectionGuid))
+        {
+            _logger.LogWarning("Invalid connection id {ConnectionId}", connectionId);
+            return;
+        }
 
-        // Verify user has access to this conversation
+        var connection = await _connectionService.GetByIdAsync(connectionGuid);
+        if (connection == null)
+        {
+            _logger.LogWarning("Connection {ConnectionId} not found", connectionId);
+            return;
+        }
+
         if (currentUserId != connection.UserId && currentUserId != connection.CoachId)
         {
-            _logger.LogWarning("User {CurrentUserId} attempted to join conversation {UserId}-{CoachId} without access",
-                currentUserId, connection.UserId, connection.CoachId);
+            _logger.LogWarning("User {CurrentUserId} attempted to join conversation {ConnectionId} without access",
+                currentUserId, connectionId);
             return;
         }
 
@@ -68,7 +77,34 @@ public class CoachMessageHub : Hub
 
     public async Task LeaveConversation(string connectionId)
     {
-        _logger.LogInformation("User {UserId} leaving conversation {ConnectionId}", GetUserId(), connectionId);
+        var currentUserId = GetUserId();
+        if (currentUserId == null)
+        {
+            _logger.LogWarning("Unauthorized attempt to leave conversation");
+            return;
+        }
+
+        if (!Guid.TryParse(connectionId, out var connectionGuid))
+        {
+            _logger.LogWarning("Invalid connection id {ConnectionId}", connectionId);
+            return;
+        }
+
+        var connection = await _connectionService.GetByIdAsync(connectionGuid);
+        if (connection == null)
+        {
+            _logger.LogWarning("Connection {ConnectionId} not found", connectionId);
+            return;
+        }
+
+        if (currentUserId != connection.UserId && currentUserId != connection.CoachId)
+        {
+            _logger.LogWarning("User {CurrentUserId} attempted to leave conversation {ConnectionId} without access",
+                currentUserId, connectionId);
+            return;
+        }
+
+        _logger.LogInformation("User {UserId} leaving conversation {ConnectionId}", currentUserId, connectionId);
         var groupName = GetConversationGroupName(connectionId);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
         _logger.LogInformation("User left conversation group {GroupName}", groupName);
@@ -82,10 +118,17 @@ public class CoachMessageHub : Hub
             return;
         }
 
-        var connectionGuid = Guid.Parse(connectionId);
-        var connection = await _connectionService.GetByIdAsync(connectionGuid);
+        if (!Guid.TryParse(connectionId, out var connectionGuid))
+        {
+            return;
+        }
 
-        // Verify user has access to this conversation
+        var connection = await _connectionService.GetByIdAsync(connectionGuid);
+        if (connection == null)
+        {
+            return;
+        }
+
         if (currentUserId != connection.UserId && currentUserId != connection.CoachId)
         {
             return;
@@ -97,18 +140,11 @@ public class CoachMessageHub : Hub
 
     private string? GetUserId()
     {
-        // Extract user ID from JWT token in the context
-        var userIdClaim = Context.User?.FindFirst("sub")?.Value ??
-                         Context.User?.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
-        return userIdClaim;
+        return _identityService.UserId ?? Context.User?.GetUserId();
     }
 
     private static string GetConversationGroupName(string connectionId)
     {
-        // Create a consistent group name regardless of parameter order
-        // var ids = new[] { userId, coachId }.OrderBy(id => id).ToArray();
-        // return $"conversation_{ids[0]}_{ids[1]}";
         return $"conversation_{connectionId}";
     }
 }
-

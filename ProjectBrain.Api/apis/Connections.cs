@@ -1,20 +1,17 @@
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
-using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Pagination;
 
 public class ConnectionServices(
     ILogger<ConnectionServices> logger,
     IConnectionService connectionService,
-    IConnectionRepository connectionRepository,
     IIdentityService identityService,
     IUserProfileService userProfileService,
     ICoachProfileService coachProfileService)
 {
     public ILogger<ConnectionServices> Logger { get; } = logger;
     public IConnectionService ConnectionService { get; } = connectionService;
-    public IConnectionRepository ConnectionRepository { get; } = connectionRepository;
     public IIdentityService IdentityService { get; } = identityService;
     public IUserProfileService UserProfileService { get; } = userProfileService;
     public ICoachProfileService CoachProfileService { get; } = coachProfileService;
@@ -101,13 +98,10 @@ public static class ConnectionEndpoints
             pagedRequest.PageSize = pageSize;
         }
 
-        // Get total count for pagination
-        var totalCount = await services.ConnectionRepository.CountConnectionsAsync(currentUserId, isCoach, CancellationToken.None);
-
-        // Get paginated results using efficient database-level pagination
         var skip = pagedRequest.GetSkip();
         var take = pagedRequest.GetTake();
-        var paginatedConnections = await services.ConnectionRepository.GetPagedConnectionsAsync(currentUserId, isCoach, skip, take, CancellationToken.None);
+        var (paginatedConnections, totalCount) = await services.ConnectionService.GetPagedConnectionsAsync(
+            currentUserId, isCoach, skip, take, CancellationToken.None);
 
         // Map to ConnectionWithStatus and enrich with coachProfileId
         var connectionWithStatusList = new List<ConnectionWithStatus>();

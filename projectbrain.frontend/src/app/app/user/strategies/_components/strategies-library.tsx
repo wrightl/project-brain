@@ -10,19 +10,19 @@ import StarRating from '@/_components/coach/star-rating';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
+import { SkeletonList } from '@/_components/ui/skeleton';
 
 export default function StrategiesLibrary() {
     const { data, isLoading, error } = useCopingStrategyLibrary();
     const deleteMutation = useDeleteCopingStrategy();
     const rateMutation = useRateCopingStrategy();
     const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [strategyToDelete, setStrategyToDelete] = useState<string | null>(null);
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-            </div>
-        );
+        return <SkeletonList count={4} />;
     }
 
     if (error) {
@@ -48,21 +48,25 @@ export default function StrategiesLibrary() {
         });
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this strategy?')) {
-            return;
-        }
+    const handleDeleteClick = (id: string) => {
+        setStrategyToDelete(id);
+        setDeleteConfirmOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!strategyToDelete) return;
 
         try {
-            setBusy(id, true);
-            await deleteMutation.mutateAsync(id);
+            setBusy(strategyToDelete, true);
+            await deleteMutation.mutateAsync(strategyToDelete);
             toast.success('Strategy deleted');
         } catch (err) {
             toast.error(
                 err instanceof Error ? err.message : 'Failed to delete strategy'
             );
         } finally {
-            setBusy(id, false);
+            setBusy(strategyToDelete, false);
+            setStrategyToDelete(null);
         }
     };
 
@@ -140,7 +144,7 @@ export default function StrategiesLibrary() {
 
                                     <button
                                         type="button"
-                                        onClick={() => handleDelete(strategy.id)}
+                                        onClick={() => handleDeleteClick(strategy.id)}
                                         disabled={
                                             busyIds.has(strategy.id) ||
                                             deleteMutation.isPending ||
@@ -158,6 +162,18 @@ export default function StrategiesLibrary() {
                     </ul>
                 </div>
             )}
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => {
+                    setDeleteConfirmOpen(false);
+                    setStrategyToDelete(null);
+                }}
+                onConfirm={handleDelete}
+                title="Delete strategy"
+                message="Are you sure you want to delete this strategy?"
+                confirmText="Delete"
+                variant="danger"
+            />
         </div>
     );
 }

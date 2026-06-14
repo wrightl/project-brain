@@ -6,7 +6,6 @@ using ProjectBrain.AI;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
-using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Pagination;
 using ProjectBrain.Shared.Dtos.VoiceNotes;
 using TickerQ.Utilities.Entities;
@@ -15,7 +14,6 @@ using TickerQ.Utilities.Interfaces.Managers;
 public class VoiceNoteServices(
     ILogger<VoiceNoteServices> logger,
     IVoiceNoteService voiceNoteService,
-    IVoiceNoteRepository voiceNoteRepository,
     Storage storage,
     IIdentityService identityService,
     IConfiguration configuration,
@@ -23,7 +21,6 @@ public class VoiceNoteServices(
 {
     public ILogger<VoiceNoteServices> Logger { get; } = logger;
     public IVoiceNoteService VoiceNoteService { get; } = voiceNoteService;
-    public IVoiceNoteRepository VoiceNoteRepository { get; } = voiceNoteRepository;
     public Storage Storage { get; } = storage;
     public IIdentityService IdentityService { get; } = identityService;
     public IConfiguration Configuration { get; } = configuration;
@@ -70,15 +67,10 @@ public static class VoiceNoteEndpoints
             pagedRequest.PageSize = pageSize;
         }
 
-        // Get total count for pagination
-        var totalCount = await services.VoiceNoteRepository.CountAsync(
-            vn => vn.UserId == userId,
-            CancellationToken.None);
-
-        // Get paginated results using efficient database-level pagination
         var skip = pagedRequest.GetSkip();
         var take = pagedRequest.GetTake();
-        var paginatedNotes = await services.VoiceNoteRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+        var (paginatedNotes, totalCount) = await services.VoiceNoteService.GetPagedForUserAsync(
+            userId, skip, take, CancellationToken.None);
 
         var voiceNoteDtos = VoiceNoteMapper.ToDto(paginatedNotes);
         var response = PagedResponse<VoiceNoteResponseDto>.Create(pagedRequest, voiceNoteDtos, totalCount);

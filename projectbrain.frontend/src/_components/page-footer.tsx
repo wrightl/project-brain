@@ -1,18 +1,18 @@
 import React from 'react';
 import { PageFooterHyperlink } from './page-footer-hyperlink';
 import Image from 'next/image';
-import ThemeSwitch from './ThemeSwitch';
+import { ThemePicker } from '@/_components/ui/theme-picker';
 
 export const PageFooter = () => {
     return (
-        <footer className="bg-white dark:bg-gray-800">
+        <footer className="bg-white">
             <div className="max-w-screen-xl p-4 py-6 mx-auto lg:py-16 md:p-8 lg:p-10">
                 <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-5">
                     <div>
-                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase">
                             Company
                         </h3>
-                        <ul className="text-gray-500 dark:text-gray-400">
+                        <ul className="text-gray-500">
                             <li className="mb-4">
                                 <PageFooterHyperlink path="/about">
                                     About
@@ -31,10 +31,10 @@ export const PageFooter = () => {
                         </ul>
                     </div>
                     <div>
-                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase">
                             Help center
                         </h3>
-                        <ul className="text-gray-500 dark:text-gray-400">
+                        <ul className="text-gray-500">
                             <li className="mb-4">
                                 <PageFooterHyperlink path="/contact">
                                     Contact Us
@@ -43,10 +43,10 @@ export const PageFooter = () => {
                         </ul>
                     </div>
                     <div>
-                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase">
                             Legal
                         </h3>
-                        <ul className="text-gray-500 dark:text-gray-400">
+                        <ul className="text-gray-500">
                             <li className="mb-4">
                                 <PageFooterHyperlink path="/privacy">
                                     Privacy Policy
@@ -60,10 +60,10 @@ export const PageFooter = () => {
                         </ul>
                     </div>
                     <div>
-                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase">
                             Download
                         </h3>
-                        <ul className="text-gray-500 dark:text-gray-400">
+                        <ul className="text-gray-500">
                             <li className="mb-4">
                                 <PageFooterHyperlink
                                     path="/ios"
@@ -83,21 +83,21 @@ export const PageFooter = () => {
                         </ul>
                     </div>
                     <div>
-                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase dark:text-white">
+                        <h3 className="mb-6 text-sm font-semibold text-gray-900 uppercase">
                             Theme
                         </h3>
-                        <ul className="text-gray-500 dark:text-gray-400">
+                        <ul className="text-gray-500">
                             <li className="mb-4">
-                                <ThemeSwitch />
+                                <ThemePicker />
                             </li>
                         </ul>
                     </div>
                 </div>
-                <hr className="my-6 border-gray-200 sm:mx-auto dark:border-gray-700 lg:my-8" />
+                <hr className="my-6 border-gray-200 sm:mx-auto lg:my-8" />
                 <div className="text-center">
                     <a
                         href="#"
-                        className="flex items-center justify-center mb-5 text-2xl font-semibold text-gray-900 dark:text-white"
+                        className="flex items-center justify-center mb-5 text-2xl font-semibold text-gray-900"
                     >
                         <Image
                             width={36}
@@ -108,7 +108,7 @@ export const PageFooter = () => {
                         />
                         Project Brain
                     </a>
-                    <span className="block text-sm text-center text-gray-500 dark:text-gray-400">
+                    <span className="block text-sm text-center text-gray-500">
                         © 2024-2025 Dot and Dash Consulting™. All Rights
                         Reserved.
                     </span>
@@ -116,7 +116,7 @@ export const PageFooter = () => {
                         <li>
                             <a
                                 href="#"
-                                className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-gray-400"
+                                className="text-gray-500 hover:text-gray-900"
                             >
                                 <svg
                                     className="w-5 h-5"
@@ -135,7 +135,7 @@ export const PageFooter = () => {
                         <li>
                             <a
                                 href="#"
-                                className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-gray-400"
+                                className="text-gray-500 hover:text-gray-900"
                             >
                                 <svg
                                     className="w-5 h-5"
@@ -154,7 +154,7 @@ export const PageFooter = () => {
                         <li>
                             <a
                                 href="#"
-                                className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-gray-400"
+                                className="text-gray-500 hover:text-gray-900"
                             >
                                 <svg
                                     className="w-5 h-5"
@@ -169,7 +169,7 @@ export const PageFooter = () => {
                         <li>
                             <a
                                 href="#"
-                                className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-gray-400"
+                                className="text-gray-500 hover:text-gray-900"
                             >
                                 <svg
                                     className="w-5 h-5"
@@ -188,7 +188,7 @@ export const PageFooter = () => {
                         <li>
                             <a
                                 href="#"
-                                className="text-gray-500 hover:text-gray-900 dark:hover:text-white dark:text-gray-400"
+                                className="text-gray-500 hover:text-gray-900"
                             >
                                 <svg
                                     className="w-5 h-5"

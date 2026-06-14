@@ -4,6 +4,7 @@
 @import "../styles/theme-overrides.css";
 @import "../styles/themes/dark.css";
 @import "../styles/themes/colourful.css";
+@import "../styles/themes/dotdash.css";
 @import "tailwindcss";
 
 @plugin "@tailwindcss/forms";

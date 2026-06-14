@@ -7,7 +7,6 @@ import {
 } from '@/_hooks/queries/use-goals';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Input } from '@headlessui/react';
 
 interface GoalEntryPageProps {
     initialGoals?: string[];
@@ -138,14 +137,14 @@ export default function GoalEntryPage({
                         >
                             Goal {index + 1}
                         </label>
-                        <Input
+                        <input
                             id={`goal-${index}`}
-                            // rows={3}
+                            type="text"
                             value={goals[index]}
                             onChange={(e) =>
                                 handleGoalChange(index, e.target.value)
                             }
-                            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                            className={`w-full rounded-md border px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                                 errors[index]
                                     ? 'border-red-300'
                                     : 'border-gray-300'

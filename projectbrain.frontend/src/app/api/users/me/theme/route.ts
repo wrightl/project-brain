@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createApiRoute } from '@/_lib/api-route-handler';
-import { Theme, parseThemeFromPreferences } from '@/_lib/theme-types';
+import { Theme } from '@/_lib/theme-types';
+import { isValidTheme } from '@/_lib/theme-registry';
 import { UserService } from '@/_services/user-service';
 import { BackendApiError } from '@/_lib/backend-api';
 
@@ -25,7 +26,7 @@ export const PUT = createApiRoute<{ theme: Theme }>(
             throw new BackendApiError(400, 'Theme and userId are required');
         }
 
-        if (!['standard', 'dark', 'colourful'].includes(theme)) {
+        if (!isValidTheme(theme)) {
             throw new BackendApiError(400, 'Invalid theme value');
         }
 

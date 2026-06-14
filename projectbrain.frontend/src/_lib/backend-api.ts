@@ -1,3 +1,5 @@
+import 'server-only';
+
 import { getAccessToken } from './auth';
 
 const API_URL = process.env.API_SERVER_URL || 'https://localhost:7585';
@@ -94,8 +96,7 @@ export async function callBackendApi(
                 'Backend API response not ok:',
                 `${API_URL}${endpoint}`,
                 response.status,
-                response.statusText,
-                accessToken
+                response.statusText
             );
 
             // Handle 401 Unauthorized - session expired

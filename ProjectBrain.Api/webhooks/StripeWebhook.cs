@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
+using ProjectBrain.Api.Webhooks;
 using ProjectBrain.Domain;
 using Stripe;
 
@@ -26,7 +27,8 @@ public static class StripeWebhookEndpoints
     private static async Task<IResult> HandleStripeWebhook(
         [AsParameters] StripeWebhookServices services,
         HttpContext context,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IWebhookIdempotencyService idempotencyService)
     {
         var json = await new StreamReader(context.Request.Body).ReadToEndAsync();
         var webhookSecret = configuration["Stripe:WebhookSecret"];
@@ -47,6 +49,12 @@ public static class StripeWebhookEndpoints
 
             services.Logger.LogInformation("Received Stripe webhook: {EventType}, ID: {EventId}", 
                 stripeEvent.Type, stripeEvent.Id);
+
+            if (!idempotencyService.TryMarkProcessed("stripe", stripeEvent.Id, TimeSpan.FromDays(7)))
+            {
+                services.Logger.LogInformation("Skipping duplicate Stripe webhook {EventId}", stripeEvent.Id);
+                return Results.Ok();
+            }
 
             // Use string comparison for event types (more reliable across Stripe.NET versions)
             var eventType = stripeEvent.Type;
@@ -76,7 +84,7 @@ public static class StripeWebhookEndpoints
         catch (StripeException ex)
         {
             services.Logger.LogError(ex, "Stripe webhook error: {Message}", ex.Message);
-            return Results.BadRequest($"Webhook error: {ex.Message}");
+            return Results.BadRequest("Webhook error");
         }
         catch (Exception ex)
         {

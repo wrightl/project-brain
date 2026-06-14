@@ -54,6 +54,17 @@ public class QuizResponseService : IQuizResponseService
         return await _repository.CountForUserAsync(userId);
     }
 
+    public async Task<(IEnumerable<QuizResponse> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var responses = await _repository.GetPagedForUserAsync(userId, skip, take, cancellationToken);
+        var totalCount = await _repository.CountForUserAsync(userId, cancellationToken);
+        return (responses, totalCount);
+    }
+
     public async Task<QuizResponse> Update(QuizResponse response)
     {
         _repository.Update(response);
@@ -86,6 +97,11 @@ public interface IQuizResponseService
     Task<IEnumerable<QuizResponse>> GetByQuizForUser(Guid quizId, string userId);
     Task<IEnumerable<QuizResponse>> GetAllForQuiz(Guid quizId);
     Task<int> CountForUser(string userId);
+    Task<(IEnumerable<QuizResponse> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
     Task<QuizResponse> Update(QuizResponse response);
     Task<bool> Delete(Guid id, string userId);
 }

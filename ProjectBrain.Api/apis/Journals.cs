@@ -6,7 +6,6 @@ using ProjectBrain.Api.Background;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
-using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Journal;
 using ProjectBrain.Shared.Dtos.Pagination;
 using ProjectBrain.Shared.Dtos.SystemTags;
@@ -16,7 +15,6 @@ using ProjectBrain.AI;
 
 public class JournalServices(
     IJournalEntryService journalEntryService,
-    IJournalEntryRepository journalEntryRepository,
     ISystemTagService systemTagService,
     IUserProfileService userProfileService,
     IJournalStreakService journalStreakService,
@@ -27,7 +25,6 @@ public class JournalServices(
 {
     public ILogger<JournalServices> Logger { get; } = logger;
     public IJournalEntryService JournalEntryService { get; } = journalEntryService;
-    public IJournalEntryRepository JournalEntryRepository { get; } = journalEntryRepository;
     public ISystemTagService SystemTagService { get; } = systemTagService;
     public IUserProfileService UserProfileService { get; } = userProfileService;
     public IJournalStreakService JournalStreakService { get; } = journalStreakService;
@@ -131,13 +128,11 @@ public static class JournalEndpoints
             pagedRequest.PageSize = pageSize;
         }
 
-        // Get total count for pagination
-        var totalCount = await services.JournalEntryRepository.CountForUserAsync(userId, CancellationToken.None);
+        var totalCount = await services.JournalEntryService.CountForUser(userId);
 
-        // Get paginated results
         var skip = pagedRequest.GetSkip();
         var take = pagedRequest.GetTake();
-        var paginatedEntries = await services.JournalEntryRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+        var paginatedEntries = await services.JournalEntryService.GetPagedForUser(userId, skip, take);
 
         var entryDtos = JournalEntryMapper.ToDtoList(paginatedEntries);
         var response = PagedResponse<JournalEntryResponseDto>.Create(pagedRequest, entryDtos, totalCount);

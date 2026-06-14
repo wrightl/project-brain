@@ -245,5 +245,22 @@ public class CoachProfileRepository : Repository<CoachProfile, int>, ICoachProfi
         var c = 2d * Math.Asin(Math.Min(1d, Math.Sqrt(a)));
         return EarthRadiusMiles * c;
     }
+
+    public async Task<IEnumerable<CoachProfile>> GetByIdsWithUserAsync(
+        IEnumerable<int> ids,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = ids.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return Array.Empty<CoachProfile>();
+        }
+
+        return await _dbSet
+            .AsNoTracking()
+            .Include(cp => cp.User)
+            .Where(cp => idList.Contains(cp.Id))
+            .ToListAsync(cancellationToken);
+    }
 }
 

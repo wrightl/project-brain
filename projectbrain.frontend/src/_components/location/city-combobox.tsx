@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Combobox } from '@headlessui/react';
+import {
+    Combobox,
+    ComboboxButton,
+    ComboboxInput,
+    ComboboxOption,
+    ComboboxOptions,
+    Label,
+} from '@headlessui/react';
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/solid';
 import { apiClient } from '@/_lib/api-client';
 import type { CityOption } from '@/_lib/location-types';
@@ -79,15 +86,15 @@ export function CityCombobox({
     return (
         <div>
             <Combobox value={value} onChange={onChange} disabled={effectiveDisabled}>
-                <Combobox.Label
+                <Label
                     htmlFor={id}
                     className="block text-sm font-medium text-gray-700"
                 >
                     {label}
-                </Combobox.Label>
+                </Label>
 
                 <div className="relative mt-1">
-                    <Combobox.Input
+                    <ComboboxInput
                         id={id}
                         disabled={effectiveDisabled}
                         className={classNames(
@@ -110,7 +117,7 @@ export function CityCombobox({
                         }
                     />
 
-                    <Combobox.Button className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-none">
+                    <ComboboxButton className="absolute inset-y-0 right-0 flex items-center rounded-r-md px-2 focus:outline-none">
                         {loading ? (
                             <span className="text-xs text-gray-400">
                                 Loading…
@@ -121,12 +128,12 @@ export function CityCombobox({
                                 aria-hidden="true"
                             />
                         )}
-                    </Combobox.Button>
+                    </ComboboxButton>
 
                     {options.length > 0 && (
-                        <Combobox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
+                        <ComboboxOptions className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
                             {options.map((opt) => (
-                                <Combobox.Option
+                                <ComboboxOption
                                     key={opt.placeId}
                                     value={opt}
                                     className={({ active }) =>
@@ -178,9 +185,9 @@ export function CityCombobox({
                                             )}
                                         </>
                                     )}
-                                </Combobox.Option>
+                                </ComboboxOption>
                             ))}
-                        </Combobox.Options>
+                        </ComboboxOptions>
                     )}
                 </div>
             </Combobox>

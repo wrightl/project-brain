@@ -314,40 +314,49 @@ export default function FindCoachesClient({
             const results: Coach[] = await response.json();
             setCoaches(results);
 
-            // Fetch connection status for all coaches
-            const statusPromises = results.map(async (coach) => {
-                try {
-                    const statusResponse = await fetchWithAuth(
-                        `/api/coaches/${coach.coachProfileId}/connection-status`,
-                    );
-                    if (statusResponse.ok) {
-                        const status: ConnectionStatus =
-                            await statusResponse.json();
-                        return { coachId: coach.coachProfileId, status };
-                    }
-                } catch (err) {
-                    console.error(
-                        `Error fetching connection status for coach ${coach.coachProfileId}:`,
-                        err,
-                    );
+            // Fetch connection statuses in a single batched request
+            if (results.length > 0) {
+                const statusResponse = await fetchWithAuth(
+                    '/api/coaches/connection-statuses',
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            coachProfileIds: results.map(
+                                (coach) => coach.coachProfileId,
+                            ),
+                        }),
+                    },
+                );
+
+                const statusMap: Record<string, ConnectionStatus> = {};
+                if (statusResponse.ok) {
+                    const statuses = (await statusResponse.json()) as Record<
+                        string,
+                        ConnectionStatus
+                    >;
+                    results.forEach((coach) => {
+                        statusMap[coach.coachProfileId] = statuses[
+                            coach.coachProfileId
+                        ] ?? { status: 'none' };
+                    });
+                } else {
+                    results.forEach((coach) => {
+                        statusMap[coach.coachProfileId] = { status: 'none' };
+                    });
                 }
-                return {
-                    coachId: coach.coachProfileId,
-                    status: { status: "none" as const },
-                };
-            });
-
-            const statusResults = await Promise.all(statusPromises);
-            const statusMap: Record<string, ConnectionStatus> = {};
-            statusResults.forEach(({ coachId, status }) => {
-                statusMap[coachId] = status;
-            });
-            setConnectionStatuses(statusMap);
-
-            persistSearchState({
-                coaches: results,
-                connectionStatuses: statusMap,
-            });
+                setConnectionStatuses(statusMap);
+                persistSearchState({
+                    coaches: results,
+                    connectionStatuses: statusMap,
+                });
+            } else {
+                setConnectionStatuses({});
+                persistSearchState({
+                    coaches: results,
+                    connectionStatuses: {},
+                });
+            }
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : "Failed to search coaches",

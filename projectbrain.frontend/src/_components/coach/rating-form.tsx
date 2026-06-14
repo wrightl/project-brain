@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useCreateOrUpdateCoachRating, useMyCoachRating } from '@/_hooks/queries/use-coach-ratings';
 import StarRating from './star-rating';
 
@@ -29,7 +30,7 @@ export default function RatingForm({ coachId, onSuccess }: RatingFormProps) {
         e.preventDefault();
 
         if (rating === 0) {
-            alert('Please select a rating');
+            toast.error('Please select a rating');
             return;
         }
 
@@ -44,7 +45,7 @@ export default function RatingForm({ coachId, onSuccess }: RatingFormProps) {
             }
         } catch (error) {
             console.error('Error submitting rating:', error);
-            alert('Failed to submit rating. Please try again.');
+            toast.error('Failed to submit rating. Please try again.');
         } finally {
             setIsSubmitting(false);
         }

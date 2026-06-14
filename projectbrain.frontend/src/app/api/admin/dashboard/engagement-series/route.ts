@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server';
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { AdminDashboardService } from '@/_services/admin-dashboard-service';
 
-export const GET = createApiRoute<
+export const GET = createAdminApiRoute<
     { date: string; count: number }[]
 >(async (req: NextRequest) => {
     const { searchParams } = req.nextUrl;

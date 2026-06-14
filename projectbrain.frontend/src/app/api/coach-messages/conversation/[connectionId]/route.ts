@@ -1,12 +1,10 @@
+import { createApiRoute } from '@/_lib/api-route-handler';
 import { callBackendApi } from '@/_lib/backend-api';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
-export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ connectionId: string }> }
-) {
-    try {
-        const { connectionId } = await params;
+export const GET = createApiRoute(
+    async (req: NextRequest, context?: { params: Promise<{ connectionId: string }> }) => {
+        const { connectionId } = await context!.params;
         const searchParams = req.nextUrl.searchParams;
         const pageSize = searchParams.get('pageSize') || '20';
         const beforeDate = searchParams.get('beforeDate');
@@ -22,42 +20,32 @@ export async function GET(
         );
 
         if (!response.ok) {
-            throw new Error('Failed to fetch conversation messages');
+            return Response.json(
+                { error: 'Failed to fetch conversation messages' },
+                { status: response.status }
+            );
         }
 
-        return NextResponse.json(await response.json());
-    } catch (error) {
-        console.error('Error fetching conversation messages:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch conversation messages' },
-            { status: 500 }
-        );
+        return await response.json();
     }
-}
+);
 
-export async function PUT(
-    req: NextRequest,
-    { params }: { params: Promise<{ connectionId: string }> }
-) {
-    try {
-        const { connectionId } = await params;
+export const PUT = createApiRoute(
+    async (_req, context?: { params: Promise<{ connectionId: string }> }) => {
+        const { connectionId } = await context!.params;
 
-        // Mark conversation as read using userId and coachId
         const response = await callBackendApi(
             `/coach-messages/conversation/${connectionId}/read`,
             { method: 'PUT' }
         );
 
         if (!response.ok) {
-            throw new Error('Failed to mark conversation as read');
+            return Response.json(
+                { error: 'Failed to mark conversation as read' },
+                { status: response.status }
+            );
         }
 
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('Error marking conversation as read:', error);
-        return NextResponse.json(
-            { error: 'Failed to mark conversation as read' },
-            { status: 500 }
-        );
+        return { success: true };
     }
-}
+);

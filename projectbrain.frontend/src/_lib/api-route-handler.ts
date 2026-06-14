@@ -1,32 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BackendApiError, SessionExpiredError } from './backend-api';
-import { auth0 } from './auth';
+import { auth0, requireRole } from './auth';
+import { AppRoles } from './roles';
 
 type RouteHandler<T> = (
     req: NextRequest,
     context?: any
 ) => Promise<T | NextResponse> | T | NextResponse;
 
-export function createApiRoute<T>(handler: RouteHandler<T>) {
-    const wrapped = auth0.withApiAuthRequired(async function (
+type StreamingRouteHandler = (req: NextRequest) => Promise<Response>;
+
+function wrapApiHandler<T>(handler: RouteHandler<T>) {
+    return async function (
         req: Request | NextRequest,
         context?: unknown
     ): Promise<NextResponse> {
         try {
             const result = await handler(req as NextRequest, context);
-            // If result is already a Response, return it directly
             if (result instanceof NextResponse) {
                 return result;
             }
             if (result instanceof Response) {
                 return NextResponse.json(await result.json());
             }
-            // Otherwise, wrap the result in NextResponse.json
             return NextResponse.json(result as T);
         } catch (error) {
             console.error('API route error:', error);
 
-            // Handle session expiration - return 401 with special header
             if (error instanceof SessionExpiredError) {
                 return NextResponse.json(
                     { error: 'Session expired', code: 'SESSION_EXPIRED' },
@@ -51,11 +51,48 @@ export function createApiRoute<T>(handler: RouteHandler<T>) {
                 { status: 500 }
             );
         }
-    });
+    };
+}
 
-    // Type assertion to satisfy Next.js route handler types
+export function createApiRoute<T>(handler: RouteHandler<T>) {
+    const wrapped = auth0.withApiAuthRequired(wrapApiHandler(handler));
     return wrapped as (
         req: NextRequest,
         context?: unknown
     ) => Promise<NextResponse>;
+}
+
+export function createAdminApiRoute<T>(handler: RouteHandler<T>) {
+    return createApiRoute<T>(async (req, context) => {
+        const allowed = await requireRole(AppRoles.Admin);
+        if (!allowed) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        return handler(req, context);
+    });
+}
+
+export function createStreamingApiRoute(handler: StreamingRouteHandler) {
+    const wrapped = auth0.withApiAuthRequired(async (req: Request) => {
+        try {
+            return await handler(req as NextRequest);
+        } catch (error) {
+            console.error('Streaming API route error:', error);
+
+            if (error instanceof SessionExpiredError) {
+                return NextResponse.json(
+                    { error: 'Session expired', code: 'SESSION_EXPIRED' },
+                    { status: 401 }
+                );
+            }
+
+            return NextResponse.json(
+                { error: 'Internal server error' },
+                { status: 500 }
+            );
+        }
+    });
+
+    return wrapped as (req: NextRequest) => Promise<Response>;
 }

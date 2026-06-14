@@ -1,12 +1,10 @@
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
-using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Shared.Dtos.Pagination;
 
 public class ConversationServices(
     IConversationService conversationService,
-    IConversationRepository conversationRepository,
     IIdentityService identityService,
     ILogger<ConversationServices> logger,
     IConfiguration config)
@@ -14,7 +12,6 @@ public class ConversationServices(
     public ILogger<ConversationServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
     public IConversationService ConversationService { get; } = conversationService;
-    public IConversationRepository ConversationRepository { get; } = conversationRepository;
     public IIdentityService IdentityService { get; } = identityService;
 }
 
@@ -115,15 +112,13 @@ public static class ConversationEndpoints
             pagedRequest.PageSize = pageSize;
         }
 
-        // Get total count for pagination
-        var totalCount = await services.ConversationRepository.CountAsync(
-            c => c.UserId == userId,
-            CancellationToken.None);
-
-        // Get paginated results using efficient database-level pagination
         var skip = pagedRequest.GetSkip();
         var take = pagedRequest.GetTake();
-        var paginatedConversations = await services.ConversationRepository.GetPagedForUserAsync(userId, skip, take, CancellationToken.None);
+        var (paginatedConversations, totalCount) = await services.ConversationService.GetPagedForUserAsync(
+            userId,
+            skip,
+            take,
+            CancellationToken.None);
 
         // Map to DTOs (using anonymous objects for now, can create ConversationResponseDto later)
         var conversationDtos = paginatedConversations.Select(c => new

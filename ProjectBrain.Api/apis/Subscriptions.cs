@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
-using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.Exceptions;
 
 public class SubscriptionServices(
     ILogger<SubscriptionServices> logger,
@@ -9,7 +9,7 @@ public class SubscriptionServices(
     ISubscriptionService subscriptionService,
     IUsageTrackingService usageTrackingService,
     IFeatureGateService featureGateService,
-    IResourceRepository resourceRepository,
+    IResourceService resourceService,
     IStripeService stripeService)
 {
     public ILogger<SubscriptionServices> Logger { get; } = logger;
@@ -17,7 +17,7 @@ public class SubscriptionServices(
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
-    public IResourceRepository ResourceRepository { get; } = resourceRepository;
+    public IResourceService ResourceService { get; } = resourceService;
     public IStripeService StripeService { get; } = stripeService;
 }
 
@@ -194,7 +194,7 @@ public static class SubscriptionEndpoints
             var monthlyClientMessages = await services.UsageTrackingService.GetUsageCountAsync(userId, "client_message", "monthly");
             var fileStorage = await services.UsageTrackingService.GetFileStorageUsageAsync(userId);
             var monthlyResearchReports = await services.UsageTrackingService.GetUsageCountAsync(userId, "research_report", "monthly");
-            var fileCount = await services.ResourceRepository.CountForUserAsync(userId);
+            var fileCount = await services.ResourceService.GetFileCountForUser(userId);
 
             return Results.Ok(new
             {

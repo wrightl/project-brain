@@ -59,26 +59,30 @@ export async function POST(request: NextRequest) {
 
         // Handle the response
         if (!response.ok) {
-            const errorMessage = `API Error (${response.status}, token: ${token}, url: ${apiServerUrl})`;
+            let clientMessage = 'Onboarding failed. Please try again.';
+            try {
+                const contentType = response.headers.get('content-type');
+                if (contentType?.includes('application/json')) {
+                    const errorData = await response.json();
+                    clientMessage =
+                        errorData.message || errorData.error || clientMessage;
+                } else {
+                    const errorText = await response.text();
+                    if (errorText) {
+                        clientMessage = errorText;
+                    }
+                }
+            } catch {
+                // Use default message if parsing fails
+            }
 
-            // try {
-            //     const contentType = response.headers.get('content-type');
-            //     if (contentType?.includes('application/json')) {
-            //         const errorData = await response.json();
-            //         errorMessage =
-            //             errorData.message || errorData.error || errorMessage;
-            //     } else {
-            //         const errorText = await response.text();
-            //         if (errorText)
-            //             errorMessage = `${errorMessage}: ${errorText}`;
-            //     }
-            // } catch {
-            //     // Use default message if parsing fails
-            // }
-
-            console.error('Backend API error:', errorMessage);
+            console.error(
+                'Backend API error during user onboarding:',
+                response.status,
+                apiServerUrl
+            );
             return NextResponse.json(
-                { error: errorMessage },
+                { error: clientMessage },
                 { status: response.status }
             );
         }

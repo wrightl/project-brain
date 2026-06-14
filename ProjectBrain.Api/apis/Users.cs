@@ -42,6 +42,8 @@ public class UserServices(
 
 public static class UserEndpoints
 {
+    private static readonly string[] ValidThemes = ["standard", "dark", "colourful", "dotdash"];
+
     public static void MapUserEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("users").RequireAuthorization();
@@ -430,18 +432,30 @@ public static class UserEndpoints
             user.Longitude = geocoded?.Longitude;
         }
 
+        var hasCoachRoleInToken = services.IdentityService.IsCoach;
+        var hasCoachRoleInDb = existingUser?.Roles?.Contains(AppRoles.Coach) == true;
+
+        if (!hasCoachRoleInToken && !hasCoachRoleInDb)
+        {
+            return Results.Json(
+                new { error = "Coach access must be granted before completing coach onboarding. Please contact support." },
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
         if (existingUser is not null && existingUser.Roles != null && existingUser.Roles.Count > 0)
         {
             user.Roles = existingUser.Roles;
         }
-        else
+        else if (hasCoachRoleInToken)
         {
-            // Assign the role provided in the request
             user.Roles.Add(AppRoles.Coach);
         }
 
-        // Update auth0
-        await services.Auth0UserManagementService.UpdateUserRoles(userId, user.Roles);
+        // Sync profile to Auth0 without elevating privileges from the client request
+        if (user.Roles.Count > 0)
+        {
+            await services.Auth0UserManagementService.UpdateUserRoles(userId, user.Roles);
+        }
         await services.Auth0UserManagementService.UpdateUser(userId, user);
 
         // Create or update coach profile
@@ -642,10 +656,9 @@ public static class UserEndpoints
             return Results.BadRequest("Theme is required");
         }
 
-        var validThemes = new[] { "standard", "dark", "colourful" };
-        if (!validThemes.Contains(request.Theme, StringComparer.OrdinalIgnoreCase))
+        if (!ValidThemes.Contains(request.Theme, StringComparer.OrdinalIgnoreCase))
         {
-            return Results.BadRequest($"Invalid theme value. Must be one of: {string.Join(", ", validThemes)}");
+            return Results.BadRequest($"Invalid theme value. Must be one of: {string.Join(", ", ValidThemes)}");
         }
 
         var user = await services.UserService.GetById(userId);
@@ -769,8 +782,7 @@ public static class UserEndpoints
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("theme", out var themeElement))
             {
                 var theme = themeElement.GetString()?.ToLowerInvariant();
-                var validThemes = new[] { "standard", "dark", "colourful" };
-                if (theme is not null && validThemes.Contains(theme))
+                if (theme is not null && ValidThemes.Contains(theme))
                 {
                     return theme;
                 }
@@ -779,8 +791,7 @@ public static class UserEndpoints
         catch
         {
             // If parsing fails, check if it's a plain string
-            var validThemes = new[] { "standard", "dark", "colourful" };
-            if (validThemes.Contains(preferences.ToLowerInvariant()))
+            if (ValidThemes.Contains(preferences.ToLowerInvariant()))
             {
                 return preferences.ToLowerInvariant();
             }

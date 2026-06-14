@@ -185,4 +185,36 @@ export class CoachService {
             );
         }
     }
+
+    /**
+     * Batch-fetch lightweight coach summaries for dashboard/network views.
+     */
+    static async getCoachSummaries(
+        coachProfileIds: string[]
+    ): Promise<
+        Record<
+            string,
+            {
+                coachProfileId: string;
+                fullName: string;
+                bio?: string | null;
+                imageUrl?: string | null;
+            }
+        >
+    > {
+        if (coachProfileIds.length === 0) {
+            return {};
+        }
+
+        const response = await callBackendApi('/coaches/summaries', {
+            method: 'POST',
+            body: { coachProfileIds },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch coach summaries');
+        }
+
+        return response.json();
+    }
 }

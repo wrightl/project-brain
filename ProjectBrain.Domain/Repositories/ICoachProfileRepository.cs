@@ -48,5 +48,9 @@ public interface ICoachProfileRepository : IRepository<CoachProfile, int>
         IEnumerable<string>? ageGroups = null,
         IEnumerable<string>? specialisms = null,
         CancellationToken cancellationToken = default);
+
+    Task<IEnumerable<CoachProfile>> GetByIdsWithUserAsync(
+        IEnumerable<int> ids,
+        CancellationToken cancellationToken = default);
 }
 

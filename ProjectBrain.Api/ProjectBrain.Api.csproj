@@ -19,28 +19,28 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Azure.AI.OpenAI" Version="9.5.2-preview.1.25522.3" />
-    <PackageReference Include="Aspire.Azure.Search.Documents" Version="13.1.0" />
-    <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.1.0" />
-    <PackageReference Include="Aspire.Azure.Storage.Queues" Version="13.1.0" />
-    <PackageReference Include="Aspire.Microsoft.Extensions.Configuration.AzureAppConfiguration" Version="13.1.0" />
-    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.1.0" />
+    <PackageReference Include="Aspire.Azure.AI.OpenAI" Version="13.4.3-preview.1.26305.13" />
+    <PackageReference Include="Aspire.Azure.Search.Documents" Version="13.4.3" />
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.4.3" />
+    <PackageReference Include="Aspire.Azure.Storage.Queues" Version="13.4.3" />
+    <PackageReference Include="Aspire.Microsoft.Extensions.Configuration.AzureAppConfiguration" Version="13.4.3" />
+    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.3" />
     <PackageReference Include="Auth0.AuthenticationApi" Version="7.46.0" />
-    <PackageReference Include="Auth0.ManagementApi" Version="8.4.0" />
-    <PackageReference Include="Azure.Core" Version="1.57.0" />
+    <PackageReference Include="Auth0.ManagementApi" Version="8.5.0" />
+    <PackageReference Include="Azure.Core" Version="1.59.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
     <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.14.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.50.0" />
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.6.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.8">
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="scalar.aspnetcore" Version="2.14.14" />
-    <PackageReference Include="Stripe.net" Version="51.2.0" />
+    <PackageReference Include="scalar.aspnetcore" Version="2.16.3" />
+    <PackageReference Include="Stripe.net" Version="52.0.0" />
     <PackageReference Include="TickerQ" Version="10.4.0" />
     <PackageReference Include="TickerQ.Utilities" Version="10.4.0" />
     <PackageReference Include="TickerQ.Dashboard" Version="10.4.0" />

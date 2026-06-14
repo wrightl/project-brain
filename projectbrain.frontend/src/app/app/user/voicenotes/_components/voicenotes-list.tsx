@@ -5,6 +5,7 @@ import AudioPlayer from './audio-player';
 import VoiceNoteUpload from './voicenote-upload';
 import { VoiceNote, PagedResponse } from '@/_lib/types';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import { SkeletonList } from '@/_components/ui/skeleton';
 
 export default function VoiceNotesList() {
     const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
@@ -48,11 +49,7 @@ export default function VoiceNotesList() {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-            </div>
-        );
+        return <SkeletonList count={4} />;
     }
 
     if (error && voiceNotes.length === 0) {

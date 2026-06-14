@@ -53,6 +53,17 @@ public class ResourceService : IResourceService
         return await _repository.CountForUserAsync(userId);
     }
 
+    public async Task<(IEnumerable<Resource> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        var totalCount = await _repository.CountForUserAsync(userId, cancellationToken);
+        var items = await _repository.GetPagedForUserAsync(userId, skip, take, cancellationToken);
+        return (items, totalCount);
+    }
+
     public async Task<Resource?> GetSharedById(Guid id)
     {
         return await _repository.GetSharedByIdAsync(id);
@@ -96,6 +107,11 @@ public interface IResourceService
     Task<Resource?> GetForUserByFilename(string filename, string userId);
     Task<IEnumerable<Resource>> GetAllForUser(string userId, int? limit = null);
     Task<int> GetFileCountForUser(string userId);
+    Task<(IEnumerable<Resource> Items, int TotalCount)> GetPagedForUserAsync(
+        string userId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
     Task<Resource?> GetSharedById(Guid id);
     Task<Resource?> GetSharedByFilename(string filename);
     Task<Resource?> GetSharedByLocation(string location);

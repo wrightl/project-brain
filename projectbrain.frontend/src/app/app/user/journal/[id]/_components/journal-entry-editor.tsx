@@ -18,6 +18,7 @@ import {
     ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import ConfirmationDialog from '@/_components/confirmation-dialog';
 
 interface JournalEntryEditorProps {
     entryId?: string;
@@ -50,6 +51,7 @@ export default function JournalEntryEditor({
     const [newTagName, setNewTagName] = useState('');
     const [isEditing, setIsEditing] = useState(isNew);
     const [isSaving, setIsSaving] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     useEffect(() => {
         if (entry) {
@@ -150,10 +152,6 @@ export default function JournalEntryEditor({
 
     const handleDelete = async () => {
         if (!entryId) return;
-
-        if (!confirm('Are you sure you want to delete this journal entry?')) {
-            return;
-        }
 
         try {
             await deleteMutation.mutateAsync(entryId);
@@ -278,7 +276,7 @@ export default function JournalEntryEditor({
                                 Edit
                             </button>
                             <button
-                                onClick={handleDelete}
+                                onClick={() => setDeleteConfirmOpen(true)}
                                 disabled={deleteMutation.isPending}
                                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
                             >
@@ -824,6 +822,15 @@ export default function JournalEntryEditor({
                     </div>
                 )}
             </div>
+            <ConfirmationDialog
+                isOpen={deleteConfirmOpen}
+                onClose={() => setDeleteConfirmOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete journal entry"
+                message="Are you sure you want to delete this journal entry? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+            />
         </div>
     );
 }

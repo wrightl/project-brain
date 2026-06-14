@@ -1,8 +1,8 @@
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { NextRequest } from 'next/server';
 import { callBackendApi } from '@/_lib/backend-api';
 
-export const GET = createApiRoute(async (req: NextRequest) => {
+export const GET = createAdminApiRoute(async (req: NextRequest) => {
     const response = await callBackendApi('/admin/settings/subscription');
     if (!response.ok) {
         throw new Error('Failed to fetch subscription settings');
@@ -10,7 +10,7 @@ export const GET = createApiRoute(async (req: NextRequest) => {
     return response.json();
 });
 
-export const PUT = createApiRoute(async (req: NextRequest) => {
+export const PUT = createAdminApiRoute(async (req: NextRequest) => {
     const body = await req.json();
     const response = await callBackendApi('/admin/settings/subscription', {
         method: 'PUT',

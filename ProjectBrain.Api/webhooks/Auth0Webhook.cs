@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using ProjectBrain.Api.Webhooks;
 using ProjectBrain.Domain;
 
 public class Auth0WebhookServices(
@@ -41,7 +42,8 @@ public static class Auth0WebhookEndpoints
     }
 
     private static async Task<IResult> HandleAuth0Webhook(
-        [AsParameters] Auth0WebhookServices services)
+        [AsParameters] Auth0WebhookServices services,
+        IWebhookIdempotencyService idempotencyService)
     {
         // Read request body
         var requestBody = await new StreamReader(services.Context.Request.Body, Encoding.UTF8).ReadToEndAsync();
@@ -71,7 +73,7 @@ public static class Auth0WebhookEndpoints
             return Results.BadRequest("Webhook token not configured");
         }
 
-        if (!string.Equals(providedToken, expectedToken, StringComparison.Ordinal))
+        if (!WebhookSecurity.IsValidBearerToken(providedToken, expectedToken))
         {
             services.Logger.LogWarning("Invalid Auth0 webhook token");
             return Results.BadRequest("Invalid webhook token");
@@ -92,6 +94,15 @@ public static class Auth0WebhookEndpoints
 
             var eventType = eventTypeElement.GetString();
             services.Logger.LogInformation("Received Auth0 webhook: {EventType}", eventType);
+
+            var eventId = root.TryGetProperty("id", out var eventIdElement)
+                ? eventIdElement.GetString()
+                : null;
+            if (!idempotencyService.TryMarkProcessed("auth0", eventId ?? $"{eventType}:{requestBody.GetHashCode()}", TimeSpan.FromDays(7)))
+            {
+                services.Logger.LogInformation("Skipping duplicate Auth0 webhook {EventId}", eventId);
+                return Results.Ok();
+            }
 
             // Handle user.created event
             if (eventType == "user.created")

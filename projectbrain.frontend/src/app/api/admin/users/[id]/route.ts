@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { User } from '@/_lib/types';
 import { UserService } from '@/_services/user-service';
 import { BackendApiError } from '@/_lib/backend-api';
 
-export const GET = createApiRoute<User>(async (req: NextRequest) => {
+export const GET = createAdminApiRoute<User>(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     const id = pathname.split('/').pop();
 
@@ -21,7 +21,7 @@ export const GET = createApiRoute<User>(async (req: NextRequest) => {
     return user;
 });
 
-export const PUT = createApiRoute<User>(async (req: NextRequest) => {
+export const PUT = createAdminApiRoute<User>(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     const id = pathname.split('/').pop();
 
@@ -35,7 +35,7 @@ export const PUT = createApiRoute<User>(async (req: NextRequest) => {
     return updatedUser;
 });
 
-export const DELETE = createApiRoute(async (req: NextRequest) => {
+export const DELETE = createAdminApiRoute(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     const id = pathname.split('/').pop();
 

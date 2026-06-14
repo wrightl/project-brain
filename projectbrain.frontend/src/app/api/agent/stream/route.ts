@@ -1,18 +1,16 @@
+import { createStreamingApiRoute } from '@/_lib/api-route-handler';
 import { getAccessToken } from '@/_lib/auth';
 import { NextRequest } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export const POST = createStreamingApiRoute(async (req: NextRequest) => {
     const { content, conversationId, workflowId } = await req.json();
-
     const accessToken = await getAccessToken();
 
-    // Prepare headers
     const headers: HeadersInit = {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
     };
 
-    // Prepare request body
     const body: Record<string, unknown> = { content };
     if (conversationId) {
         body.conversationId = conversationId;
@@ -21,7 +19,6 @@ export async function POST(req: NextRequest) {
         body.workflowId = workflowId;
     }
 
-    // Use native fetch for streaming
     const backendResponse = await fetch(
         `${process.env.API_SERVER_URL}/agent/stream`,
         {
@@ -50,5 +47,4 @@ export async function POST(req: NextRequest) {
                 : {}),
         },
     });
-}
-
+});

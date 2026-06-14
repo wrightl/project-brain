@@ -1,9 +1,9 @@
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { NextRequest } from 'next/server';
 import { PagedResponse, User } from '@/_lib/types';
 import { UserService } from '@/_services/user-service';
 
-export const GET = createApiRoute<PagedResponse<User>>(async (req: NextRequest) => {
+export const GET = createAdminApiRoute<PagedResponse<User>>(async (req: NextRequest) => {
     const { searchParams } = new URL(req.url);
     const pageParam = searchParams.get('page');
     const pageSizeParam = searchParams.get('pageSize');

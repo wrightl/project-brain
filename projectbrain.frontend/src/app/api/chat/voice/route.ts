@@ -1,7 +1,8 @@
+import { createStreamingApiRoute } from '@/_lib/api-route-handler';
 import { getAccessToken } from '@/_lib/auth';
 import { NextRequest } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export const POST = createStreamingApiRoute(async (req: NextRequest) => {
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File;
     const conversationId = formData.get('conversationId') as string | null;
@@ -12,19 +13,16 @@ export async function POST(req: NextRequest) {
 
     const accessToken = await getAccessToken();
 
-    // Create FormData for backend request
     const backendFormData = new FormData();
     backendFormData.append('audio', audioFile);
     if (conversationId) {
         backendFormData.append('conversationId', conversationId);
     }
 
-    // Prepare headers
     const headers: HeadersInit = {
         Authorization: `Bearer ${accessToken}`,
     };
 
-    // Use native fetch for streaming
     const backendResponse = await fetch(
         `${process.env.API_SERVER_URL}/chat/voice`,
         {
@@ -54,4 +52,4 @@ export async function POST(req: NextRequest) {
                 : {}),
         },
     });
-}
+});

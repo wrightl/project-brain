@@ -133,6 +133,7 @@ if (!builder.ExecutionContext.IsPublishMode)
 {
     appConfig.RunAsEmulator(emulator =>
     {
+        emulator.WithContainerRuntimeArgs("--platform", "linux/amd64");
         emulator.WithDataVolume();
         emulator.WithHostPort(54607);
     });

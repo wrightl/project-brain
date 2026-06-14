@@ -275,6 +275,14 @@ public class CoachProfileService : ICoachProfileService
             specialisms);
         return results.ToList();
     }
+
+    public async Task<List<CoachProfile>> GetByIdsWithUserAsync(
+        IEnumerable<int> ids,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await _repository.GetByIdsWithUserAsync(ids, cancellationToken);
+        return results.ToList();
+    }
 }
 
 public interface ICoachProfileService
@@ -306,5 +314,9 @@ public interface ICoachProfileService
         double radiusMiles,
         IEnumerable<string>? ageGroups = null,
         IEnumerable<string>? specialisms = null);
+
+    Task<List<CoachProfile>> GetByIdsWithUserAsync(
+        IEnumerable<int> ids,
+        CancellationToken cancellationToken = default);
 }
 

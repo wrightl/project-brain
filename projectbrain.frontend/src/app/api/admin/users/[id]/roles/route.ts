@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
-import { createApiRoute } from '@/_lib/api-route-handler';
+import { createAdminApiRoute } from '@/_lib/api-route-handler';
 import { User } from '@/_lib/types';
 import { UserService } from '@/_services/user-service';
 import { BackendApiError } from '@/_lib/backend-api';
 
-export const PUT = createApiRoute<User>(async (req: NextRequest) => {
+export const PUT = createAdminApiRoute<User>(async (req: NextRequest) => {
     const pathname = req.nextUrl.pathname;
     // Extract ID from path like /api/user/[id]/roles
     const parts = pathname.split('/');

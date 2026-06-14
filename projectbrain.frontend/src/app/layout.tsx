@@ -68,23 +68,13 @@ export default function RootLayout({
                     position="top-right"
                     toastOptions={{
                         duration: 4000,
-                        style: {
-                            background: '#363636',
-                            color: '#fff',
-                        },
+                        className:
+                            'bg-white text-gray-900 border border-gray-300 shadow',
                         success: {
                             duration: 3000,
-                            iconTheme: {
-                                primary: '#10b981',
-                                secondary: '#fff',
-                            },
                         },
                         error: {
                             duration: 4000,
-                            iconTheme: {
-                                primary: '#ef4444',
-                                secondary: '#fff',
-                            },
                         },
                     }}
                 />

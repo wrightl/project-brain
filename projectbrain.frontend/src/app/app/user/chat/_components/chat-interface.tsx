@@ -16,6 +16,7 @@ import FeatureGate from '@/_components/feature-gate';
 import ConversationsDrawer from './conversations-drawer';
 import { useAgentFeatureEnabled } from '@/_hooks/use-feature-flag';
 import ToolExecutionBadge from './tool-execution-badge';
+import { isSafeExternalUrl } from '@/_lib/url-security';
 import toast from 'react-hot-toast';
 import { apiClient } from '@/_lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -984,7 +985,7 @@ export default function ChatInterface({
                                                 </p>
                                             </button>
 
-                                            {s.articleUrl && (
+                                            {s.articleUrl && isSafeExternalUrl(s.articleUrl) && (
                                                 <div className="mt-3">
                                                     <a
                                                         href={s.articleUrl}

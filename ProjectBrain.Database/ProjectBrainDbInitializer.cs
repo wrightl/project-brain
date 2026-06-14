@@ -86,6 +86,7 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         await SeedSystemTagsAsync(context, cancellationToken);
 
         await SeedCoachSpecialismOptionsAsync(context, cancellationToken);
+        await SeedCountriesAsync(context, cancellationToken);
     }
 
     private async Task SeedAchievementsAsync(AppDbContext context, CancellationToken cancellationToken)
@@ -346,6 +347,22 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         }
 
         return adminUser;
+    }
+
+    public async Task SeedTestUsersFromEndpointAsync(
+        IIdentitySeedingService identitySeedingService,
+        IConfiguration configuration,
+        IHostEnvironment hostEnvironment,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await SeedTestUsersAsync(
+            context,
+            identitySeedingService,
+            configuration,
+            hostEnvironment,
+            cancellationToken);
     }
 
     public async Task SeedTestUsersAsync(
@@ -733,6 +750,41 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         else
         {
             logger.LogInformation("Coach specialism options already up to date");
+        }
+    }
+
+    private async Task SeedCountriesAsync(AppDbContext context, CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Ensuring countries exist...");
+
+        var existingCodes = await context.Countries
+            .Select(c => c.Code)
+            .ToListAsync(cancellationToken);
+        var existingSet = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var toAdd = new List<Country>();
+        foreach (var (name, code) in CountryCatalog.DefaultCountries)
+        {
+            if (!existingSet.Contains(code))
+            {
+                toAdd.Add(new Country
+                {
+                    Name = name,
+                    Code = code,
+                    IsActive = true,
+                });
+            }
+        }
+
+        if (toAdd.Count > 0)
+        {
+            await context.Countries.AddRangeAsync(toAdd, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+            logger.LogInformation("Seeded {Count} countries", toAdd.Count);
+        }
+        else
+        {
+            logger.LogInformation("Countries already up to date");
         }
     }
 

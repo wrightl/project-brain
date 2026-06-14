@@ -187,8 +187,9 @@ public static class DomainToDtoMapper
                         if (coachMessageService != null)
                         {
                             var recentChatCutoff = DateTime.UtcNow.AddMinutes(-10);
-                            var hasActiveChat = (await coachMessageService.GetByCoachId(coachDto.Id))
-                                .Any(cm => cm.CreatedAt >= recentChatCutoff);
+                            var hasActiveChat = await coachMessageService.HasRecentMessageForCoachAsync(
+                                coachDto.Id,
+                                recentChatCutoff);
 
                             coachDto.AvailabilityStatus = hasActiveChat ? AvailabilityStatus.Busy : AvailabilityStatus.Available;
                         }

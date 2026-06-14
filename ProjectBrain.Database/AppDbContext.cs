@@ -522,6 +522,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasIndex(o => o.Name)
             .IsUnique();
 
+        modelBuilder.Entity<Country>()
+            .HasIndex(c => c.Code)
+            .IsUnique();
+
         logger.LogInformation("OnModelCreating completed");
     }
 
@@ -535,6 +539,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<CoachQualification> CoachQualifications => Set<CoachQualification>();
     public DbSet<CoachSpecialism> CoachSpecialisms => Set<CoachSpecialism>();
     public DbSet<CoachSpecialismOption> CoachSpecialismOptions => Set<CoachSpecialismOption>();
+    public DbSet<Country> Countries => Set<Country>();
     public DbSet<CoachAgeGroup> CoachAgeGroups => Set<CoachAgeGroup>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<NeurodiverseTrait> NeurodiverseTraits => Set<NeurodiverseTrait>();

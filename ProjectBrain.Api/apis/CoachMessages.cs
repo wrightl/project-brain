@@ -165,6 +165,18 @@ public static class CoachMessageEndpoints
             });
         }
 
+        if (connection.Status != "accepted")
+        {
+            return Results.BadRequest(new
+            {
+                error = new
+                {
+                    code = "CONNECTION_NOT_ACCEPTED",
+                    message = "Connection must be accepted before sending messages"
+                }
+            });
+        }
+
         // Determine if current user is the user or coach
         var isUser = currentUserId == connection.UserId;
         var isCoach = currentUserId == connection.CoachId;
@@ -248,6 +260,18 @@ public static class CoachMessageEndpoints
                     {
                         code = "NO_CONNECTION",
                         message = "No active connection between these users"
+                    }
+                });
+            }
+
+            if (connection.Status != "accepted")
+            {
+                return Results.BadRequest(new
+                {
+                    error = new
+                    {
+                        code = "CONNECTION_NOT_ACCEPTED",
+                        message = "Connection must be accepted before sending messages"
                     }
                 });
             }

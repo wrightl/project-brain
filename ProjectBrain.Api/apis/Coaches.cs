@@ -59,6 +59,8 @@ public static class CoachEndpoints
         group.MapGet("/clients", GetConnectedClients).WithName("GetConnectedClients").RequireAuthorization("CoachOnly");
         group.MapPost("/clients/{userId}/accept", AcceptClientConnection).WithName("AcceptClientConnection").RequireAuthorization("CoachOnly");
 
+        group.MapPost("/connection-statuses", GetBatchConnectionStatuses).WithName("GetBatchConnectionStatuses");
+        group.MapPost("/summaries", GetBatchCoachSummaries).WithName("GetBatchCoachSummaries");
         group.MapGet("/{id}/connection-status", GetConnectionStatus).WithName("GetConnectionStatus");
         group.MapPost("/{coachId}/connections", SendConnectionRequest).WithName("SendConnectionRequest");
         group.MapDelete("/{id}/connections", CancelConnectionRequest).WithName("CancelConnectionRequest");
@@ -643,15 +645,58 @@ public static class CoachEndpoints
         return Results.Ok(coachDto);
     }
 
+    private static async Task<IResult> GetBatchConnectionStatuses(
+        [AsParameters] CoachServices services,
+        BatchConnectionStatusRequest request)
+    {
+        var userId = services.IdentityService.UserId!;
+        var statuses = new Dictionary<string, ConnectionStatusResponse>();
+
+        foreach (var coachProfileId in request.CoachProfileIds.Distinct())
+        {
+            statuses[coachProfileId] = await BuildConnectionStatusAsync(services, userId, coachProfileId);
+        }
+
+        return Results.Ok(statuses);
+    }
+
+    private static async Task<IResult> GetBatchCoachSummaries(
+        [AsParameters] CoachServices services,
+        BatchCoachSummariesRequest request)
+    {
+        var ids = request.CoachProfileIds
+            .Select(id => int.TryParse(id, out var parsed) ? parsed : (int?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        if (ids.Count == 0)
+        {
+            return Results.Ok(new Dictionary<string, CoachSummaryResponse>());
+        }
+
+        var profiles = await services.CoachProfileService.GetByIdsWithUserAsync(ids);
+        var summaries = profiles.ToDictionary(
+            profile => profile.Id.ToString(),
+            profile => new CoachSummaryResponse
+            {
+                CoachProfileId = profile.Id.ToString(),
+                FullName = profile.User?.FullName ?? "Coach",
+                Bio = profile.Bio,
+                ImageUrl = profile.ImageUrl
+            });
+
+        return Results.Ok(summaries);
+    }
+
     private static async Task<IResult> GetConnectionStatus(
         [AsParameters] CoachServices services,
         string id)
     {
         var userId = services.IdentityService.UserId!;
-
-        // Validate coach exists
-        var coachProfile = await services.CoachProfileService.GetByIdWithRelated(int.Parse(id));
-        if (coachProfile == null || coachProfile.User == null)
+        var response = await BuildConnectionStatusAsync(services, userId, id);
+        if (response.Status == "not_found")
         {
             return Results.NotFound(new ErrorResponse
             {
@@ -663,27 +708,41 @@ public static class CoachEndpoints
             });
         }
 
-        // Get connection
+        return Results.Ok(response);
+    }
+
+    private static async Task<ConnectionStatusResponse> BuildConnectionStatusAsync(
+        CoachServices services,
+        string userId,
+        string coachProfileId)
+    {
+        if (!int.TryParse(coachProfileId, out var profileId))
+        {
+            return new ConnectionStatusResponse { Status = "none" };
+        }
+
+        var coachProfile = await services.CoachProfileService.GetByIdWithRelated(profileId);
+        if (coachProfile == null || coachProfile.User == null)
+        {
+            return new ConnectionStatusResponse { Status = "not_found" };
+        }
+
         var coachId = coachProfile.UserId;
         var connection = await services.ConnectionService.GetConnectionAsync(userId, coachId);
 
         if (connection == null || connection.Status == "cancelled" || connection.Status == "rejected")
         {
-            return Results.Ok(new ConnectionStatusResponse
-            {
-                Status = "none"
-            });
+            return new ConnectionStatusResponse { Status = "none" };
         }
 
-        // Map internal status to API status
         string apiStatus = connection.Status switch
         {
             "pending" => "pending",
             "accepted" => "connected",
-            _ => "none" // Should not reach here due to check above
+            _ => "none"
         };
 
-        var response = new ConnectionStatusResponse
+        return new ConnectionStatusResponse
         {
             Status = apiStatus,
             ConnectionId = connection.Id.ToString(),
@@ -691,8 +750,6 @@ public static class CoachEndpoints
             RespondedAt = connection.RespondedAt,
             RequestedBy = connection.RequestedBy
         };
-
-        return Results.Ok(response);
     }
 
     private static async Task<Connection> ApplyFakeCoachAutoAcceptAsync(
@@ -1122,6 +1179,24 @@ public class ConnectionRequestRequest
 public class SetAvailabilityStatusRequest
 {
     public required string Status { get; init; } // "Available", "Busy", "Away", "Offline"
+}
+
+public class BatchConnectionStatusRequest
+{
+    public required List<string> CoachProfileIds { get; init; }
+}
+
+public class BatchCoachSummariesRequest
+{
+    public required List<string> CoachProfileIds { get; init; }
+}
+
+public class CoachSummaryResponse
+{
+    public required string CoachProfileId { get; init; }
+    public required string FullName { get; init; }
+    public string? Bio { get; init; }
+    public string? ImageUrl { get; init; }
 }
 
 public class ConnectionStatusResponse

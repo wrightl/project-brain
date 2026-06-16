@@ -1,18 +1,21 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.AI;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Goals;
+using ProjectBrain.Database.Models;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Dtos;
+using ProjectBrain.Shared.Dtos.Goals;
 using TickerQ.Utilities.Entities;
 using TickerQ.Utilities.Interfaces.Managers;
 
 namespace ProjectBrain.Api.Tests;
 
-public class GoalSuggestionsEndpointTests
+public class GoalSuggestionsEndpointTests : IDisposable
 {
     private readonly Mock<ILogger<GoalServices>> _mockLogger = new();
     private readonly Mock<IGoalService> _mockGoalService = new();
@@ -23,6 +26,20 @@ public class GoalSuggestionsEndpointTests
     private readonly Mock<IGoalDailySuggestionClient> _mockSuggestionClient = new();
     private readonly Mock<IGoalSuggestionUserContext> _mockUserContext = new();
     private readonly Mock<IUsageTrackingService> _mockUsage = new();
+    private readonly ServiceProvider _serviceProvider;
+
+    public GoalSuggestionsEndpointTests()
+    {
+        _serviceProvider = new ServiceCollection()
+            .AddSingleton(Mock.Of<IPushNotificationService>())
+            .AddSingleton(_mockLogger.Object)
+            .BuildServiceProvider();
+    }
+
+    public void Dispose()
+    {
+        _serviceProvider.Dispose();
+    }
 
     [Fact]
     public async Task GetSuggestedGoals_ShouldCallAiClient_AndTrackUsage()
@@ -64,7 +81,8 @@ public class GoalSuggestionsEndpointTests
             _mockTicker.Object,
             _mockSuggestionClient.Object,
             _mockUserContext.Object,
-            _mockUsage.Object);
+            _mockUsage.Object,
+            _serviceProvider.GetRequiredService<IServiceScopeFactory>());
 
         var method = typeof(GoalEndpoints).GetMethod(
             "GetSuggestedGoals",
@@ -83,5 +101,75 @@ public class GoalSuggestionsEndpointTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
         _mockUsage.Verify(u => u.TrackAIQueryAsync(userId), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateOrUpdateGoals_ShouldSendPushFromNewScope()
+    {
+        var userId = "auth0|goal-update";
+        var requestScopedPush = new Mock<IPushNotificationService>();
+        var scopedPush = new Mock<IPushNotificationService>();
+        var pushCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        scopedPush
+            .Setup(p => p.SendDataOnlyToUserAsync(
+                userId,
+                It.Is<IReadOnlyDictionary<string, string>>(data => data["type"] == "goals_updated"),
+                It.IsAny<CancellationToken>()))
+            .Callback(() => pushCalled.TrySetResult())
+            .Returns(Task.CompletedTask);
+
+        await using var serviceProvider = new ServiceCollection()
+            .AddSingleton(scopedPush.Object)
+            .AddSingleton(_mockLogger.Object)
+            .BuildServiceProvider();
+
+        _mockIdentityService.Setup(s => s.UserId).Returns(userId);
+        _mockGoalService
+            .Setup(s => s.CreateOrUpdateGoalsAsync(userId, It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new Goal { UserId = userId, Date = DateOnly.FromDateTime(DateTime.UtcNow), Index = 0, Message = "First" },
+                new Goal { UserId = userId, Date = DateOnly.FromDateTime(DateTime.UtcNow), Index = 1, Message = "Second" },
+                new Goal { UserId = userId, Date = DateOnly.FromDateTime(DateTime.UtcNow), Index = 2, Message = "Third" }
+            });
+        _mockTicker
+            .Setup(t => t.AddAsync(It.IsAny<TimeTickerEntity>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var services = new GoalServices(
+            _mockLogger.Object,
+            _mockGoalService.Object,
+            _mockIdentityService.Object,
+            _mockGoalsBroadcaster.Object,
+            requestScopedPush.Object,
+            _mockTicker.Object,
+            _mockSuggestionClient.Object,
+            _mockUserContext.Object,
+            _mockUsage.Object,
+            serviceProvider.GetRequiredService<IServiceScopeFactory>());
+
+        var method = typeof(GoalEndpoints).GetMethod(
+            "CreateOrUpdateGoals",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var task = (Task<IResult>)method!.Invoke(null, new object[]
+        {
+            services,
+            new CreateOrUpdateGoalsRequestDto { Goals = ["First", "Second", "Third"] }
+        })!;
+
+        var result = await task;
+
+        result.Should().NotBeNull();
+        await pushCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        requestScopedPush.Verify(
+            p => p.SendDataOnlyToUserAsync(It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        scopedPush.Verify(
+            p => p.SendDataOnlyToUserAsync(
+                userId,
+                It.Is<IReadOnlyDictionary<string, string>>(data => data["type"] == "goals_updated"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

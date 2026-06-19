@@ -153,11 +153,18 @@ public static class VoiceNoteEndpoints
         var savedVoiceNote = await services.VoiceNoteService.Add(voiceNote);
         var response = VoiceNoteMapper.ToDto(savedVoiceNote);
 
-        // Enqueue: transcribe, store transcript as markdown, and index via TickerQ
+        // Enqueue transcription/indexing without failing the already-persisted upload.
         var noteId = savedVoiceNote.Id;
         var noteUserId = userId;
         var audioBlobName = storageFileName;
-        await UserContextTickerEnqueue.EnqueueVoiceNoteTranscribeAsync(services.TimeTickerManager, noteUserId, noteId, audioBlobName);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueVoiceNoteTranscribeAsync(services.TimeTickerManager, noteUserId, noteId, audioBlobName);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue voice note transcription for voice note {VoiceNoteId} and user {UserId}", noteId, noteUserId);
+        }
 
         return Results.Created($"/voicenotes/{savedVoiceNote.Id}", response);
     }

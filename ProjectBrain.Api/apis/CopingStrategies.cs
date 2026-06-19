@@ -80,16 +80,24 @@ public static class CopingStrategyEndpoints
                 request.IconKey,
                 CancellationToken.None);
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+            try
             {
-                UserId = userId,
-                StrategyId = created.Id,
-                Title = created.Title,
-                Description = created.Description,
-                IconKey = created.IconKey,
-                Rating = created.Rating,
-                SavedAt = created.SavedAt
-            });
+                // Queue processing is best-effort; strategy create should succeed even if queueing is unavailable.
+                await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+                {
+                    UserId = userId,
+                    StrategyId = created.Id,
+                    Title = created.Title,
+                    Description = created.Description,
+                    IconKey = created.IconKey,
+                    Rating = created.Rating,
+                    SavedAt = created.SavedAt
+                });
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue strategy upload for strategy {StrategyId}", created.Id);
+            }
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {
@@ -154,16 +162,24 @@ public static class CopingStrategyEndpoints
 
             if (updated == null) return Results.NotFound();
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+            try
             {
-                UserId = userId,
-                StrategyId = updated.Id,
-                Title = updated.Title,
-                Description = updated.Description,
-                IconKey = updated.IconKey,
-                Rating = updated.Rating,
-                SavedAt = updated.SavedAt
-            });
+                // Queue processing is best-effort; rating updates should succeed even if queueing is unavailable.
+                await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
+                {
+                    UserId = userId,
+                    StrategyId = updated.Id,
+                    Title = updated.Title,
+                    Description = updated.Description,
+                    IconKey = updated.IconKey,
+                    Rating = updated.Rating,
+                    SavedAt = updated.SavedAt
+                });
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue strategy upload for strategy {StrategyId}", updated.Id);
+            }
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {

@@ -75,10 +75,17 @@ public static class JournalEndpoints
         var systemAssignments = BuildSystemTagAssignments(request.SystemTagIds, request.SystemTagResponses);
         var createdEntry = await services.JournalEntryService.Add(journalEntry, request.TagIds, systemAssignments);
 
-        // Enqueue: generate summary, upload blob, and index via TickerQ
+        // Enqueue user-context processing as best-effort so write success does not become a 500 on queue outages.
         var entryId = createdEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue journal upload for entry {EntryId}", entryId);
+        }
 
         var dto = JournalEntryMapper.ToDto(createdEntry);
         return Results.Created($"/journal/{createdEntry.Id}", dto);
@@ -191,10 +198,17 @@ public static class JournalEndpoints
         var systemAssignments = BuildSystemTagAssignments(request.SystemTagIds, request.SystemTagResponses);
         var updatedEntry = await services.JournalEntryService.Update(journalEntry, request.TagIds, systemAssignments);
 
-        // Enqueue: generate summary, upload blob, and re-index via TickerQ
+        // Enqueue user-context processing as best-effort so write success does not become a 500 on queue outages.
         var entryId = updatedEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueJournalUploadAsync(services.TimeTickerManager, entryUserId, entryId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue journal upload for entry {EntryId}", entryId);
+        }
 
         var dto = JournalEntryMapper.ToDto(updatedEntry);
         return Results.Ok(dto);
@@ -312,10 +326,17 @@ public static class JournalEndpoints
 
         await services.JournalEntryService.Remove(journalEntry);
 
-        // Enqueue: delete from blob storage and search index via TickerQ
+        // Enqueue user-context processing as best-effort so delete success does not become a 500 on queue outages.
         var entryId = journalEntry.Id;
         var entryUserId = userId;
-        await UserContextTickerEnqueue.EnqueueJournalDeleteAsync(services.TimeTickerManager, entryUserId, entryId);
+        try
+        {
+            await UserContextTickerEnqueue.EnqueueJournalDeleteAsync(services.TimeTickerManager, entryUserId, entryId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogWarning(ex, "Failed to enqueue journal delete for entry {EntryId}", entryId);
+        }
 
         return Results.NoContent();
     }

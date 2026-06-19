@@ -9,6 +9,10 @@ public static class AuthenticationExtensions
     public static void AddCustomAuthentication(this WebApplicationBuilder builder)
     {
         var audience = builder.Configuration["Auth0:Audience"];
+        if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(audience))
+        {
+            throw new InvalidOperationException("Auth0:Audience must be configured outside development.");
+        }
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>

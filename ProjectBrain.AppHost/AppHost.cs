@@ -226,6 +226,7 @@ if (builder.ExecutionContext.IsPublishMode)
     var auth0Audience = builder.AddParameter("auth0-audience");
     // var auth0Scope = builder.AddParameter("auth0-scope", value: "", publishValueAsDefault: true);
     var apiServerUrl = builder.AddParameter("api-server-url");
+    apiService.WithEnvironment("Auth0__Audience", auth0Audience);
 
     // secrets
     var auth0Secret = builder.AddParameter("auth0-secret", secret: true);

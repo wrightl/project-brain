@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 using Testcontainers.MsSql;
 
 namespace ProjectBrain.Database.IntegrationTests;
@@ -13,6 +15,7 @@ namespace ProjectBrain.Database.IntegrationTests;
 public class DatabaseIntegrationTests : IAsyncLifetime
 {
     private readonly MsSqlContainer _msSqlContainer;
+    private string? _connectionString;
     private AppDbContext? _context;
     private IUserService? _userService;
     private IConversationService? _conversationService;
@@ -30,9 +33,9 @@ public class DatabaseIntegrationTests : IAsyncLifetime
     {
         await _msSqlContainer.StartAsync();
 
-        var connectionString = _msSqlContainer.GetConnectionString();
+        _connectionString = _msSqlContainer.GetConnectionString();
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlServer(connectionString)
+            .UseSqlServer(_connectionString)
             .Options;
 
         var mockLogger = new Mock<ILogger<AppDbContext>>();
@@ -283,13 +286,23 @@ public class DatabaseIntegrationTests : IAsyncLifetime
         // Arrange
         var tasks = new List<Task>();
         var userId = "concurrent-user";
+        var mockLogger = new Mock<ILogger<AppDbContext>>();
 
-        // Act - Create multiple conversations concurrently
+        // Act - Create multiple conversations concurrently, each with its own DbContext
         for (int i = 0; i < 10; i++)
         {
             var index = i;
             tasks.Add(Task.Run(async () =>
             {
+                var options = new DbContextOptionsBuilder<AppDbContext>()
+                    .UseSqlServer(_connectionString!)
+                    .Options;
+
+                await using var context = new AppDbContext(options, mockLogger.Object);
+                var unitOfWork = new UnitOfWork(context);
+                var repository = new ConversationRepository(context);
+                var conversationService = new ConversationService(repository, unitOfWork);
+
                 var conversation = new Conversation
                 {
                     Id = Guid.NewGuid(),
@@ -298,7 +311,7 @@ public class DatabaseIntegrationTests : IAsyncLifetime
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-                await _conversationService!.Add(conversation);
+                await conversationService.Add(conversation);
             }));
         }
 

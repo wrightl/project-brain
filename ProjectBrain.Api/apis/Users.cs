@@ -63,7 +63,7 @@ public static class UserEndpoints
         group.MapGet("/me/timezone", GetTimezone).WithName("GetTimezone");
         group.MapPut("/me/timezone", UpdateTimezone).WithName("UpdateTimezone");
 
-        if (app.Environment.IsDevelopment())
+        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
         {
             group.MapGet("/{email}", GetUserByEmail).WithName("GetUserByEmail");
         }

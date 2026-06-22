@@ -13,7 +13,6 @@ public class ConversationEndpointsTests
     private readonly Mock<ILogger<ConversationServices>> _mockLogger;
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly Mock<IConversationService> _mockConversationService;
-    private readonly Mock<ProjectBrain.Domain.Repositories.IConversationRepository> _mockConversationRepository;
     private readonly Mock<IIdentityService> _mockIdentityService;
     private readonly ConversationServices _conversationServices;
 
@@ -23,11 +22,9 @@ public class ConversationEndpointsTests
         _mockConfig = new Mock<IConfiguration>();
         _mockConversationService = new Mock<IConversationService>();
         _mockIdentityService = new Mock<IIdentityService>();
-        _mockConversationRepository = new Mock<ProjectBrain.Domain.Repositories.IConversationRepository>();
 
         _conversationServices = new ConversationServices(
             _mockConversationService.Object,
-            _mockConversationRepository.Object,
             _mockIdentityService.Object,
             _mockLogger.Object,
             _mockConfig.Object
@@ -155,15 +152,9 @@ public class ConversationEndpointsTests
         };
 
         _mockIdentityService.Setup(s => s.UserId).Returns(userId);
-        _mockConversationRepository
-            .Setup(r => r.CountAsync(
-                It.IsAny<System.Linq.Expressions.Expression<Func<Conversation, bool>>>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(conversations.Count);
-
-        _mockConversationRepository
-            .Setup(r => r.GetPagedForUserAsync(userId, 0, 20, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(conversations);
+        _mockConversationService
+            .Setup(s => s.GetPagedForUserAsync(userId, 0, 20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((conversations, conversations.Count));
 
         // Act
         var method = typeof(ConversationEndpoints)
@@ -174,8 +165,8 @@ public class ConversationEndpointsTests
 
         // Assert
         result.Should().NotBeNull();
-        _mockConversationRepository.Verify(
-            r => r.GetPagedForUserAsync(userId, 0, 20, It.IsAny<CancellationToken>()),
+        _mockConversationService.Verify(
+            s => s.GetPagedForUserAsync(userId, 0, 20, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

@@ -2,27 +2,30 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ProjectBrain.Api.IntegrationTests;
 
 public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
+    private readonly CustomWebApplicationFactory _baseFactory;
+    private readonly WebApplicationFactory<Program> _authenticatedFactory;
     private readonly HttpClient _client;
     private const string TestUserId = "test-user-123";
 
     public ConversationEndpointsIntegrationTests(CustomWebApplicationFactory factory)
     {
-        _factory = factory;
-        _client = _factory.WithWebHostBuilder(builder =>
+        _baseFactory = factory;
+        _authenticatedFactory = factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
                 services.AddAuthentication("Test")
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options => { });
             });
-        }).CreateClient();
+        });
+        _client = _authenticatedFactory.CreateClient();
     }
 
     [Fact]
@@ -44,7 +47,7 @@ public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebAppl
     public async Task GetConversationById_ShouldReturnConversation_WhenExists()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _authenticatedFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var conversation = new Conversation
@@ -84,7 +87,7 @@ public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebAppl
     public async Task GetAllConversationsForUser_ShouldReturnOnlyUserConversations()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _authenticatedFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // Clear existing conversations
@@ -126,7 +129,7 @@ public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebAppl
     public async Task UpdateConversation_ShouldUpdateTitle()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _authenticatedFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var conversation = new Conversation
@@ -149,6 +152,7 @@ public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebAppl
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify in database
+        context.ChangeTracker.Clear();
         var updated = await context.Conversations.FindAsync(conversation.Id);
         updated!.Title.Should().Be("Updated Title");
     }
@@ -157,7 +161,7 @@ public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebAppl
     public async Task DeleteConversation_ShouldRemoveFromDatabase()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _authenticatedFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var conversation = new Conversation
@@ -178,6 +182,7 @@ public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebAppl
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // Verify deletion
+        context.ChangeTracker.Clear();
         var deleted = await context.Conversations.FindAsync(conversation.Id);
         deleted.Should().BeNull();
     }
@@ -186,7 +191,7 @@ public class ConversationEndpointsIntegrationTests : IClassFixture<CustomWebAppl
     public async Task GetConversationById_ShouldReturnUnauthorized_WhenNotAuthenticated()
     {
         // Arrange
-        var anonymousClient = _factory.CreateClient();
+        var anonymousClient = _baseFactory.CreateClient();
         var conversationId = Guid.NewGuid();
 
         // Act

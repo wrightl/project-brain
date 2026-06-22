@@ -7,6 +7,7 @@ using ProjectBrain.Database;
 using ProjectBrain.Database.Constants;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 namespace ProjectBrain.Api.Tests;
 
@@ -67,7 +68,8 @@ public class FakeCoachAutoReplyServiceTests : IDisposable
         _context.Connections.Add(_connection);
         _context.SaveChanges();
 
-        var coachMessageService = new CoachMessageService(_context);
+        var unitOfWork = new UnitOfWork(_context);
+        var coachMessageService = new CoachMessageService(_context, unitOfWork);
         var userRepository = new UserRepository(_context);
 
         var configuration = BuildConfiguration(enabled: true);
@@ -127,7 +129,8 @@ public class FakeCoachAutoReplyServiceTests : IDisposable
     [Fact]
     public async Task TryCreateAutoReplyAsync_ReturnsNullWhenDisabled()
     {
-        var coachMessageService = new CoachMessageService(_context);
+        var unitOfWork = new UnitOfWork(_context);
+        var coachMessageService = new CoachMessageService(_context, unitOfWork);
         var userRepository = new UserRepository(_context);
         var configuration = BuildConfiguration(enabled: false);
 
@@ -146,7 +149,8 @@ public class FakeCoachAutoReplyServiceTests : IDisposable
     public async Task TryCreateAutoReplyAsync_UsesConfiguredMessage()
     {
         var customMessage = "Custom auto-reply message.";
-        var coachMessageService = new CoachMessageService(_context);
+        var unitOfWork = new UnitOfWork(_context);
+        var coachMessageService = new CoachMessageService(_context, unitOfWork);
         var userRepository = new UserRepository(_context);
         var configuration = BuildConfiguration(enabled: true, message: customMessage);
 

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,13 +13,14 @@ namespace ProjectBrain.Api.IntegrationTests;
 
 public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly CustomWebApplicationFactory _factory;
+    private readonly CustomWebApplicationFactory _baseFactory;
+    private readonly WebApplicationFactory<Program> _authenticatedFactory;
     private readonly HttpClient _client;
 
     public UserEndpointsIntegrationTests(CustomWebApplicationFactory factory)
     {
-        _factory = factory;
-        _client = _factory.WithWebHostBuilder(builder =>
+        _baseFactory = factory;
+        _authenticatedFactory = factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
@@ -26,14 +28,15 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
                 services.AddAuthentication("Test")
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", options => { });
             });
-        }).CreateClient();
+        });
+        _client = _authenticatedFactory.CreateClient();
     }
 
     [Fact]
     public async Task GetCurrentUser_ShouldReturnUnauthorized_WhenNotAuthenticated()
     {
         // Arrange
-        var anonymousClient = _factory.CreateClient();
+        var anonymousClient = _baseFactory.CreateClient();
 
         // Act
         var response = await anonymousClient.GetAsync("/users/me");
@@ -46,7 +49,7 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
     public async Task OnboardUser_ShouldCreateUserSuccessfully()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _authenticatedFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // Clear any existing data
@@ -80,8 +83,15 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
     public async Task GetCurrentUser_ShouldReturnUser_WhenAuthenticated()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _authenticatedFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var existingUser = await context.Users.FindAsync("test-user-123");
+        if (existingUser != null)
+        {
+            context.Users.Remove(existingUser);
+            await context.SaveChangesAsync();
+        }
 
         var user = new User
         {
@@ -107,7 +117,7 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
     public async Task GetUserByEmail_ShouldReturnUser_WhenExists()
     {
         // Arrange
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _authenticatedFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var user = new User

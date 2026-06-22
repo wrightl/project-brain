@@ -8,6 +8,9 @@ public static class ProgramExtensions
 {
     public static void AddProjectBrainDbContext(this WebApplicationBuilder builder)
     {
+        if (builder.Environment.IsEnvironment("Testing"))
+            return;
+
         builder.Services.AddHostedService<ProjectBrainDbInitializer>();
         builder.Services.AddScoped<IDevelopmentDataSeeder, DevelopmentDataSeeder>();
         // builder.Services.AddOpenTelemetry()

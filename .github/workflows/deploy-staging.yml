@@ -10,7 +10,11 @@ permissions:
   id-token: write
 
 jobs:
+  tests:
+    uses: ./.github/workflows/test.yml
+
   deploy:
+    needs: tests
     uses: ./.github/workflows/azure-deploy.yml
     with:
       deploy_environment: staging

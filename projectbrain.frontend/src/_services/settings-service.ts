@@ -40,6 +40,18 @@ export interface ChatPolicySettings {
     policies: ChatPolicySetting[];
 }
 
+export interface MemoryFormationSettings {
+    enableMemoryFormation: boolean;
+    minPromotionConfidence: number;
+    provisionalConfidence: number;
+    activationObservationCount: number;
+    maxFactsPerTurn: number;
+    maxEpisodesPerTurn: number;
+    maxFactsRetrieved: number;
+    maxEpisodesRetrieved: number;
+    indexProvisionalMemories: boolean;
+}
+
 export class SettingsService {
     /**
      * Get all settings (admin only)
@@ -139,6 +151,27 @@ export class SettingsService {
         });
         if (!response.ok) {
             throw new Error('Failed to update chat policy settings');
+        }
+        return response.json();
+    }
+
+    static async getMemoryFormationSettings(): Promise<MemoryFormationSettings> {
+        const response = await callBackendApi('/admin/settings/memory-formation');
+        if (!response.ok) {
+            throw new Error('Failed to fetch memory formation settings');
+        }
+        return response.json();
+    }
+
+    static async updateMemoryFormationSettings(
+        settings: MemoryFormationSettings
+    ): Promise<MemoryFormationSettings> {
+        const response = await callBackendApi('/admin/settings/memory-formation', {
+            method: 'PUT',
+            body: settings,
+        });
+        if (!response.ok) {
+            throw new Error('Failed to update memory formation settings');
         }
         return response.json();
     }

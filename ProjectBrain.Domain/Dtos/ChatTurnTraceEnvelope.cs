@@ -25,6 +25,9 @@ public sealed class ChatTurnMemoryTrace
     public bool HasConversationSummary { get; init; }
     public int SummaryLength { get; init; }
     public int RecentHistoryCount { get; init; }
+    public IReadOnlyList<string> FactIdsRetrieved { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> EpisodeIdsRetrieved { get; init; } = Array.Empty<string>();
+    public string MemoryRetrievalMode { get; init; } = "disabled";
 }
 
 public sealed class ChatTurnPromptTrace

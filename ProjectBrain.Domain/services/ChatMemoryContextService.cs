@@ -8,20 +8,24 @@ public class ChatMemoryContextService : IChatMemoryContextService
     private readonly IUserProfileService _userProfileService;
     private readonly IApplicationSettingsService _applicationSettingsService;
     private readonly IConversationService _conversationService;
+    private readonly IUserMemoryRetrievalService _memoryRetrievalService;
 
     public ChatMemoryContextService(
         IUserProfileService userProfileService,
         IApplicationSettingsService applicationSettingsService,
-        IConversationService conversationService)
+        IConversationService conversationService,
+        IUserMemoryRetrievalService memoryRetrievalService)
     {
         _userProfileService = userProfileService;
         _applicationSettingsService = applicationSettingsService;
         _conversationService = conversationService;
+        _memoryRetrievalService = memoryRetrievalService;
     }
 
     public async Task<ChatMemoryContext> BuildAsync(
         string userId,
         Guid? conversationId,
+        string? userQuery = null,
         CancellationToken cancellationToken = default)
     {
         var (aiSettings, policies) = await _applicationSettingsService.GetChatMemoryApplicationSettingsAsync(cancellationToken);
@@ -62,6 +66,13 @@ public class ChatMemoryContextService : IChatMemoryContextService
             }
         }
 
+        var memorySettings = await _applicationSettingsService.GetMemorySettingsAsync(cancellationToken);
+        var retrieval = await _memoryRetrievalService.SearchAsync(
+            userId,
+            userQuery ?? string.Empty,
+            memorySettings,
+            cancellationToken);
+
         return new ChatMemoryContext
         {
             Policies = policies,
@@ -69,7 +80,10 @@ public class ChatMemoryContextService : IChatMemoryContextService
             ConversationSummary = conversationSummary,
             RecentMessageWindow = aiSettings.RecentMessageWindow,
             MaxHistoryMessages = aiSettings.MaxHistoryMessages,
-            EnableConversationSummary = aiSettings.EnableConversationSummary
+            EnableConversationSummary = aiSettings.EnableConversationSummary,
+            Facts = retrieval.Facts,
+            Episodes = retrieval.Episodes,
+            MemoryRetrievalMode = retrieval.RetrievalMode
         };
     }
 
@@ -117,5 +131,9 @@ public class ChatMemoryContextService : IChatMemoryContextService
 
 public interface IChatMemoryContextService
 {
-    Task<ChatMemoryContext> BuildAsync(string userId, Guid? conversationId, CancellationToken cancellationToken = default);
+    Task<ChatMemoryContext> BuildAsync(
+        string userId,
+        Guid? conversationId,
+        string? userQuery = null,
+        CancellationToken cancellationToken = default);
 }

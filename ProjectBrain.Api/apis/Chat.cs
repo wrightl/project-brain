@@ -389,6 +389,7 @@ public static class ChatEndpoints
         var memoryContext = await services.ChatMemoryContextService.BuildAsync(
             userId!,
             conversation.Id,
+            request.Content,
             http.RequestAborted);
         LogChatStreamPhase(services.Logger, correlationId, sw, "after_memory_context", conversation.Id);
 

@@ -227,6 +227,69 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             },
             new()
             {
+                Key = "AI:Memory:EnableMemoryFormation",
+                Value = "true",
+                Category = "AI:Memory",
+                Description = "Enable background extraction and storage of user facts and episodes from chat"
+            },
+            new()
+            {
+                Key = "AI:Memory:MinPromotionConfidence",
+                Value = "0.75",
+                Category = "AI:Memory",
+                Description = "Minimum confidence to promote a memory candidate to active status"
+            },
+            new()
+            {
+                Key = "AI:Memory:ProvisionalConfidence",
+                Value = "0.60",
+                Category = "AI:Memory",
+                Description = "Minimum confidence to store a memory candidate as provisional"
+            },
+            new()
+            {
+                Key = "AI:Memory:ActivationObservationCount",
+                Value = "2",
+                Category = "AI:Memory",
+                Description = "Observations required to promote provisional memory to active"
+            },
+            new()
+            {
+                Key = "AI:Memory:MaxFactsPerTurn",
+                Value = "3",
+                Category = "AI:Memory",
+                Description = "Maximum fact candidates extracted per chat turn"
+            },
+            new()
+            {
+                Key = "AI:Memory:MaxEpisodesPerTurn",
+                Value = "2",
+                Category = "AI:Memory",
+                Description = "Maximum episode candidates extracted per chat turn"
+            },
+            new()
+            {
+                Key = "AI:Memory:MaxFactsRetrieved",
+                Value = "5",
+                Category = "AI:Memory",
+                Description = "Maximum facts retrieved per chat turn for prompt injection"
+            },
+            new()
+            {
+                Key = "AI:Memory:MaxEpisodesRetrieved",
+                Value = "3",
+                Category = "AI:Memory",
+                Description = "Maximum episodes retrieved per chat turn for prompt injection"
+            },
+            new()
+            {
+                Key = "AI:Memory:IndexProvisionalMemories",
+                Value = "false",
+                Category = "AI:Memory",
+                Description = "Index provisional memories in search (default false; only active are retrieved)"
+            },
+            new()
+            {
                 Key = "AI:Policy:CrisisGuidance",
                 Value = "Avoid medical or diagnostic claims. If the user describes immediate danger or crisis, encourage them to seek urgent professional help or contact local emergency services.",
                 Category = "AI:Policy",

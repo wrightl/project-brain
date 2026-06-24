@@ -80,6 +80,40 @@ public static class ChatPromptAssembler
         return $"## Conversation so far\n{summary.Trim()}";
     }
 
+    public static string FormatFactsBlock(IReadOnlyList<RetrievedUserFact> facts)
+    {
+        if (facts.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## What I know about you");
+        foreach (var fact in facts)
+        {
+            sb.AppendLine($"- {fact.Content.Trim()}");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    public static string FormatEpisodesBlock(IReadOnlyList<RetrievedUserEpisode> episodes)
+    {
+        if (episodes.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Past experiences that may help");
+        foreach (var episode in episodes)
+        {
+            sb.AppendLine($"- {episode.Summary.Trim()} (topic: {episode.Topic}, outcome: {episode.Outcome})");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
     public static string BuildSystemPrompt(
         string userName,
         bool hasSources,
@@ -142,6 +176,20 @@ public static class ChatPromptAssembler
             && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary))
         {
             prompt.AppendLine(FormatSummaryBlock(memoryContext.ConversationSummary));
+            prompt.AppendLine();
+        }
+
+        var factsBlock = FormatFactsBlock(memoryContext.Facts);
+        if (!string.IsNullOrWhiteSpace(factsBlock))
+        {
+            prompt.AppendLine(factsBlock);
+            prompt.AppendLine();
+        }
+
+        var episodesBlock = FormatEpisodesBlock(memoryContext.Episodes);
+        if (!string.IsNullOrWhiteSpace(episodesBlock))
+        {
+            prompt.AppendLine(episodesBlock);
             prompt.AppendLine();
         }
 

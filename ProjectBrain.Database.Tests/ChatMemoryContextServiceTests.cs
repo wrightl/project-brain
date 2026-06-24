@@ -82,7 +82,10 @@ public class ChatMemoryContextServiceTests : IDisposable
         _service = new ChatMemoryContextService(
             userProfileService,
             applicationSettingsService,
-            new ConversationService(new ConversationRepository(_context), unitOfWork));
+            new ConversationService(new ConversationRepository(_context), unitOfWork),
+            new SqlUserMemoryRetrievalService(
+                new UserFactRepository(_context),
+                new UserEpisodeRepository(_context)));
     }
 
     [Fact]

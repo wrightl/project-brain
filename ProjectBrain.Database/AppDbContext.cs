@@ -484,6 +484,42 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         modelBuilder.Entity<UserCopingStrategy>()
             .HasIndex(ucs => ucs.UserId);
 
+        modelBuilder.Entity<UserFact>()
+            .HasOne(uf => uf.User)
+            .WithMany()
+            .HasForeignKey(uf => uf.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserFact>()
+            .HasIndex(uf => uf.UserId);
+
+        modelBuilder.Entity<UserFact>()
+            .HasIndex(uf => new { uf.UserId, uf.ContentHash });
+
+        modelBuilder.Entity<UserEpisode>()
+            .HasOne(ue => ue.User)
+            .WithMany()
+            .HasForeignKey(ue => ue.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserEpisode>()
+            .HasOne(ue => ue.RelatedStrategy)
+            .WithMany()
+            .HasForeignKey(ue => ue.RelatedStrategyId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<UserEpisode>()
+            .HasIndex(ue => ue.UserId);
+
+        modelBuilder.Entity<UserEpisode>()
+            .HasIndex(ue => new { ue.UserId, ue.ContentHash });
+
+        modelBuilder.Entity<MemoryPromotionAudit>()
+            .HasIndex(mpa => mpa.UserId);
+
+        modelBuilder.Entity<MemoryPromotionAudit>()
+            .HasIndex(mpa => mpa.CreatedAt);
+
         // Configure Achievement relationships
         modelBuilder.Entity<UserAchievement>()
             .HasOne(ua => ua.User)
@@ -573,6 +609,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<AgentAction> AgentActions => Set<AgentAction>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<UserCopingStrategy> UserCopingStrategies => Set<UserCopingStrategy>();
+    public DbSet<UserFact> UserFacts => Set<UserFact>();
+    public DbSet<UserEpisode> UserEpisodes => Set<UserEpisode>();
+    public DbSet<MemoryPromotionAudit> MemoryPromotionAudits => Set<MemoryPromotionAudit>();
     public DbSet<Achievement> Achievements => Set<Achievement>();
     public DbSet<UserAchievement> UserAchievements => Set<UserAchievement>();
 }

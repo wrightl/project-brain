@@ -121,4 +121,49 @@ public class ChatPromptAssemblerTests
         prompt.Should().Contain("breathing exercises");
         prompt.Should().Contain("What next?");
     }
+
+    [Fact]
+    public void BuildUserPrompt_IncludesFactsAndEpisodesBlocks()
+    {
+        var memoryContext = new ChatMemoryContext
+        {
+            Facts =
+            [
+                new RetrievedUserFact
+                {
+                    Id = Guid.NewGuid(),
+                    Content = "Prefers concise answers",
+                    Category = "preference"
+                }
+            ],
+            Episodes =
+            [
+                new RetrievedUserEpisode
+                {
+                    Id = Guid.NewGuid(),
+                    Summary = "Box breathing helped before meetings",
+                    Topic = "anxiety",
+                    Outcome = "helpful"
+                }
+            ]
+        };
+
+        var prompt = ChatPromptAssembler.BuildUserPrompt(
+            "Any tips?",
+            "{}",
+            string.Empty,
+            citationCount: 0,
+            memoryContext);
+
+        prompt.Should().Contain("## What I know about you");
+        prompt.Should().Contain("Prefers concise answers");
+        prompt.Should().Contain("## Past experiences that may help");
+        prompt.Should().Contain("Box breathing helped before meetings");
+    }
+
+    [Fact]
+    public void FormatFactsBlock_ReturnsEmptyWhenNoFacts()
+    {
+        ChatPromptAssembler.FormatFactsBlock(Array.Empty<RetrievedUserFact>()).Should().BeEmpty();
+    }
 }

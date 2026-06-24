@@ -50,6 +50,9 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserAchievementRepository, UserAchievementRepository>();
         builder.Services.AddScoped<IReferralInviteRepository, ReferralInviteRepository>();
         builder.Services.AddScoped<IReferralRewardRepository, ReferralRewardRepository>();
+        builder.Services.AddScoped<IUserFactRepository, UserFactRepository>();
+        builder.Services.AddScoped<IUserEpisodeRepository, UserEpisodeRepository>();
+        builder.Services.AddScoped<IMemoryPromotionAuditRepository, MemoryPromotionAuditRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
@@ -91,6 +94,12 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
         builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
         builder.Services.AddScoped<IChatMemoryContextService, ChatMemoryContextService>();
+        builder.Services.AddScoped<IUserFactService, UserFactService>();
+        builder.Services.AddScoped<IUserEpisodeService, UserEpisodeService>();
+        builder.Services.AddScoped<IMemoryPromotionService, MemoryPromotionService>();
+        builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
+        builder.Services.AddScoped<IUserMemoryIndexService, NoOpUserMemoryIndexService>();
+        builder.Services.AddScoped<IUserMemoryRetrievalService, SqlUserMemoryRetrievalService>();
         builder.Services.AddScoped<IReferralSettingsService, ReferralSettingsService>();
         builder.Services.AddScoped<IReferralService, ReferralService>();
         builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();

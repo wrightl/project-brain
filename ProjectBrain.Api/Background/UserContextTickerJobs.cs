@@ -326,6 +326,53 @@ public class UserContextTickerJobs(IServiceScopeFactory serviceScopeFactory, ILo
         }
     }
 
+    [TickerFunction("UserContext_MemoryExtraction")]
+    public async Task MemoryExtraction(
+        TickerFunctionContext<MemoryExtractionRequest> context,
+        CancellationToken cancellationToken)
+    {
+        var req = context.Request;
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var applicationSettingsService = scope.ServiceProvider.GetRequiredService<IApplicationSettingsService>();
+            var conversationService = scope.ServiceProvider.GetRequiredService<IConversationService>();
+            var azureOpenAI = scope.ServiceProvider.GetRequiredService<AzureOpenAI>();
+            var memoryPromotionService = scope.ServiceProvider.GetRequiredService<IMemoryPromotionService>();
+
+            var memorySettings = await applicationSettingsService.GetMemorySettingsAsync(cancellationToken);
+            if (!memorySettings.EnableMemoryFormation)
+            {
+                logger.LogDebug("Memory formation disabled; skipping extraction for {ConversationId}", req.ConversationId);
+                return;
+            }
+
+            var conversation = await conversationService.GetById(req.ConversationId, req.UserId);
+            var extraction = await azureOpenAI.ExtractMemoryCandidatesAsync(
+                req.UserContent,
+                req.AssistantContent,
+                conversation?.ContextSummary,
+                cancellationToken);
+
+            await memoryPromotionService.ProcessExtractionAsync(
+                req.UserId,
+                req.ConversationId,
+                extraction,
+                memorySettings,
+                cancellationToken);
+
+            logger.LogInformation(
+                "Processed memory extraction for conversation {ConversationId}: {FactCount} facts, {EpisodeCount} episodes",
+                req.ConversationId,
+                extraction.Facts.Count,
+                extraction.Episodes.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error processing memory extraction for {ConversationId}", req.ConversationId);
+        }
+    }
+
     private static string BuildJournalEntryMarkdown(string content, string? summary, DateTime createdAt)
     {
         var sb = new StringBuilder();

@@ -89,6 +89,10 @@ public class AISeeding
                 new SimpleField("sourcefile", SearchFieldDataType.String) { IsFacetable = true },
                 new SimpleField("storageUrl", SearchFieldDataType.String) { IsFacetable = false, IsFilterable = true },
                 new SimpleField("ownerId", SearchFieldDataType.String) { IsFacetable = false, IsFilterable = true },
+                new SimpleField("memoryType", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true },
+                new SimpleField("memoryId", SearchFieldDataType.String) { IsFilterable = true },
+                new SimpleField("topic", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true },
+                new SimpleField("status", SearchFieldDataType.String) { IsFilterable = true },
                 // new SearchField("oids", SearchFieldDataType.Collection(SearchFieldDataType.String))
                 // {
                 //      IsFacetable = true,
@@ -123,17 +127,70 @@ public class AISeeding
 
     public async Task EnsureSearchIndexAsync(string searchIndexName, CancellationToken ct = default)
     {
+        var exists = false;
         var indexNames = _searchIndexClient.GetIndexNamesAsync();
         await foreach (var page in indexNames.AsPages())
         {
             if (page.Values.Any(indexName => indexName == searchIndexName))
             {
-                _logger?.LogWarning(
-                    "Search index '{SearchIndexName}' already exists", searchIndexName);
-                return;
+                exists = true;
+                break;
             }
         }
 
+        if (exists)
+        {
+            _logger?.LogInformation("Updating search index schema for '{SearchIndexName}'", searchIndexName);
+            await CreateOrUpdateSearchIndexAsync(searchIndexName, ct);
+            return;
+        }
+
         await CreateSearchIndexAsync(searchIndexName, ct);
+    }
+
+    private async Task CreateOrUpdateSearchIndexAsync(string searchIndexName, CancellationToken ct = default)
+    {
+        string vectorSearchConfigName = "user-resources-algorithm";
+        string vectorSearchProfile = "user-resources-azureOpenAi-text-profile";
+        var index = new SearchIndex(searchIndexName)
+        {
+            VectorSearch = new()
+            {
+                Algorithms = { new HnswAlgorithmConfiguration(vectorSearchConfigName) },
+                Profiles = { new VectorSearchProfile(vectorSearchProfile, vectorSearchConfigName) }
+            },
+            Fields =
+            {
+                new SimpleField("id", SearchFieldDataType.String) { IsKey = true },
+                new SearchableField("content") { AnalyzerName = LexicalAnalyzerName.EnMicrosoft },
+                new SimpleField("category", SearchFieldDataType.String) { IsFacetable = true },
+                new SimpleField("sourcepage", SearchFieldDataType.String) { IsFacetable = true },
+                new SimpleField("sourcefile", SearchFieldDataType.String) { IsFacetable = true },
+                new SimpleField("storageUrl", SearchFieldDataType.String) { IsFacetable = false, IsFilterable = true },
+                new SimpleField("ownerId", SearchFieldDataType.String) { IsFacetable = false, IsFilterable = true },
+                new SimpleField("memoryType", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true },
+                new SimpleField("memoryId", SearchFieldDataType.String) { IsFilterable = true },
+                new SimpleField("topic", SearchFieldDataType.String) { IsFilterable = true, IsFacetable = true },
+                new SimpleField("status", SearchFieldDataType.String) { IsFilterable = true },
+                new SearchField("embedding", SearchFieldDataType.Collection(SearchFieldDataType.Single))
+                {
+                    VectorSearchDimensions = 1536,
+                    IsSearchable = true,
+                    VectorSearchProfileName = vectorSearchProfile,
+                }
+            },
+            SemanticSearch = new()
+            {
+                Configurations =
+                {
+                    new SemanticConfiguration("default", new()
+                    {
+                        ContentFields = { new SemanticField("content") }
+                    })
+                }
+            }
+        };
+
+        await _searchIndexClient.CreateOrUpdateIndexAsync(index, cancellationToken: ct);
     }
 }

@@ -186,6 +186,114 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
+    [Fact]
+    public async Task GetMemorySettingsAsync_ReturnsDefaultsWhenMissing()
+    {
+        var settings = await _service.GetMemorySettingsAsync();
+        settings.EnableMemoryFormation.Should().BeTrue();
+        settings.MinPromotionConfidence.Should().Be(0.75);
+        settings.MaxFactsRetrieved.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task UpdateMemorySettingsAsync_PersistsValues()
+    {
+        _context.ApplicationSettings.AddRange(
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:EnableMemoryFormation",
+                Value = "true",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:MinPromotionConfidence",
+                Value = "0.75",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:ProvisionalConfidence",
+                Value = "0.60",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:ActivationObservationCount",
+                Value = "2",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:MaxFactsPerTurn",
+                Value = "3",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:MaxEpisodesPerTurn",
+                Value = "2",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:MaxFactsRetrieved",
+                Value = "5",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:MaxEpisodesRetrieved",
+                Value = "3",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:IndexProvisionalMemories",
+                Value = "false",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            });
+        await _context.SaveChangesAsync();
+
+        await _service.UpdateMemorySettingsAsync(
+            new MemorySettings
+            {
+                EnableMemoryFormation = false,
+                MinPromotionConfidence = 0.8,
+                ProvisionalConfidence = 0.55,
+                ActivationObservationCount = 3,
+                MaxFactsPerTurn = 2,
+                MaxEpisodesPerTurn = 1,
+                MaxFactsRetrieved = 4,
+                MaxEpisodesRetrieved = 2,
+                IndexProvisionalMemories = true
+            },
+            "admin-test");
+
+        var updated = await _service.GetMemorySettingsAsync();
+        updated.EnableMemoryFormation.Should().BeFalse();
+        updated.MinPromotionConfidence.Should().Be(0.8);
+        updated.IndexProvisionalMemories.Should().BeTrue();
+    }
+
     public void Dispose()
     {
         _context.Dispose();

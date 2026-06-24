@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Dtos;
 using ProjectBrain.Shared.Dtos.Settings;
 
 public class ApplicationSettingsServices(
@@ -39,11 +40,13 @@ public static class ApplicationSettingsEndpoints
         group.MapGet("/referrals", GetReferralSettings).WithName("GetReferralSettings");
         group.MapGet("/chat-memory", GetChatMemorySettings).WithName("GetChatMemorySettings");
         group.MapGet("/chat-policies", GetChatPolicySettings).WithName("GetChatPolicySettings");
+        group.MapGet("/memory-formation", GetMemoryFormationSettings).WithName("GetMemoryFormationSettings");
         group.MapPut("/{key}", UpdateSetting).WithName("UpdateSetting");
         group.MapPut("/ai", UpdateAISettings).WithName("UpdateAISettings");
         group.MapPut("/subscription", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
         group.MapPut("/referrals", UpdateReferralSettings).WithName("UpdateReferralSettings");
         group.MapPut("/chat-memory", UpdateChatMemorySettings).WithName("UpdateChatMemorySettings");
+        group.MapPut("/memory-formation", UpdateMemoryFormationSettings).WithName("UpdateMemoryFormationSettings");
         group.MapPut("/chat-policies", UpdateChatPolicySettings).WithName("UpdateChatPolicySettings");
     }
 
@@ -549,6 +552,103 @@ public static class ApplicationSettingsEndpoints
         {
             services.Logger.LogError(ex, "Error updating chat policy settings");
             return Results.Problem("An error occurred while updating chat policy settings");
+        }
+    }
+
+    private static async Task<IResult> GetMemoryFormationSettings([AsParameters] ApplicationSettingsServices services)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var settings = await services.ApplicationSettingsService.GetMemorySettingsAsync();
+            return Results.Ok(new MemoryFormationSettingsDto
+            {
+                EnableMemoryFormation = settings.EnableMemoryFormation,
+                MinPromotionConfidence = settings.MinPromotionConfidence,
+                ProvisionalConfidence = settings.ProvisionalConfidence,
+                ActivationObservationCount = settings.ActivationObservationCount,
+                MaxFactsPerTurn = settings.MaxFactsPerTurn,
+                MaxEpisodesPerTurn = settings.MaxEpisodesPerTurn,
+                MaxFactsRetrieved = settings.MaxFactsRetrieved,
+                MaxEpisodesRetrieved = settings.MaxEpisodesRetrieved,
+                IndexProvisionalMemories = settings.IndexProvisionalMemories
+            });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving memory formation settings");
+            return Results.Problem("An error occurred while retrieving memory formation settings");
+        }
+    }
+
+    private static async Task<IResult> UpdateMemoryFormationSettings(
+        [AsParameters] ApplicationSettingsServices services,
+        UpdateMemoryFormationSettingsRequestDto request)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var adminId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request.MinPromotionConfidence < 0 || request.MinPromotionConfidence > 1
+            || request.ProvisionalConfidence < 0 || request.ProvisionalConfidence > 1
+            || request.ActivationObservationCount < 1
+            || request.MaxFactsPerTurn < 0 || request.MaxEpisodesPerTurn < 0
+            || request.MaxFactsRetrieved < 0 || request.MaxEpisodesRetrieved < 0)
+        {
+            return Results.BadRequest(new { error = "Invalid memory formation settings values" });
+        }
+
+        try
+        {
+            await services.ApplicationSettingsService.UpdateMemorySettingsAsync(
+                new MemorySettings
+                {
+                    EnableMemoryFormation = request.EnableMemoryFormation,
+                    MinPromotionConfidence = request.MinPromotionConfidence,
+                    ProvisionalConfidence = request.ProvisionalConfidence,
+                    ActivationObservationCount = request.ActivationObservationCount,
+                    MaxFactsPerTurn = request.MaxFactsPerTurn,
+                    MaxEpisodesPerTurn = request.MaxEpisodesPerTurn,
+                    MaxFactsRetrieved = request.MaxFactsRetrieved,
+                    MaxEpisodesRetrieved = request.MaxEpisodesRetrieved,
+                    IndexProvisionalMemories = request.IndexProvisionalMemories
+                },
+                adminId);
+
+            var updated = await services.ApplicationSettingsService.GetMemorySettingsAsync();
+            return Results.Ok(new MemoryFormationSettingsDto
+            {
+                EnableMemoryFormation = updated.EnableMemoryFormation,
+                MinPromotionConfidence = updated.MinPromotionConfidence,
+                ProvisionalConfidence = updated.ProvisionalConfidence,
+                ActivationObservationCount = updated.ActivationObservationCount,
+                MaxFactsPerTurn = updated.MaxFactsPerTurn,
+                MaxEpisodesPerTurn = updated.MaxEpisodesPerTurn,
+                MaxFactsRetrieved = updated.MaxFactsRetrieved,
+                MaxEpisodesRetrieved = updated.MaxEpisodesRetrieved,
+                IndexProvisionalMemories = updated.IndexProvisionalMemories
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            services.Logger.LogWarning(ex, "Memory formation settings key missing - seed required");
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error updating memory formation settings");
+            return Results.Problem("An error occurred while updating memory formation settings");
         }
     }
 }

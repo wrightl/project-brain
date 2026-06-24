@@ -254,6 +254,42 @@ public class ApplicationSettingsService : IApplicationSettingsService
         return (aiSettings, policies);
     }
 
+    public async Task<MemorySettings> GetMemorySettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await _context.ApplicationSettings
+            .Where(s => s.Key.StartsWith("AI:Memory:"))
+            .ToListAsync(cancellationToken);
+
+        var values = settings.ToDictionary(s => s.Key, s => s.Value, StringComparer.OrdinalIgnoreCase);
+        string? GetValue(string key) => values.TryGetValue(key, out var value) ? value : null;
+
+        return new MemorySettings
+        {
+            EnableMemoryFormation = !bool.TryParse(GetValue("AI:Memory:EnableMemoryFormation"), out var enabled) || enabled,
+            MinPromotionConfidence = double.TryParse(GetValue("AI:Memory:MinPromotionConfidence"), out var minConf) ? minConf : 0.75,
+            ProvisionalConfidence = double.TryParse(GetValue("AI:Memory:ProvisionalConfidence"), out var provConf) ? provConf : 0.60,
+            ActivationObservationCount = int.TryParse(GetValue("AI:Memory:ActivationObservationCount"), out var obs) ? obs : 2,
+            MaxFactsPerTurn = int.TryParse(GetValue("AI:Memory:MaxFactsPerTurn"), out var maxFacts) ? maxFacts : 3,
+            MaxEpisodesPerTurn = int.TryParse(GetValue("AI:Memory:MaxEpisodesPerTurn"), out var maxEps) ? maxEps : 2,
+            MaxFactsRetrieved = int.TryParse(GetValue("AI:Memory:MaxFactsRetrieved"), out var maxFactsRet) ? maxFactsRet : 5,
+            MaxEpisodesRetrieved = int.TryParse(GetValue("AI:Memory:MaxEpisodesRetrieved"), out var maxEpsRet) ? maxEpsRet : 3,
+            IndexProvisionalMemories = bool.TryParse(GetValue("AI:Memory:IndexProvisionalMemories"), out var indexProv) && indexProv
+        };
+    }
+
+    public async Task UpdateMemorySettingsAsync(MemorySettings settings, string updatedBy)
+    {
+        await UpdateSettingAsync("AI:Memory:EnableMemoryFormation", settings.EnableMemoryFormation.ToString().ToLowerInvariant(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:MinPromotionConfidence", settings.MinPromotionConfidence.ToString("F2", System.Globalization.CultureInfo.InvariantCulture), updatedBy);
+        await UpdateSettingAsync("AI:Memory:ProvisionalConfidence", settings.ProvisionalConfidence.ToString("F2", System.Globalization.CultureInfo.InvariantCulture), updatedBy);
+        await UpdateSettingAsync("AI:Memory:ActivationObservationCount", settings.ActivationObservationCount.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:MaxFactsPerTurn", settings.MaxFactsPerTurn.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:MaxEpisodesPerTurn", settings.MaxEpisodesPerTurn.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:MaxFactsRetrieved", settings.MaxFactsRetrieved.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:MaxEpisodesRetrieved", settings.MaxEpisodesRetrieved.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:IndexProvisionalMemories", settings.IndexProvisionalMemories.ToString().ToLowerInvariant(), updatedBy);
+    }
+
     public async Task UpdateAISettingsAsync(AISettings settings, string updatedBy)
     {
         await UpdateSettingAsync("AI:MaxSearchResults", settings.MaxSearchResults.ToString(), updatedBy);
@@ -277,6 +313,8 @@ public interface IApplicationSettingsService
     Task<IReadOnlyList<ChatPolicyItem>> GetChatPoliciesAsync(CancellationToken cancellationToken = default);
     Task<(AISettings AiSettings, IReadOnlyList<ChatPolicyItem> Policies)> GetChatMemoryApplicationSettingsAsync(
         CancellationToken cancellationToken = default);
+    Task<MemorySettings> GetMemorySettingsAsync(CancellationToken cancellationToken = default);
+    Task UpdateMemorySettingsAsync(MemorySettings settings, string updatedBy);
     Task UpdateChatPoliciesAsync(IReadOnlyList<ChatPolicyItem> policies, string updatedBy);
 }
 

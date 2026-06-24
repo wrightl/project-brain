@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import { UserService } from '@/_services/user-service';
 import { User } from '@/_lib/types';
 import PreferencesSection from '../profile/_components/preferences-section';
+import LearnedMemorySection from '../profile/_components/learned-memory-section';
 
 export const metadata: Metadata = {
     title: 'Preferences',
@@ -28,6 +29,7 @@ export default async function PreferencesPage() {
                 </p>
             </div>
             <PreferencesSection user={user as User} />
+            <LearnedMemorySection />
         </div>
     );
 }

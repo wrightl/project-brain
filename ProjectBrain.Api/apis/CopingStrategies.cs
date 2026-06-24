@@ -14,7 +14,8 @@ public class CopingStrategyServices(
     IIdentityService identityService,
     Storage storage,
     ISearchIndexService searchIndexService,
-    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager,
+    IMemoryPromotionService memoryPromotionService)
 {
     public ILogger<CopingStrategyServices> Logger { get; } = logger;
     public ICopingStrategyService CopingStrategyService { get; } = copingStrategyService;
@@ -22,6 +23,7 @@ public class CopingStrategyServices(
     public Storage Storage { get; } = storage;
     public ISearchIndexService SearchIndexService { get; } = searchIndexService;
     public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
+    public IMemoryPromotionService MemoryPromotionService { get; } = memoryPromotionService;
 }
 
 public static class CopingStrategyEndpoints
@@ -90,6 +92,20 @@ public static class CopingStrategyEndpoints
                 Rating = created.Rating,
                 SavedAt = created.SavedAt
             });
+
+            try
+            {
+                await services.MemoryPromotionService.PromoteStrategyEpisodeAsync(
+                    userId,
+                    created.Id,
+                    created.Title,
+                    conversationId: null,
+                    CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to create episodic memory for strategy {StrategyId}", created.Id);
+            }
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {

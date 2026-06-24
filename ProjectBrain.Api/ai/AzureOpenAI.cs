@@ -189,6 +189,106 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         }
     }
 
+    public async Task<MemoryExtractionResult> ExtractMemoryCandidatesAsync(
+        string userMessage,
+        string assistantMessage,
+        string? conversationSummary,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
+            var prompt = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(conversationSummary))
+            {
+                prompt.AppendLine("Conversation context:");
+                prompt.AppendLine(conversationSummary);
+                prompt.AppendLine();
+            }
+
+            prompt.AppendLine("Latest turn:");
+            prompt.AppendLine($"User: {userMessage}");
+            prompt.AppendLine($"Assistant: {assistantMessage}");
+            prompt.AppendLine();
+            prompt.AppendLine("""
+                Extract durable memory candidates from this turn. Return ONLY valid JSON:
+                {"facts":[{"content":"...","category":"preference|work_context|trigger|general","confidence":0.0}],"episodes":[{"summary":"...","topic":"...","outcome":"helpful|neutral|unhelpful|unknown","confidence":0.0}]}
+                Rules:
+                - Only user-stated or clearly confirmed information
+                - Never infer medical diagnoses
+                - Short reusable statements only
+                - Return empty arrays if nothing durable
+                - confidence is 0.0 to 1.0
+                """);
+
+            var response = await chatClient.CompleteChatAsync(
+                [
+                    new SystemChatMessage(
+                        "You extract structured memory candidates from coaching chat. Output JSON only."),
+                    new UserChatMessage(prompt.ToString())
+                ],
+                cancellationToken: cancellationToken);
+
+            var json = response.Value.Content.FirstOrDefault()?.Text?.Trim() ?? "{}";
+            var start = json.IndexOf('{');
+            var end = json.LastIndexOf('}');
+            if (start >= 0 && end > start)
+            {
+                json = json[start..(end + 1)];
+            }
+
+            var parsed = JsonSerializer.Deserialize<MemoryExtractionJson>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return new MemoryExtractionResult
+            {
+                Facts = parsed?.Facts?.Select(f => new ExtractedFactCandidate
+                {
+                    Content = f.Content ?? string.Empty,
+                    Category = f.Category ?? "general",
+                    Confidence = f.Confidence
+                }).Where(f => !string.IsNullOrWhiteSpace(f.Content)).ToList()
+                    ?? new List<ExtractedFactCandidate>(),
+                Episodes = parsed?.Episodes?.Select(e => new ExtractedEpisodeCandidate
+                {
+                    Summary = e.Summary ?? string.Empty,
+                    Topic = e.Topic ?? "general",
+                    Outcome = e.Outcome ?? "unknown",
+                    Confidence = e.Confidence
+                }).Where(e => !string.IsNullOrWhiteSpace(e.Summary)).ToList()
+                    ?? new List<ExtractedEpisodeCandidate>()
+            };
+        }
+        catch (Exception ex)
+        {
+            Services.Logger.LogError(ex, "Error extracting memory candidates");
+            return new MemoryExtractionResult();
+        }
+    }
+
+    private sealed class MemoryExtractionJson
+    {
+        public List<MemoryFactJson>? Facts { get; set; }
+        public List<MemoryEpisodeJson>? Episodes { get; set; }
+    }
+
+    private sealed class MemoryFactJson
+    {
+        public string? Content { get; set; }
+        public string? Category { get; set; }
+        public double Confidence { get; set; }
+    }
+
+    private sealed class MemoryEpisodeJson
+    {
+        public string? Summary { get; set; }
+        public string? Topic { get; set; }
+        public string? Outcome { get; set; }
+        public double Confidence { get; set; }
+    }
+
     public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(
         string userQuery,
         string userId,
@@ -702,6 +802,9 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             Policies = memoryContext.Policies,
             UserPreferences = memoryContext.UserPreferences,
             ConversationSummary = memoryContext.ConversationSummary,
+            Facts = memoryContext.Facts,
+            Episodes = memoryContext.Episodes,
+            MemoryRetrievalMode = memoryContext.MemoryRetrievalMode,
             RecentMessageWindow = memoryContext.RecentMessageWindow > 0
                 ? memoryContext.RecentMessageWindow
                 : aiSettings.RecentMessageWindow,
@@ -914,7 +1017,10 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
                 HasConversationSummary = memoryContext.EnableConversationSummary
                     && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary),
                 SummaryLength = memoryContext.ConversationSummary?.Length ?? 0,
-                RecentHistoryCount = limitedHistory.Count
+                RecentHistoryCount = limitedHistory.Count,
+                FactIdsRetrieved = memoryContext.Facts.Select(f => f.Id.ToString()).ToList(),
+                EpisodeIdsRetrieved = memoryContext.Episodes.Select(e => e.Id.ToString()).ToList(),
+                MemoryRetrievalMode = memoryContext.MemoryRetrievalMode
             },
             Prompt = new ChatTurnPromptTrace
             {
@@ -1025,5 +1131,7 @@ public static class AzureOpenAIExtensions
         builder.Services.AddScoped<IGoalDailySuggestionClient, GoalDailySuggestionClient>();
         builder.Services.AddScoped<ISearchIndexService, AzureSearchClient>();
         builder.Services.AddScoped<AzureSearchClientServices>();
+        builder.Services.AddScoped<ProjectBrain.Domain.IUserMemoryIndexService, UserMemoryIndexService>();
+        builder.Services.AddScoped<ProjectBrain.Domain.IUserMemoryRetrievalService, UserMemoryRetrievalService>();
     }
 }

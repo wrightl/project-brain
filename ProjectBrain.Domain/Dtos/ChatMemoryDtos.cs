@@ -27,4 +27,7 @@ public sealed class ChatMemoryContext
     public int RecentMessageWindow { get; init; } = 4;
     public int MaxHistoryMessages { get; init; } = 10;
     public bool EnableConversationSummary { get; init; } = true;
+    public IReadOnlyList<RetrievedUserFact> Facts { get; init; } = Array.Empty<RetrievedUserFact>();
+    public IReadOnlyList<RetrievedUserEpisode> Episodes { get; init; } = Array.Empty<RetrievedUserEpisode>();
+    public string MemoryRetrievalMode { get; init; } = "disabled";
 }

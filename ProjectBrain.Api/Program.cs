@@ -178,6 +178,7 @@ app.UseCustomAuthorisation();
 
 // Add api's
 app.MapUserEndpoints();
+app.MapUserMemoryEndpoints();
 app.MapUserManagementEndpoints();
 app.MapChatEndpoints();
 app.MapConversationEndpoints();

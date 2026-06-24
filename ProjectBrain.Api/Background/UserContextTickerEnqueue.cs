@@ -14,6 +14,7 @@ public static class UserContextTickerEnqueue
     public const string VoiceNoteTranscribe = "UserContext_VoiceNoteTranscribe";
     public const string ConversationTitleSummary = "UserContext_ConversationTitleSummary";
     public const string ConversationContextSummary = "UserContext_ConversationContextSummary";
+    public const string MemoryExtraction = "UserContext_MemoryExtraction";
 
     public static async Task EnqueueJournalUploadAsync(
         ITimeTickerManager<TimeTickerEntity> manager,
@@ -123,6 +124,28 @@ public static class UserContextTickerEnqueue
             {
                 UserId = userId,
                 ConversationId = conversationId
+            })
+        }, ct);
+    }
+
+    public static async Task EnqueueMemoryExtractionAsync(
+        ITimeTickerManager<TimeTickerEntity> manager,
+        string userId,
+        Guid conversationId,
+        string userContent,
+        string assistantContent,
+        CancellationToken ct = default)
+    {
+        await manager.AddAsync(new TimeTickerEntity
+        {
+            Function = MemoryExtraction,
+            ExecutionTime = DateTime.UtcNow,
+            Request = TickerHelper.CreateTickerRequest(new MemoryExtractionRequest
+            {
+                UserId = userId,
+                ConversationId = conversationId,
+                UserContent = userContent,
+                AssistantContent = assistantContent
             })
         }, ct);
     }

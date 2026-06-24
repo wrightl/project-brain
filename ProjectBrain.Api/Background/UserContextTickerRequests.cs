@@ -54,3 +54,12 @@ public class ConversationContextSummaryRequest
     public required string UserId { get; init; }
     public required Guid ConversationId { get; init; }
 }
+
+/// <summary>Request to extract and promote memory candidates after chat persistence.</summary>
+public class MemoryExtractionRequest
+{
+    public required string UserId { get; init; }
+    public required Guid ConversationId { get; init; }
+    public required string UserContent { get; init; }
+    public required string AssistantContent { get; init; }
+}

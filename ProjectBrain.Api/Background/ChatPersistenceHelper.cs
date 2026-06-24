@@ -84,10 +84,18 @@ internal static class ChatPersistenceHelper
                     userId,
                     conversationId,
                     CancellationToken.None).ConfigureAwait(false);
+
+                await UserContextTickerEnqueue.EnqueueMemoryExtractionAsync(
+                    timeTickerManager,
+                    userId,
+                    conversationId,
+                    userContent,
+                    assistantContent,
+                    CancellationToken.None).ConfigureAwait(false);
             }
             catch
             {
-                // Summary enqueue is best-effort; persistence already succeeded.
+                // Background enqueue is best-effort; persistence already succeeded.
             }
         }
     }

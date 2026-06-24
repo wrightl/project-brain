@@ -1,4 +1,4 @@
-import { callBackendApi } from '@/_lib/backend-api';
+import { BackendApiError, callBackendApi } from '@/_lib/backend-api';
 import { Theme } from '@/_lib/theme-types';
 import { Coach, PagedResponse, User } from '@/_lib/types';
 
@@ -15,6 +15,12 @@ export class UserService {
 
         if (response.status === 404) {
             return null;
+        }
+        if (!response.ok) {
+            throw new BackendApiError(
+                response.status,
+                'Failed to fetch user profile'
+            );
         }
         return response.json();
     }

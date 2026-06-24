@@ -87,3 +87,5 @@ next-steps.md
 
 *.http
 appsettings.Development.json
+
+.md

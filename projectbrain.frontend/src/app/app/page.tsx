@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function DashboardPage() {
     try {
-        // Check if user is onboarded
+        // Check if user is onboarded. null user means a new account (404), not API failure.
         const user = await UserService.getCurrentUser();
         const session = await auth0.getSession();
 

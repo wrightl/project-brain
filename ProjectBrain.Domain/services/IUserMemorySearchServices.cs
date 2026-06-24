@@ -17,4 +17,5 @@ public interface IUserMemoryIndexService
     Task IndexEpisodeAsync(UserEpisode episode, CancellationToken cancellationToken = default);
     Task DeleteFactAsync(Guid factId, CancellationToken cancellationToken = default);
     Task DeleteEpisodeAsync(Guid episodeId, CancellationToken cancellationToken = default);
+    Task DeleteAllForUserAsync(string userId, CancellationToken cancellationToken = default);
 }

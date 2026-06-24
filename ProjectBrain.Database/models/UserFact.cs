@@ -36,6 +36,10 @@ public class UserFact
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    public DateTime? LastRetrievedAt { get; set; }
+
+    public DateTime? ExpiresAt { get; set; }
+
     [ForeignKey(nameof(UserId))]
     public User? User { get; set; }
 }

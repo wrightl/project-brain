@@ -72,6 +72,11 @@ public class UserFactService : IUserFactService
             }).ToList()
         };
     }
+
+    public Task TouchRetrievedAsync(IReadOnlyList<Guid> factIds, CancellationToken cancellationToken = default)
+    {
+        return _repository.TouchRetrievedAsync(factIds, cancellationToken);
+    }
 }
 
 public interface IUserFactService
@@ -82,4 +87,5 @@ public interface IUserFactService
     Task UpdateAsync(UserFact fact, CancellationToken cancellationToken = default);
     Task<bool> SupersedeAsync(string userId, Guid id, CancellationToken cancellationToken = default);
     Task<UserMemoryListDto> ListForUserAsync(string userId, bool includeProvisional, CancellationToken cancellationToken = default);
+    Task TouchRetrievedAsync(IReadOnlyList<Guid> factIds, CancellationToken cancellationToken = default);
 }

@@ -26,17 +26,17 @@ public class AgentOpenAIService : IAgentOpenAIService
         string userInformation,
         string userName,
         List<AgentChatMessage> history,
+        ChatMemoryContext memoryContext,
         List<Dictionary<string, object>> tools,
         CancellationToken cancellationToken = default)
     {
         _services.Logger.LogInformation("Starting GetAgentResponseAsync for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
 
-        // Build system prompt
-        var systemPrompt = BuildAgentSystemPrompt(userName);
+        // Build system prompt with memory-aware policies and preferences
+        var systemPrompt = BuildAgentSystemPrompt(userName, memoryContext);
 
-        // Limit conversation history
-        var maxHistoryMessages = int.Parse(_services.Configuration["AI:MaxHistoryMessages"] ?? "10");
-        var limitedHistory = history.TakeLast(maxHistoryMessages).ToList();
+        // Limit conversation history using memory-aware window
+        var limitedHistory = ChatPromptAssembler.SelectRecentAgentHistory(history, memoryContext).ToList();
 
         // Create chat messages
         var messages = ToChatMessages(limitedHistory);
@@ -44,8 +44,8 @@ public class AgentOpenAIService : IAgentOpenAIService
         // Add system message
         messages.Insert(0, new SystemChatMessage(systemPrompt));
 
-        // Build user prompt with context
-        var userPrompt = BuildAgentUserPrompt(userQuery, userInformation, limitedHistory);
+        // Build user prompt with memory context
+        var userPrompt = ChatPromptAssembler.BuildAgentUserPrompt(userQuery, userInformation, memoryContext);
         messages.Add(new UserChatMessage(userPrompt));
 
         // Convert tools to ChatTool format for function calling
@@ -174,12 +174,26 @@ public class AgentOpenAIService : IAgentOpenAIService
         return new ToolChatMessage(toolCallId, functionName, resultJson);
     }
 
-    private string BuildAgentSystemPrompt(string userName)
+    private string BuildAgentSystemPrompt(string userName, ChatMemoryContext memoryContext)
     {
         var prompt = new StringBuilder();
 
         prompt.AppendLine("You are a proactive AI assistant for neurodiverse individuals. You can perform actions on behalf of users to help them manage their daily goals and tasks.");
         prompt.AppendLine();
+
+        var policiesBlock = ChatPromptAssembler.FormatPoliciesBlock(memoryContext.Policies);
+        if (!string.IsNullOrWhiteSpace(policiesBlock))
+        {
+            prompt.AppendLine(policiesBlock);
+            prompt.AppendLine();
+        }
+
+        if (memoryContext.UserPreferences is { } prefs)
+        {
+            prompt.AppendLine(ChatPromptAssembler.FormatPreferencesBlock(prefs));
+            prompt.AppendLine();
+        }
+
         prompt.AppendLine("Your capabilities:");
         prompt.AppendLine("- Create daily goals when users mention tasks or objectives");
         prompt.AppendLine("- Retrieve and view existing goals");
@@ -226,31 +240,6 @@ public class AgentOpenAIService : IAgentOpenAIService
             }
         }
         return messages;
-    }
-
-    private string BuildAgentUserPrompt(string userQuery, string userInformation, List<AgentChatMessage> history)
-    {
-        var prompt = new StringBuilder();
-
-        if (!string.IsNullOrWhiteSpace(userInformation))
-        {
-            prompt.AppendLine("---");
-            prompt.AppendLine("Here is some data in json format about the user based on their onboarding data:");
-            prompt.AppendLine(userInformation);
-            prompt.AppendLine("---");
-            prompt.AppendLine();
-        }
-
-        prompt.AppendLine("User Query:");
-        prompt.AppendLine(userQuery);
-
-        if (history.Count > 0)
-        {
-            prompt.AppendLine();
-            prompt.AppendLine("Note: Use the conversation history above for context when answering and deciding what actions to take.");
-        }
-
-        return prompt.ToString();
     }
 }
 

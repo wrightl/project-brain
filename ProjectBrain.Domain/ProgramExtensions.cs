@@ -97,7 +97,10 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserFactService, UserFactService>();
         builder.Services.AddScoped<IUserEpisodeService, UserEpisodeService>();
         builder.Services.AddScoped<IMemoryPromotionService, MemoryPromotionService>();
+        builder.Services.AddScoped<IMemoryDecayService, MemoryDecayService>();
         builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
+        builder.Services.AddScoped<IUserErasureService, UserErasureService>();
+        builder.Services.AddScoped<IUserDataExportService, UserDataExportService>();
         builder.Services.AddScoped<IUserMemoryIndexService, NoOpUserMemoryIndexService>();
         builder.Services.AddScoped<IUserMemoryRetrievalService, SqlUserMemoryRetrievalService>();
         builder.Services.AddScoped<IReferralSettingsService, ReferralSettingsService>();

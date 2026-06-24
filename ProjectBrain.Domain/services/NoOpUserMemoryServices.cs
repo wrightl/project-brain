@@ -10,6 +10,7 @@ public sealed class NoOpUserMemoryIndexService : IUserMemoryIndexService
     public Task IndexEpisodeAsync(UserEpisode episode, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task DeleteFactAsync(Guid factId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task DeleteEpisodeAsync(Guid episodeId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task DeleteAllForUserAsync(string userId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 /// <summary>SQL-only retrieval fallback when hybrid search is unavailable.</summary>

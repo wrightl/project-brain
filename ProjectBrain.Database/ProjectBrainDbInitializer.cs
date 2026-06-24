@@ -290,6 +290,111 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             },
             new()
             {
+                Key = "AI:Memory:EnableMemoryDecay",
+                Value = "true",
+                Category = "AI:Memory",
+                Description = "Enable automatic expiry of stale provisional and inactive memories"
+            },
+            new()
+            {
+                Key = "AI:Memory:ProvisionalTtlDays",
+                Value = "30",
+                Category = "AI:Memory",
+                Description = "Days before unpromoted provisional memories are superseded"
+            },
+            new()
+            {
+                Key = "AI:Memory:ActiveFactTtlDays",
+                Value = "365",
+                Category = "AI:Memory",
+                Description = "Maximum age in days for active facts before decay"
+            },
+            new()
+            {
+                Key = "AI:Memory:ActiveEpisodeTtlDays",
+                Value = "180",
+                Category = "AI:Memory",
+                Description = "Maximum age in days for active episodes before decay"
+            },
+            new()
+            {
+                Key = "AI:Memory:DecayInactivityDays",
+                Value = "90",
+                Category = "AI:Memory",
+                Description = "Days without retrieval or update after which active memories may decay"
+            },
+            new()
+            {
+                Key = "AI:EnablePromptBudget",
+                Value = "false",
+                Category = "AI",
+                Description = "Enable reserved-slot token budgeting for chat prompt assembly"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:SystemReserve",
+                Value = "400",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for system instructions"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:PoliciesReserve",
+                Value = "300",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for policy block"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:PreferencesReserve",
+                Value = "200",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for user preferences block"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:QueryReserve",
+                Value = "200",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for current user query"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:SummaryReserve",
+                Value = "400",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for conversation summary"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:FactsReserve",
+                Value = "300",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for retrieved facts"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:EpisodesReserve",
+                Value = "300",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for retrieved episodes"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:OnboardingReserve",
+                Value = "500",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for onboarding JSON"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:HistoryReserve",
+                Value = "800",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for recent message history"
+            },
+            new()
+            {
                 Key = "AI:Policy:CrisisGuidance",
                 Value = "Avoid medical or diagnostic claims. If the user describes immediate danger or crisis, encourage them to seek urgent professional help or contact local emergency services.",
                 Category = "AI:Policy",

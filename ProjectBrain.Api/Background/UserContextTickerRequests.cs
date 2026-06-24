@@ -63,3 +63,9 @@ public class MemoryExtractionRequest
     public required string UserContent { get; init; }
     public required string AssistantContent { get; init; }
 }
+
+/// <summary>Request to apply memory TTL/decay for one user or all users.</summary>
+public class MemoryDecayRequest
+{
+    public string? UserId { get; init; }
+}

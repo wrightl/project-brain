@@ -310,6 +310,13 @@ public class CoachMessageService : ICoachMessageService
                     ((c.UserId == userId && !isCoach) || (c.CoachId == userId && isCoach))))
             .CountAsync();
     }
+
+    public async Task<int> DeleteAllForUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.CoachMessages
+            .Where(cm => cm.UserId == userId || cm.CoachId == userId || cm.SenderId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
 }
 
 public class ConversationSummary
@@ -341,4 +348,5 @@ public interface ICoachMessageService
     Task MarkConversationAsReadAsync(Guid connectionId, string currentUserId);
     Task<List<ConversationSummary>> GetConversationsAsync(string userId, bool isCoach);
     Task<int> GetTotalUnreadCountAsync(string userId, bool isCoach);
+    Task<int> DeleteAllForUserAsync(string userId, CancellationToken cancellationToken = default);
 }

@@ -41,5 +41,10 @@ public class TagRepository : Repository<Tag, Guid>, ITagRepository
             .Where(t => tagIds.Contains(t.Id) && t.UserId == userId)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<int> DeleteByUserIdAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.Where(t => t.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+    }
 }
 

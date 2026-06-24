@@ -41,12 +41,14 @@ public static class ApplicationSettingsEndpoints
         group.MapGet("/chat-memory", GetChatMemorySettings).WithName("GetChatMemorySettings");
         group.MapGet("/chat-policies", GetChatPolicySettings).WithName("GetChatPolicySettings");
         group.MapGet("/memory-formation", GetMemoryFormationSettings).WithName("GetMemoryFormationSettings");
+        group.MapGet("/prompt-budget", GetPromptBudgetSettings).WithName("GetPromptBudgetSettings");
         group.MapPut("/{key}", UpdateSetting).WithName("UpdateSetting");
         group.MapPut("/ai", UpdateAISettings).WithName("UpdateAISettings");
         group.MapPut("/subscription", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
         group.MapPut("/referrals", UpdateReferralSettings).WithName("UpdateReferralSettings");
         group.MapPut("/chat-memory", UpdateChatMemorySettings).WithName("UpdateChatMemorySettings");
         group.MapPut("/memory-formation", UpdateMemoryFormationSettings).WithName("UpdateMemoryFormationSettings");
+        group.MapPut("/prompt-budget", UpdatePromptBudgetSettings).WithName("UpdatePromptBudgetSettings");
         group.MapPut("/chat-policies", UpdateChatPolicySettings).WithName("UpdateChatPolicySettings");
     }
 
@@ -575,7 +577,12 @@ public static class ApplicationSettingsEndpoints
                 MaxEpisodesPerTurn = settings.MaxEpisodesPerTurn,
                 MaxFactsRetrieved = settings.MaxFactsRetrieved,
                 MaxEpisodesRetrieved = settings.MaxEpisodesRetrieved,
-                IndexProvisionalMemories = settings.IndexProvisionalMemories
+                IndexProvisionalMemories = settings.IndexProvisionalMemories,
+                EnableMemoryDecay = settings.EnableMemoryDecay,
+                ProvisionalTtlDays = settings.ProvisionalTtlDays,
+                ActiveFactTtlDays = settings.ActiveFactTtlDays,
+                ActiveEpisodeTtlDays = settings.ActiveEpisodeTtlDays,
+                DecayInactivityDays = settings.DecayInactivityDays
             });
         }
         catch (Exception ex)
@@ -604,7 +611,9 @@ public static class ApplicationSettingsEndpoints
             || request.ProvisionalConfidence < 0 || request.ProvisionalConfidence > 1
             || request.ActivationObservationCount < 1
             || request.MaxFactsPerTurn < 0 || request.MaxEpisodesPerTurn < 0
-            || request.MaxFactsRetrieved < 0 || request.MaxEpisodesRetrieved < 0)
+            || request.MaxFactsRetrieved < 0 || request.MaxEpisodesRetrieved < 0
+            || request.ProvisionalTtlDays < 0 || request.ActiveFactTtlDays < 0
+            || request.ActiveEpisodeTtlDays < 0 || request.DecayInactivityDays < 0)
         {
             return Results.BadRequest(new { error = "Invalid memory formation settings values" });
         }
@@ -622,7 +631,12 @@ public static class ApplicationSettingsEndpoints
                     MaxEpisodesPerTurn = request.MaxEpisodesPerTurn,
                     MaxFactsRetrieved = request.MaxFactsRetrieved,
                     MaxEpisodesRetrieved = request.MaxEpisodesRetrieved,
-                    IndexProvisionalMemories = request.IndexProvisionalMemories
+                    IndexProvisionalMemories = request.IndexProvisionalMemories,
+                    EnableMemoryDecay = request.EnableMemoryDecay,
+                    ProvisionalTtlDays = request.ProvisionalTtlDays,
+                    ActiveFactTtlDays = request.ActiveFactTtlDays,
+                    ActiveEpisodeTtlDays = request.ActiveEpisodeTtlDays,
+                    DecayInactivityDays = request.DecayInactivityDays
                 },
                 adminId);
 
@@ -637,7 +651,12 @@ public static class ApplicationSettingsEndpoints
                 MaxEpisodesPerTurn = updated.MaxEpisodesPerTurn,
                 MaxFactsRetrieved = updated.MaxFactsRetrieved,
                 MaxEpisodesRetrieved = updated.MaxEpisodesRetrieved,
-                IndexProvisionalMemories = updated.IndexProvisionalMemories
+                IndexProvisionalMemories = updated.IndexProvisionalMemories,
+                EnableMemoryDecay = updated.EnableMemoryDecay,
+                ProvisionalTtlDays = updated.ProvisionalTtlDays,
+                ActiveFactTtlDays = updated.ActiveFactTtlDays,
+                ActiveEpisodeTtlDays = updated.ActiveEpisodeTtlDays,
+                DecayInactivityDays = updated.DecayInactivityDays
             });
         }
         catch (InvalidOperationException ex)
@@ -651,4 +670,93 @@ public static class ApplicationSettingsEndpoints
             return Results.Problem("An error occurred while updating memory formation settings");
         }
     }
+
+    private static async Task<IResult> GetPromptBudgetSettings([AsParameters] ApplicationSettingsServices services)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var settings = await services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
+            return Results.Ok(MapPromptBudget(settings));
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving prompt budget settings");
+            return Results.Problem("An error occurred while retrieving prompt budget settings");
+        }
+    }
+
+    private static async Task<IResult> UpdatePromptBudgetSettings(
+        [AsParameters] ApplicationSettingsServices services,
+        UpdatePromptBudgetSettingsRequestDto request)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var adminId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request.SystemReserve < 50 || request.PoliciesReserve < 50 || request.PreferencesReserve < 50
+            || request.QueryReserve < 50 || request.SummaryReserve < 50 || request.FactsReserve < 50
+            || request.EpisodesReserve < 50 || request.OnboardingReserve < 50 || request.HistoryReserve < 50)
+        {
+            return Results.BadRequest(new { error = "Token reserves must be at least 50" });
+        }
+
+        try
+        {
+            await services.ApplicationSettingsService.UpdatePromptBudgetSettingsAsync(
+                MapPromptBudgetRequest(request),
+                adminId);
+            var updated = await services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
+            return Results.Ok(MapPromptBudget(updated));
+        }
+        catch (InvalidOperationException ex)
+        {
+            services.Logger.LogWarning(ex, "Prompt budget settings key missing - seed required");
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error updating prompt budget settings");
+            return Results.Problem("An error occurred while updating prompt budget settings");
+        }
+    }
+
+    private static PromptBudgetSettingsDto MapPromptBudget(PromptBudgetSettings settings) => new()
+    {
+        EnablePromptBudget = settings.EnablePromptBudget,
+        SystemReserve = settings.SystemReserve,
+        PoliciesReserve = settings.PoliciesReserve,
+        PreferencesReserve = settings.PreferencesReserve,
+        QueryReserve = settings.QueryReserve,
+        SummaryReserve = settings.SummaryReserve,
+        FactsReserve = settings.FactsReserve,
+        EpisodesReserve = settings.EpisodesReserve,
+        OnboardingReserve = settings.OnboardingReserve,
+        HistoryReserve = settings.HistoryReserve
+    };
+
+    private static PromptBudgetSettings MapPromptBudgetRequest(UpdatePromptBudgetSettingsRequestDto request) => new()
+    {
+        EnablePromptBudget = request.EnablePromptBudget,
+        SystemReserve = request.SystemReserve,
+        PoliciesReserve = request.PoliciesReserve,
+        PreferencesReserve = request.PreferencesReserve,
+        QueryReserve = request.QueryReserve,
+        SummaryReserve = request.SummaryReserve,
+        FactsReserve = request.FactsReserve,
+        EpisodesReserve = request.EpisodesReserve,
+        OnboardingReserve = request.OnboardingReserve,
+        HistoryReserve = request.HistoryReserve
+    };
 }

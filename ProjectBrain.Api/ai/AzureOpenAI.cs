@@ -25,6 +25,7 @@ public class AzureOpenAIServices(
         ISearchIndexService searchIndexService,
         IConfiguration configuration,
         IApplicationSettingsService applicationSettingsService,
+        IUserMemoryService userMemoryService,
         ILogger<AzureOpenAIServices> logger)
 {
 
@@ -33,6 +34,7 @@ public class AzureOpenAIServices(
     public IConfiguration Configuration { get; } = configuration;
     public IApplicationSettingsService ApplicationSettingsService { get; } = applicationSettingsService;
     public ISearchIndexService SearchIndexService { get; } = searchIndexService;
+    public IUserMemoryService UserMemoryService { get; } = userMemoryService;
 }
 
 public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
@@ -814,6 +816,13 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             EnableConversationSummary = memoryContext.EnableConversationSummary
         };
 
+        if (memoryContext.Facts.Count > 0 || memoryContext.Episodes.Count > 0)
+        {
+            await Services.UserMemoryService.RecordRetrievalAsync(
+                memoryContext.Facts.Select(f => f.Id).ToList(),
+                memoryContext.Episodes.Select(e => e.Id).ToList());
+        }
+
         LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_get_ai_settings");
 
         var maxSearchResults = aiSettings.MaxSearchResults;
@@ -927,12 +936,37 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         // Build system prompt with instructions
         var systemPrompt = ChatPromptAssembler.BuildSystemPrompt(userName, citations.Count > 0, memoryContext);
 
-        // Limit conversation history using memory-aware window
-        var limitedHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext).ToList();
+        var promptBudgetSettings = await Services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
+        var estimator = new CharacterTokenEstimator();
+        List<_shared.ChatMessage> limitedHistory;
+        string userPrompt;
+        var truncatedSources = false;
+        IReadOnlyList<PromptSlotTrace> slotTraces = Array.Empty<PromptSlotTrace>();
 
-        // Build the user prompt with context, sources, and instructions
-        var userPrompt = ChatPromptAssembler.BuildUserPrompt(
-            userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext);
+        if (promptBudgetSettings.EnablePromptBudget)
+        {
+            var initialHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext).ToList();
+            var budgeted = PromptTokenBudgetAssembler.Assemble(
+                userQuery,
+                userInformation,
+                sourcesFormatted.ToString(),
+                citations.Count,
+                memoryContext,
+                initialHistory,
+                promptBudgetSettings,
+                maxTotalTokens,
+                estimator);
+            userPrompt = budgeted.UserPrompt;
+            limitedHistory = budgeted.LimitedHistory.ToList();
+            truncatedSources = budgeted.TruncatedSources;
+            slotTraces = budgeted.SlotTraces;
+        }
+        else
+        {
+            limitedHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext).ToList();
+            userPrompt = ChatPromptAssembler.BuildUserPrompt(
+                userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext);
+        }
 
         Services.Logger.LogInformation("Formatted prompt with {SourceCount} sources and {HistoryCount} history messages (limited from {OriginalHistoryCount})",
             citations.Count, limitedHistory.Count, history.Count);
@@ -944,21 +978,20 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         var combinedPrompt = $"{systemPrompt}\n\n{userPrompt}";
 
         // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-        var estimatedTokens = combinedPrompt.Length / 4;
-        var truncatedSources = false;
+        var estimatedTokens = estimator.EstimateTokens(combinedPrompt);
 
         // Also estimate tokens from history messages
         foreach (var msg in messages)
         {
-            estimatedTokens += msg.Content.Count / 4;
+            estimatedTokens += estimator.EstimateTokens(msg.Content.ToString());
         }
 
         Services.Logger.LogInformation("Sending {MessageCount} messages to ChatClient", messages.Count);
         Services.Logger.LogInformation("Prompt Length: {PromptLength}", combinedPrompt.Length);
         Services.Logger.LogInformation("Estimated Total Tokens: {Tokens}", estimatedTokens);
 
-        // If still over limit, truncate sources further
-        if (estimatedTokens > maxTotalTokens)
+        // If still over limit without budget assembler, truncate sources further
+        if (!promptBudgetSettings.EnablePromptBudget && estimatedTokens > maxTotalTokens)
         {
             truncatedSources = true;
             Services.Logger.LogWarning("Estimated tokens ({EstimatedTokens}) exceed limit ({MaxTokens}). Truncating sources further.",
@@ -993,7 +1026,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
                 userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext);
             combinedPrompt = $"{systemPrompt}\n\n{userPrompt}";
 
-            estimatedTokens = (combinedPrompt.Length / 4) + (messages.Sum(m => m.Content.Count) / 4);
+            estimatedTokens = estimator.EstimateTokens(combinedPrompt)
+                + messages.Sum(m => estimator.EstimateTokens(m.Content.ToString()));
             Services.Logger.LogInformation("After truncation - Estimated Total Tokens: {Tokens}", estimatedTokens);
         }
 
@@ -1026,7 +1060,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             {
                 EstimatedTokens = estimatedTokens,
                 MaxTotalTokens = maxTotalTokens,
-                TruncatedSources = truncatedSources
+                TruncatedSources = truncatedSources,
+                Slots = slotTraces
             }
         };
 
@@ -1093,6 +1128,8 @@ public static class AzureOpenAIExtensions
         builder.Services.AddSingleton<Embedding.PngDocumentEmbedder>();
         builder.Services.AddSingleton<Embedding.JsonDocumentEmbedder>();
 
+        builder.Services.AddSingleton<ITokenEstimator, CharacterTokenEstimator>();
+
         // Register AgentOpenAIService (implements IAgentOpenAIService from Domain)
         builder.Services.AddScoped<ProjectBrain.Domain.IAgentOpenAIService>(sp =>
         {
@@ -1101,6 +1138,7 @@ public static class AzureOpenAIExtensions
                 sp.GetRequiredService<ISearchIndexService>(),
                 sp.GetRequiredService<IConfiguration>(),
                 sp.GetRequiredService<IApplicationSettingsService>(),
+                sp.GetRequiredService<IUserMemoryService>(),
                 sp.GetRequiredService<ILogger<AzureOpenAIServices>>());
             return new AgentOpenAIService(services);
         });
@@ -1133,5 +1171,7 @@ public static class AzureOpenAIExtensions
         builder.Services.AddScoped<AzureSearchClientServices>();
         builder.Services.AddScoped<ProjectBrain.Domain.IUserMemoryIndexService, UserMemoryIndexService>();
         builder.Services.AddScoped<ProjectBrain.Domain.IUserMemoryRetrievalService, UserMemoryRetrievalService>();
+        builder.Services.AddScoped<ProjectBrain.Domain.IUserBlobErasureService, UserBlobErasureService>();
+        builder.Services.AddScoped<ProjectBrain.Domain.IUserSearchIndexErasureService, UserSearchIndexErasureService>();
     }
 }

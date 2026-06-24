@@ -273,7 +273,12 @@ public class ApplicationSettingsService : IApplicationSettingsService
             MaxEpisodesPerTurn = int.TryParse(GetValue("AI:Memory:MaxEpisodesPerTurn"), out var maxEps) ? maxEps : 2,
             MaxFactsRetrieved = int.TryParse(GetValue("AI:Memory:MaxFactsRetrieved"), out var maxFactsRet) ? maxFactsRet : 5,
             MaxEpisodesRetrieved = int.TryParse(GetValue("AI:Memory:MaxEpisodesRetrieved"), out var maxEpsRet) ? maxEpsRet : 3,
-            IndexProvisionalMemories = bool.TryParse(GetValue("AI:Memory:IndexProvisionalMemories"), out var indexProv) && indexProv
+            IndexProvisionalMemories = bool.TryParse(GetValue("AI:Memory:IndexProvisionalMemories"), out var indexProv) && indexProv,
+            EnableMemoryDecay = !bool.TryParse(GetValue("AI:Memory:EnableMemoryDecay"), out var decayEnabled) || decayEnabled,
+            ProvisionalTtlDays = int.TryParse(GetValue("AI:Memory:ProvisionalTtlDays"), out var provTtl) ? provTtl : 30,
+            ActiveFactTtlDays = int.TryParse(GetValue("AI:Memory:ActiveFactTtlDays"), out var factTtl) ? factTtl : 365,
+            ActiveEpisodeTtlDays = int.TryParse(GetValue("AI:Memory:ActiveEpisodeTtlDays"), out var epTtl) ? epTtl : 180,
+            DecayInactivityDays = int.TryParse(GetValue("AI:Memory:DecayInactivityDays"), out var inactivity) ? inactivity : 90
         };
     }
 
@@ -288,6 +293,50 @@ public class ApplicationSettingsService : IApplicationSettingsService
         await UpdateSettingAsync("AI:Memory:MaxFactsRetrieved", settings.MaxFactsRetrieved.ToString(), updatedBy);
         await UpdateSettingAsync("AI:Memory:MaxEpisodesRetrieved", settings.MaxEpisodesRetrieved.ToString(), updatedBy);
         await UpdateSettingAsync("AI:Memory:IndexProvisionalMemories", settings.IndexProvisionalMemories.ToString().ToLowerInvariant(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:EnableMemoryDecay", settings.EnableMemoryDecay.ToString().ToLowerInvariant(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:ProvisionalTtlDays", settings.ProvisionalTtlDays.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:ActiveFactTtlDays", settings.ActiveFactTtlDays.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:ActiveEpisodeTtlDays", settings.ActiveEpisodeTtlDays.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:Memory:DecayInactivityDays", settings.DecayInactivityDays.ToString(), updatedBy);
+    }
+
+    public async Task<PromptBudgetSettings> GetPromptBudgetSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await _context.ApplicationSettings
+            .Where(s => s.Key.StartsWith("AI:EnablePromptBudget")
+                        || s.Key.StartsWith("AI:PromptBudget:"))
+            .ToListAsync(cancellationToken);
+
+        var values = settings.ToDictionary(s => s.Key, s => s.Value, StringComparer.OrdinalIgnoreCase);
+        string? GetValue(string key) => values.TryGetValue(key, out var value) ? value : null;
+
+        return new PromptBudgetSettings
+        {
+            EnablePromptBudget = bool.TryParse(GetValue("AI:EnablePromptBudget"), out var enabled) && enabled,
+            SystemReserve = int.TryParse(GetValue("AI:PromptBudget:SystemReserve"), out var system) ? system : 400,
+            PoliciesReserve = int.TryParse(GetValue("AI:PromptBudget:PoliciesReserve"), out var policies) ? policies : 300,
+            PreferencesReserve = int.TryParse(GetValue("AI:PromptBudget:PreferencesReserve"), out var prefs) ? prefs : 200,
+            QueryReserve = int.TryParse(GetValue("AI:PromptBudget:QueryReserve"), out var query) ? query : 200,
+            SummaryReserve = int.TryParse(GetValue("AI:PromptBudget:SummaryReserve"), out var summary) ? summary : 400,
+            FactsReserve = int.TryParse(GetValue("AI:PromptBudget:FactsReserve"), out var facts) ? facts : 300,
+            EpisodesReserve = int.TryParse(GetValue("AI:PromptBudget:EpisodesReserve"), out var episodes) ? episodes : 300,
+            OnboardingReserve = int.TryParse(GetValue("AI:PromptBudget:OnboardingReserve"), out var onboarding) ? onboarding : 500,
+            HistoryReserve = int.TryParse(GetValue("AI:PromptBudget:HistoryReserve"), out var history) ? history : 800
+        };
+    }
+
+    public async Task UpdatePromptBudgetSettingsAsync(PromptBudgetSettings settings, string updatedBy)
+    {
+        await UpdateSettingAsync("AI:EnablePromptBudget", settings.EnablePromptBudget.ToString().ToLowerInvariant(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:SystemReserve", settings.SystemReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:PoliciesReserve", settings.PoliciesReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:PreferencesReserve", settings.PreferencesReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:QueryReserve", settings.QueryReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:SummaryReserve", settings.SummaryReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:FactsReserve", settings.FactsReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:EpisodesReserve", settings.EpisodesReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:OnboardingReserve", settings.OnboardingReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:HistoryReserve", settings.HistoryReserve.ToString(), updatedBy);
     }
 
     public async Task UpdateAISettingsAsync(AISettings settings, string updatedBy)
@@ -315,6 +364,8 @@ public interface IApplicationSettingsService
         CancellationToken cancellationToken = default);
     Task<MemorySettings> GetMemorySettingsAsync(CancellationToken cancellationToken = default);
     Task UpdateMemorySettingsAsync(MemorySettings settings, string updatedBy);
+    Task<PromptBudgetSettings> GetPromptBudgetSettingsAsync(CancellationToken cancellationToken = default);
+    Task UpdatePromptBudgetSettingsAsync(PromptBudgetSettings settings, string updatedBy);
     Task UpdateChatPoliciesAsync(IReadOnlyList<ChatPolicyItem> policies, string updatedBy);
 }
 

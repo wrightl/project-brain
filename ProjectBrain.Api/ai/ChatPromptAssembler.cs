@@ -114,6 +114,68 @@ public static class ChatPromptAssembler
         return sb.ToString().TrimEnd();
     }
 
+    public static IReadOnlyList<AgentChatMessage> SelectRecentAgentHistory(
+        IReadOnlyList<AgentChatMessage> history,
+        ChatMemoryContext memoryContext)
+    {
+        if (history.Count == 0)
+        {
+            return history;
+        }
+
+        var hasSummary = memoryContext.EnableConversationSummary
+            && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary);
+
+        var window = hasSummary
+            ? memoryContext.RecentMessageWindow
+            : memoryContext.MaxHistoryMessages;
+
+        return history.TakeLast(Math.Max(1, window)).ToList();
+    }
+
+    public static string BuildAgentUserPrompt(
+        string userQuery,
+        string userInformation,
+        ChatMemoryContext memoryContext)
+    {
+        var prompt = new StringBuilder();
+
+        if (memoryContext.EnableConversationSummary
+            && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary))
+        {
+            prompt.AppendLine(FormatSummaryBlock(memoryContext.ConversationSummary));
+            prompt.AppendLine();
+        }
+
+        var factsBlock = FormatFactsBlock(memoryContext.Facts);
+        if (!string.IsNullOrWhiteSpace(factsBlock))
+        {
+            prompt.AppendLine(factsBlock);
+            prompt.AppendLine();
+        }
+
+        var episodesBlock = FormatEpisodesBlock(memoryContext.Episodes);
+        if (!string.IsNullOrWhiteSpace(episodesBlock))
+        {
+            prompt.AppendLine(episodesBlock);
+            prompt.AppendLine();
+        }
+
+        if (!string.IsNullOrWhiteSpace(userInformation))
+        {
+            prompt.AppendLine("---");
+            prompt.AppendLine("Here is some data in json format about the user based on their onboarding data:");
+            prompt.AppendLine(userInformation);
+            prompt.AppendLine("---");
+            prompt.AppendLine();
+        }
+
+        prompt.AppendLine("User Query:");
+        prompt.AppendLine(userQuery);
+
+        return prompt.ToString();
+    }
+
     public static string BuildSystemPrompt(
         string userName,
         bool hasSources,

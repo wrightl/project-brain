@@ -82,5 +82,10 @@ public class QuizResponseRepository : Repository<QuizResponse, Guid>, IQuizRespo
             .AsNoTracking()
             .CountAsync(qr => qr.QuizId == quizId, cancellationToken);
     }
+
+    public async Task<int> DeleteByUserIdAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.Where(qr => qr.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+    }
 }
 

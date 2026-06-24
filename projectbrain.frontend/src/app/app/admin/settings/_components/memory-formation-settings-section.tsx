@@ -14,6 +14,11 @@ interface MemoryFormationSettings {
     maxFactsRetrieved: number;
     maxEpisodesRetrieved: number;
     indexProvisionalMemories: boolean;
+    enableMemoryDecay: boolean;
+    provisionalTtlDays: number;
+    activeFactTtlDays: number;
+    activeEpisodeTtlDays: number;
+    decayInactivityDays: number;
 }
 
 function parseSettings(data: Record<string, unknown>): MemoryFormationSettings {
@@ -41,6 +46,21 @@ function parseSettings(data: Record<string, unknown>): MemoryFormationSettings {
         indexProvisionalMemories: !!(
             data.indexProvisionalMemories ?? data.IndexProvisionalMemories
         ),
+        enableMemoryDecay: !!(
+            data.enableMemoryDecay ?? data.EnableMemoryDecay ?? true
+        ),
+        provisionalTtlDays: Number(
+            data.provisionalTtlDays ?? data.ProvisionalTtlDays ?? 30
+        ),
+        activeFactTtlDays: Number(
+            data.activeFactTtlDays ?? data.ActiveFactTtlDays ?? 365
+        ),
+        activeEpisodeTtlDays: Number(
+            data.activeEpisodeTtlDays ?? data.ActiveEpisodeTtlDays ?? 180
+        ),
+        decayInactivityDays: Number(
+            data.decayInactivityDays ?? data.DecayInactivityDays ?? 90
+        ),
     };
 }
 
@@ -55,6 +75,11 @@ export default function MemoryFormationSettingsSection() {
         maxFactsRetrieved: 5,
         maxEpisodesRetrieved: 3,
         indexProvisionalMemories: false,
+        enableMemoryDecay: true,
+        provisionalTtlDays: 30,
+        activeFactTtlDays: 365,
+        activeEpisodeTtlDays: 180,
+        decayInactivityDays: 90,
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -362,6 +387,113 @@ export default function MemoryFormationSettingsSection() {
                         <p className="mt-1 text-xs text-gray-500">
                             Episodes injected into the prompt per chat turn
                         </p>
+                    </div>
+                </div>
+
+                <h3 className="text-base font-semibold text-gray-900 pt-2">
+                    Memory lifecycle
+                </h3>
+                <p className="text-sm text-gray-600 -mt-2">
+                    Control automatic expiry of provisional and inactive memories.
+                </p>
+
+                <label className="flex items-center justify-between gap-4">
+                    <div>
+                        <div className="text-sm font-medium text-gray-900">
+                            Enable memory decay
+                        </div>
+                        <div className="text-xs text-gray-500">
+                            When off, the daily decay job does nothing.
+                        </div>
+                    </div>
+                    <input
+                        type="checkbox"
+                        checked={settings.enableMemoryDecay}
+                        onChange={() =>
+                            setSettings((prev) => ({
+                                ...prev,
+                                enableMemoryDecay: !prev.enableMemoryDecay,
+                            }))
+                        }
+                        className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                </label>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label
+                            htmlFor="provisionalTtlDays"
+                            className="block text-sm font-medium text-gray-700"
+                        >
+                            Provisional TTL (days)
+                        </label>
+                        <input
+                            type="number"
+                            id="provisionalTtlDays"
+                            name="provisionalTtlDays"
+                            min="0"
+                            required
+                            value={settings.provisionalTtlDays}
+                            onChange={handleNumberChange}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="decayInactivityDays"
+                            className="block text-sm font-medium text-gray-700"
+                        >
+                            Decay inactivity (days)
+                        </label>
+                        <input
+                            type="number"
+                            id="decayInactivityDays"
+                            name="decayInactivityDays"
+                            min="0"
+                            required
+                            value={settings.decayInactivityDays}
+                            onChange={handleNumberChange}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="activeFactTtlDays"
+                            className="block text-sm font-medium text-gray-700"
+                        >
+                            Active fact TTL (days)
+                        </label>
+                        <input
+                            type="number"
+                            id="activeFactTtlDays"
+                            name="activeFactTtlDays"
+                            min="0"
+                            required
+                            value={settings.activeFactTtlDays}
+                            onChange={handleNumberChange}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="activeEpisodeTtlDays"
+                            className="block text-sm font-medium text-gray-700"
+                        >
+                            Active episode TTL (days)
+                        </label>
+                        <input
+                            type="number"
+                            id="activeEpisodeTtlDays"
+                            name="activeEpisodeTtlDays"
+                            min="0"
+                            required
+                            value={settings.activeEpisodeTtlDays}
+                            onChange={handleNumberChange}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        />
                     </div>
                 </div>
 

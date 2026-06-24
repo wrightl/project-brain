@@ -60,4 +60,32 @@ public class UserFactRepository : Repository<UserFact, Guid>, IUserFactRepositor
             .Take(limit)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<List<UserFact>> GetDecayCandidatesAsync(string? userId, CancellationToken cancellationToken = default)
+    {
+        var query = _dbSet.Where(x =>
+            x.Status == MemoryStatuses.Provisional || x.Status == MemoryStatuses.Active);
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            query = query.Where(x => x.UserId == userId);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
+
+    public async Task TouchRetrievedAsync(IReadOnlyList<Guid> factIds, CancellationToken cancellationToken = default)
+    {
+        if (factIds.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        await _dbSet
+            .Where(x => factIds.Contains(x.Id))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(x => x.LastRetrievedAt, now),
+                cancellationToken);
+    }
 }

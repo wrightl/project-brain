@@ -270,6 +270,46 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
                 Category = "AI:Memory",
                 UpdatedAt = DateTime.UtcNow,
                 UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:EnableMemoryDecay",
+                Value = "true",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:ProvisionalTtlDays",
+                Value = "30",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:ActiveFactTtlDays",
+                Value = "365",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:ActiveEpisodeTtlDays",
+                Value = "180",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:Memory:DecayInactivityDays",
+                Value = "90",
+                Category = "AI:Memory",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "seed"
             });
         await _context.SaveChangesAsync();
 
@@ -292,6 +332,103 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
         updated.EnableMemoryFormation.Should().BeFalse();
         updated.MinPromotionConfidence.Should().Be(0.8);
         updated.IndexProvisionalMemories.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetMemorySettingsAsync_IncludesDecayDefaultsWhenMissing()
+    {
+        var settings = await _service.GetMemorySettingsAsync();
+
+        settings.EnableMemoryDecay.Should().BeTrue();
+        settings.ProvisionalTtlDays.Should().Be(30);
+        settings.ActiveFactTtlDays.Should().Be(365);
+        settings.ActiveEpisodeTtlDays.Should().Be(180);
+        settings.DecayInactivityDays.Should().Be(90);
+    }
+
+    [Fact]
+    public async Task UpdateMemorySettingsAsync_PersistsDecayKeys()
+    {
+        _context.ApplicationSettings.AddRange(
+            new ApplicationSetting { Key = "AI:Memory:EnableMemoryFormation", Value = "true", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:MinPromotionConfidence", Value = "0.75", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:ProvisionalConfidence", Value = "0.60", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:ActivationObservationCount", Value = "2", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:MaxFactsPerTurn", Value = "3", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:MaxEpisodesPerTurn", Value = "2", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:MaxFactsRetrieved", Value = "5", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:MaxEpisodesRetrieved", Value = "3", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:IndexProvisionalMemories", Value = "false", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:EnableMemoryDecay", Value = "true", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:ProvisionalTtlDays", Value = "30", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:ActiveFactTtlDays", Value = "365", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:ActiveEpisodeTtlDays", Value = "180", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:Memory:DecayInactivityDays", Value = "90", Category = "AI:Memory", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" });
+        await _context.SaveChangesAsync();
+
+        await _service.UpdateMemorySettingsAsync(
+            new MemorySettings
+            {
+                EnableMemoryDecay = false,
+                ProvisionalTtlDays = 14,
+                ActiveFactTtlDays = 200,
+                ActiveEpisodeTtlDays = 120,
+                DecayInactivityDays = 60
+            },
+            "admin-test");
+
+        var updated = await _service.GetMemorySettingsAsync();
+        updated.EnableMemoryDecay.Should().BeFalse();
+        updated.ProvisionalTtlDays.Should().Be(14);
+        updated.DecayInactivityDays.Should().Be(60);
+    }
+
+    [Fact]
+    public async Task GetPromptBudgetSettingsAsync_ReturnsDefaultsWhenMissing()
+    {
+        var settings = await _service.GetPromptBudgetSettingsAsync();
+
+        settings.EnablePromptBudget.Should().BeFalse();
+        settings.SystemReserve.Should().BeGreaterThan(0);
+        settings.HistoryReserve.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task UpdatePromptBudgetSettingsAsync_PersistsValues()
+    {
+        _context.ApplicationSettings.AddRange(
+            new ApplicationSetting { Key = "AI:EnablePromptBudget", Value = "false", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:SystemReserve", Value = "400", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:PoliciesReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:PreferencesReserve", Value = "200", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:QueryReserve", Value = "200", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:SummaryReserve", Value = "400", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:FactsReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:EpisodesReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:OnboardingReserve", Value = "500", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:HistoryReserve", Value = "800", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" });
+        await _context.SaveChangesAsync();
+
+        await _service.UpdatePromptBudgetSettingsAsync(
+            new PromptBudgetSettings
+            {
+                EnablePromptBudget = true,
+                SystemReserve = 500,
+                PoliciesReserve = 250,
+                PreferencesReserve = 200,
+                QueryReserve = 200,
+                SummaryReserve = 350,
+                FactsReserve = 300,
+                EpisodesReserve = 250,
+                OnboardingReserve = 450,
+                HistoryReserve = 900
+            },
+            "admin-test");
+
+        var updated = await _service.GetPromptBudgetSettingsAsync();
+        updated.EnablePromptBudget.Should().BeTrue();
+        updated.SystemReserve.Should().Be(500);
+        updated.HistoryReserve.Should().Be(900);
     }
 
     public void Dispose()

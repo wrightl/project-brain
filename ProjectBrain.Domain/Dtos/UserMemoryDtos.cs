@@ -79,4 +79,9 @@ public sealed class MemorySettings
     public int MaxFactsRetrieved { get; set; } = 5;
     public int MaxEpisodesRetrieved { get; set; } = 3;
     public bool IndexProvisionalMemories { get; set; }
+    public bool EnableMemoryDecay { get; set; } = true;
+    public int ProvisionalTtlDays { get; set; } = 30;
+    public int ActiveFactTtlDays { get; set; } = 365;
+    public int ActiveEpisodeTtlDays { get; set; } = 180;
+    public int DecayInactivityDays { get; set; } = 90;
 }

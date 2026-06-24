@@ -50,6 +50,24 @@ export interface MemoryFormationSettings {
     maxFactsRetrieved: number;
     maxEpisodesRetrieved: number;
     indexProvisionalMemories: boolean;
+    enableMemoryDecay: boolean;
+    provisionalTtlDays: number;
+    activeFactTtlDays: number;
+    activeEpisodeTtlDays: number;
+    decayInactivityDays: number;
+}
+
+export interface PromptBudgetSettings {
+    enablePromptBudget: boolean;
+    systemReserve: number;
+    policiesReserve: number;
+    preferencesReserve: number;
+    queryReserve: number;
+    summaryReserve: number;
+    factsReserve: number;
+    episodesReserve: number;
+    onboardingReserve: number;
+    historyReserve: number;
 }
 
 export class SettingsService {
@@ -172,6 +190,27 @@ export class SettingsService {
         });
         if (!response.ok) {
             throw new Error('Failed to update memory formation settings');
+        }
+        return response.json();
+    }
+
+    static async getPromptBudgetSettings(): Promise<PromptBudgetSettings> {
+        const response = await callBackendApi('/admin/settings/prompt-budget');
+        if (!response.ok) {
+            throw new Error('Failed to fetch prompt budget settings');
+        }
+        return response.json();
+    }
+
+    static async updatePromptBudgetSettings(
+        settings: PromptBudgetSettings
+    ): Promise<PromptBudgetSettings> {
+        const response = await callBackendApi('/admin/settings/prompt-budget', {
+            method: 'PUT',
+            body: settings,
+        });
+        if (!response.ok) {
+            throw new Error('Failed to update prompt budget settings');
         }
         return response.json();
     }

@@ -166,4 +166,63 @@ public class ChatPromptAssemblerTests
     {
         ChatPromptAssembler.FormatFactsBlock(Array.Empty<RetrievedUserFact>()).Should().BeEmpty();
     }
+
+    [Fact]
+    public void BuildAgentUserPrompt_IncludesMemoryBlocks()
+    {
+        var memoryContext = new ChatMemoryContext
+        {
+            EnableConversationSummary = true,
+            ConversationSummary = "Discussed morning routines.",
+            Facts =
+            [
+                new RetrievedUserFact { Id = Guid.NewGuid(), Content = "Prefers bullet lists" }
+            ],
+            Episodes =
+            [
+                new RetrievedUserEpisode
+                {
+                    Id = Guid.NewGuid(),
+                    Summary = "Short walk improved focus",
+                    Topic = "focus",
+                    Outcome = "helped"
+                }
+            ]
+        };
+
+        var prompt = ChatPromptAssembler.BuildAgentUserPrompt(
+            "Create a goal for tomorrow",
+            "{\"timezone\":\"Europe/London\"}",
+            memoryContext);
+
+        prompt.Should().Contain("## Conversation so far");
+        prompt.Should().Contain("Prefers bullet lists");
+        prompt.Should().Contain("Short walk improved focus");
+        prompt.Should().Contain("Create a goal for tomorrow");
+    }
+
+    [Fact]
+    public void SelectRecentAgentHistory_WithSummary_UsesRecentMessageWindow()
+    {
+        var history = Enumerable.Range(1, 8)
+            .Select(i => new AgentChatMessage
+            {
+                Role = i % 2 == 0 ? AgentChatMessageRole.User : AgentChatMessageRole.Assistant,
+                Content = $"msg-{i}"
+            })
+            .ToList();
+
+        var memoryContext = new ChatMemoryContext
+        {
+            RecentMessageWindow = 3,
+            MaxHistoryMessages = 10,
+            EnableConversationSummary = true,
+            ConversationSummary = "Summary present"
+        };
+
+        var selected = ChatPromptAssembler.SelectRecentAgentHistory(history, memoryContext);
+
+        selected.Should().HaveCount(3);
+        selected.Last().Content.Should().Be("msg-8");
+    }
 }

@@ -17,6 +17,7 @@ public interface IAgentOpenAIService
         string userInformation,
         string userName,
         List<AgentChatMessage> history,
+        ChatMemoryContext memoryContext,
         List<Dictionary<string, object>> tools,
         CancellationToken cancellationToken = default);
 

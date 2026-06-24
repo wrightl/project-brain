@@ -44,5 +44,7 @@ public interface IQuizResponseRepository : IRepository<QuizResponse, Guid>
     /// Counts quiz responses for a quiz
     /// </summary>
     Task<int> CountForQuizAsync(Guid quizId, CancellationToken cancellationToken = default);
+
+    Task<int> DeleteByUserIdAsync(string userId, CancellationToken cancellationToken = default);
 }
 

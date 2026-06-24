@@ -35,4 +35,5 @@ public sealed class ChatTurnPromptTrace
     public int EstimatedTokens { get; init; }
     public int MaxTotalTokens { get; init; }
     public bool TruncatedSources { get; init; }
+    public IReadOnlyList<PromptSlotTrace> Slots { get; init; } = Array.Empty<PromptSlotTrace>();
 }

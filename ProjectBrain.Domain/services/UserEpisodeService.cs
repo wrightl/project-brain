@@ -73,6 +73,11 @@ public class UserEpisodeService : IUserEpisodeService
             CreatedAt = e.CreatedAt
         }).ToList();
     }
+
+    public Task TouchRetrievedAsync(IReadOnlyList<Guid> episodeIds, CancellationToken cancellationToken = default)
+    {
+        return _repository.TouchRetrievedAsync(episodeIds, cancellationToken);
+    }
 }
 
 public interface IUserEpisodeService
@@ -83,4 +88,5 @@ public interface IUserEpisodeService
     Task UpdateAsync(UserEpisode episode, CancellationToken cancellationToken = default);
     Task<bool> SupersedeAsync(string userId, Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<UserEpisodeDto>> ListForUserAsync(string userId, bool includeProvisional, CancellationToken cancellationToken = default);
+    Task TouchRetrievedAsync(IReadOnlyList<Guid> episodeIds, CancellationToken cancellationToken = default);
 }

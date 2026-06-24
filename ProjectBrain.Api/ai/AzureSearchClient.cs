@@ -154,49 +154,77 @@ public class AzureSearchClient(AzureSearchClientServices services) : ISearchInde
     {
         try
         {
-            services.Logger.LogInformation("Deleting all documents from search index for user: {UserId}", userId);
-
-            var searchClient = services.SearchIndexClient.GetSearchClient(Constants.SEARCH_INDEX_NAME);
-
-            // Search for all documents matching this user or shared
-            var filter = userId is null ? "ownerId eq '' or ownerId eq null" : $"ownerId eq '{userId.Replace("'", "''")}'";
-
-            services.Logger.LogInformation("Searching for documents with filter: {Filter}", filter);
-
-            var searchOptions = new SearchOptions
-            {
-                Filter = filter,
-                Size = 1000 // Maximum documents per page
-            };
-            searchOptions.Select.Add("id"); // Retrieve the id field
-            // searchOptions.Select.Add("sourcefile"); // Retrieve the sourcefile field
-
-            var searchResults = await searchClient.SearchAsync<SearchDocument>("*", searchOptions);
-
-            var documentIdsToDelete = new List<string>();
-            await foreach (var result in searchResults.Value.GetResultsAsync())
-            {
-                if (shouldRemoveDocumentFromIndex(result.Document))
-                    documentIdsToDelete.Add(result.Document["id"].ToString()!);
-            }
-
-            if (documentIdsToDelete.Count == 0)
-            {
-                services.Logger.LogInformation("No documents found in search index for user: {UserId}", userId);
-                return;
-            }
-
-            services.Logger.LogInformation("Found {DocumentCount} documents to delete for user: {UserId}", documentIdsToDelete.Count, userId);
-
-            await deleteDocumentsFromIndexAsync(searchClient, documentIdsToDelete);
-
-            services.Logger.LogInformation("Completed deleting {DocumentCount} documents from search index for user: {UserId}", documentIdsToDelete.Count, userId);
+            await DeleteAllDocumentsForUserInternalAsync(userId, throwOnError: false);
         }
         catch (Exception ex)
         {
             services.Logger.LogError(ex, "Error deleting documents from search index for user: {UserId}", userId);
-            // Don't throw - we want to continue with reindexing even if deletion fails
         }
+    }
+
+    public Task<int> DeleteAllDocumentsForUserAsync(string? userId)
+    {
+        return DeleteAllDocumentsForUserInternalAsync(userId, throwOnError: true);
+    }
+
+    private async Task<int> DeleteAllDocumentsForUserInternalAsync(string? userId, bool throwOnError)
+    {
+        var totalDeleted = 0;
+        try
+        {
+            services.Logger.LogInformation("Deleting all documents from search index for user: {UserId}", userId);
+
+            var searchClient = services.SearchIndexClient.GetSearchClient(Constants.SEARCH_INDEX_NAME);
+            var filter = userId is null ? "ownerId eq '' or ownerId eq null" : $"ownerId eq '{userId.Replace("'", "''")}'";
+
+            while (true)
+            {
+                var searchOptions = new SearchOptions
+                {
+                    Filter = filter,
+                    Size = 1000
+                };
+                searchOptions.Select.Add("id");
+
+                var searchResults = await searchClient.SearchAsync<SearchDocument>("*", searchOptions);
+                var documentIdsToDelete = new List<string>();
+                await foreach (var result in searchResults.Value.GetResultsAsync())
+                {
+                    if (shouldRemoveDocumentFromIndex(result.Document))
+                    {
+                        documentIdsToDelete.Add(result.Document["id"].ToString()!);
+                    }
+                }
+
+                if (documentIdsToDelete.Count == 0)
+                {
+                    break;
+                }
+
+                await deleteDocumentsFromIndexAsync(searchClient, documentIdsToDelete);
+                totalDeleted += documentIdsToDelete.Count;
+
+                if (documentIdsToDelete.Count < 1000)
+                {
+                    break;
+                }
+            }
+
+            services.Logger.LogInformation(
+                "Completed deleting {DocumentCount} documents from search index for user: {UserId}",
+                totalDeleted,
+                userId);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error deleting documents from search index for user: {UserId}", userId);
+            if (throwOnError)
+            {
+                throw;
+            }
+        }
+
+        return totalDeleted;
     }
 
     public async Task DeleteDocumentsFromIndexAsync(string filename, string location)
@@ -323,5 +351,6 @@ public interface ISearchIndexService
     Task<Response<SearchResults<SearchDocument>>> SearchAsync(string query, SearchOptions searchOptions);
     Task DeleteDocumentsFromIndexAsync(string filename, string location);
     Task DeleteAllDocumentsFromIndexAsync(string? userId);
+    Task<int> DeleteAllDocumentsForUserAsync(string? userId);
     Task ExtractEmbedAndIndexFromStreamAsync(Stream stream, string filename, string? userId, string blobPath, string resourceId, bool removeExistingDocuments = false);
 }

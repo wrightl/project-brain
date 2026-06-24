@@ -52,6 +52,15 @@ public class UserMemoryService : IUserMemoryService
         await _memoryIndexService.DeleteEpisodeAsync(id, cancellationToken);
         return true;
     }
+
+    public async Task RecordRetrievalAsync(
+        IReadOnlyList<Guid> factIds,
+        IReadOnlyList<Guid> episodeIds,
+        CancellationToken cancellationToken = default)
+    {
+        await _factService.TouchRetrievedAsync(factIds, cancellationToken);
+        await _episodeService.TouchRetrievedAsync(episodeIds, cancellationToken);
+    }
 }
 
 public interface IUserMemoryService
@@ -59,4 +68,8 @@ public interface IUserMemoryService
     Task<UserMemoryListDto> ListAsync(string userId, CancellationToken cancellationToken = default);
     Task<bool> DeleteFactAsync(string userId, Guid id, CancellationToken cancellationToken = default);
     Task<bool> DeleteEpisodeAsync(string userId, Guid id, CancellationToken cancellationToken = default);
+    Task RecordRetrievalAsync(
+        IReadOnlyList<Guid> factIds,
+        IReadOnlyList<Guid> episodeIds,
+        CancellationToken cancellationToken = default);
 }

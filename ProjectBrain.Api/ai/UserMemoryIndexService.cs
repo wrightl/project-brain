@@ -70,6 +70,11 @@ public class UserMemoryIndexService : IUserMemoryIndexService
         await DeleteDocumentAsync(BuildDocumentId("episode", episodeId), cancellationToken);
     }
 
+    public Task DeleteAllForUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
     private async Task IndexMemoryAsync(
         string documentId,
         string content,

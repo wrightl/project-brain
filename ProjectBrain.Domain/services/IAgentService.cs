@@ -18,6 +18,7 @@ public interface IAgentService
         string userInformation,
         string userName,
         List<AgentChatMessage> conversationHistory,
+        ChatMemoryContext memoryContext,
         CancellationToken cancellationToken = default);
 
     /// <summary>

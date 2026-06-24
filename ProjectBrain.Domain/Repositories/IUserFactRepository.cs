@@ -7,4 +7,6 @@ public interface IUserFactRepository : IRepository<UserFact, Guid>
     Task<List<UserFact>> GetActiveForUserAsync(string userId, int limit, CancellationToken cancellationToken = default);
     Task<List<UserFact>> GetForUserByStatusesAsync(string userId, IReadOnlyList<string> statuses, CancellationToken cancellationToken = default);
     Task<List<UserFact>> SearchActiveByContentAsync(string userId, string query, int limit, CancellationToken cancellationToken = default);
+    Task<List<UserFact>> GetDecayCandidatesAsync(string? userId, CancellationToken cancellationToken = default);
+    Task TouchRetrievedAsync(IReadOnlyList<Guid> factIds, CancellationToken cancellationToken = default);
 }

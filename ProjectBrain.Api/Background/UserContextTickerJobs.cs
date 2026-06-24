@@ -373,6 +373,24 @@ public class UserContextTickerJobs(IServiceScopeFactory serviceScopeFactory, ILo
         }
     }
 
+    [TickerFunction("UserContext_MemoryDecay", cronExpression: "0 3 * * *")]
+    public async Task MemoryDecay(
+        TickerFunctionContext<MemoryDecayRequest> context,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var memoryDecayService = scope.ServiceProvider.GetRequiredService<IMemoryDecayService>();
+            var expired = await memoryDecayService.ApplyDecayAsync(context.Request.UserId, cancellationToken);
+            logger.LogInformation("Memory decay job completed; superseded {Count} memories", expired);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error running memory decay job");
+        }
+    }
+
     private static string BuildJournalEntryMarkdown(string content, string? summary, DateTime createdAt)
     {
         var sb = new StringBuilder();

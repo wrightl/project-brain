@@ -24,5 +24,7 @@ public interface ITagRepository : IRepository<Tag, Guid>
     /// Gets tags by IDs for a specific user
     /// </summary>
     Task<IEnumerable<Tag>> GetByIdsForUserAsync(IEnumerable<Guid> tagIds, string userId, CancellationToken cancellationToken = default);
+
+    Task<int> DeleteByUserIdAsync(string userId, CancellationToken cancellationToken = default);
 }
 

@@ -105,6 +105,8 @@ internal sealed class FakeSearchIndexService : ISearchIndexService
 
     public Task DeleteAllDocumentsFromIndexAsync(string? userId) => Task.CompletedTask;
 
+    public Task<int> DeleteAllDocumentsForUserAsync(string? userId) => Task.FromResult(0);
+
     public Task ExtractEmbedAndIndexFromStreamAsync(
         Stream stream,
         string filename,

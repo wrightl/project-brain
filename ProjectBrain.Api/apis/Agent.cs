@@ -1,11 +1,14 @@
 using System.Linq;
 using System.Text.Json;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
 using ProjectBrain.Domain;
 using DomainConversationService = ProjectBrain.Domain.IConversationService;
 using DomainChatService = ProjectBrain.Domain.IChatService;
 using ProjectBrain.Domain.Dtos;
 using Microsoft.Extensions.DependencyInjection;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 public class AgentServices(
     ILogger<AgentServices> logger,
@@ -18,7 +21,10 @@ public class AgentServices(
     IUsageTrackingService usageTrackingService,
     IFeatureGateService featureGateService,
     ISubscriptionService subscriptionService,
-    IAgentOrchestrator orchestrator)
+    IAgentOrchestrator orchestrator,
+    IChatMemoryContextService chatMemoryContextService,
+    IChatPersistenceQueue chatPersistenceQueue,
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
 {
     public ILogger<AgentServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
@@ -31,6 +37,9 @@ public class AgentServices(
     public IFeatureGateService FeatureGateService { get; } = featureGateService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IAgentOrchestrator Orchestrator { get; } = orchestrator;
+    public IChatMemoryContextService ChatMemoryContextService { get; } = chatMemoryContextService;
+    public IChatPersistenceQueue ChatPersistenceQueue { get; } = chatPersistenceQueue;
+    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
 }
 
 public static class AgentEndpoints
@@ -135,6 +144,12 @@ public static class AgentEndpoints
         var userName = user?.FirstName ?? "User";
         services.Logger.LogInformation("Using user name {UserName} for agent conversation {ConversationId}", userName, conversation.Id);
 
+        var memoryContext = await services.ChatMemoryContextService.BuildAsync(
+            userId!,
+            conversation.Id,
+            request.Content,
+            http.RequestAborted);
+
         // Get the onboarding data for the user
         string userInformation = string.Empty;
         var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.Onboarding };
@@ -156,6 +171,7 @@ public static class AgentEndpoints
             userInformation,
             userName,
             history,
+            memoryContext,
             http.RequestAborted);
 
         // Send workflow ID
@@ -195,32 +211,20 @@ public static class AgentEndpoints
         await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "status", value = new { status = agentResponse.Status, error = agentResponse.ErrorMessage } })}\n\n");
         await http.Response.Body.FlushAsync();
 
-        // Save messages to conversation
-        await services.ChatService.Add(new ChatMessage
-        {
-            ConversationId = conversation.Id,
-            Role = "user",
-            Content = request.Content,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
+        var assistantContent = !string.IsNullOrWhiteSpace(agentResponse.Message)
+            ? agentResponse.Message
+            : $"Agent processed your request. Status: {agentResponse.Status}";
 
-        var assistantMessage = $"Agent processed your request. Status: {agentResponse.Status}";
-        if (agentResponse.ExecutedTools.Any())
-        {
-            assistantMessage += $". Executed {agentResponse.ExecutedTools.Count} tool(s).";
-        }
-
-        await services.ChatService.Add(new ChatMessage
-        {
-            ConversationId = conversation.Id,
-            Role = "assistant",
-            Content = assistantMessage,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
-
-        await services.UsageTrackingService.TrackAIQueryAsync(userId!);
+        await ChatPersistenceHelper.EnqueueOrPersistAsync(
+            services.ChatPersistenceQueue,
+            services.ChatService,
+            services.UsageTrackingService,
+            services.TimeTickerManager,
+            conversation.Id,
+            userId!,
+            request.Content,
+            assistantContent,
+            http.RequestAborted);
     }
 
     private static async Task<IResult> GetAvailableTools([AsParameters] AgentServices services)

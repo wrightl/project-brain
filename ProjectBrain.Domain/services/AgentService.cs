@@ -44,6 +44,7 @@ public class AgentService : IAgentService
         string userInformation,
         string userName,
         List<AgentChatMessage> conversationHistory,
+        ChatMemoryContext memoryContext,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Processing agent interaction for user {UserId}, workflow {WorkflowId}", userId, workflowId);
@@ -92,6 +93,7 @@ public class AgentService : IAgentService
                 userInformation,
                 userName,
                 conversationHistory,
+                memoryContext,
                 tools,
                 cancellationToken);
 

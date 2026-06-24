@@ -9,7 +9,8 @@ public class Auth0WebhookServices(
         IEmailService emailService,
         HttpContext context,
         IConfiguration configuration,
-        Storage storage)
+        Storage storage,
+        IUserErasureService userErasureService)
 {
     public ILogger<Auth0WebhookServices> Logger { get; } = logger;
     public IUserService UserService { get; } = userService;
@@ -17,6 +18,7 @@ public class Auth0WebhookServices(
     public IConfiguration Configuration { get; } = configuration;
     public IEmailService EmailService { get; } = emailService;
     public Storage Storage { get; } = storage;
+    public IUserErasureService UserErasureService { get; } = userErasureService;
 }
 
 /// <summary>
@@ -352,20 +354,19 @@ public static class Auth0WebhookEndpoints
 
         try
         {
-            // Delete all files associated with the user
-            try
-            {
-                var deletedFileCount = await services.Storage.DeleteAllUserFiles(userData.UserId);
-                services.Logger.LogInformation("Deleted {FileCount} files for user {UserId}", deletedFileCount, userData.UserId);
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogError(ex, "Error deleting files for user {UserId}, continuing with user deletion", userData.UserId);
-                // Continue with user deletion even if file deletion fails
-            }
+            var erasureResult = await services.UserErasureService.EraseUserAsync(userData.UserId);
+            services.Logger.LogInformation(
+                "Erased user {UserId} ({Email}) via orchestrator: search={Search}, blobs={Blobs}, userDeleted={UserDeleted}",
+                userData.UserId,
+                userData.Email,
+                erasureResult.SearchDocumentsDeleted,
+                erasureResult.BlobFilesDeleted,
+                erasureResult.UserRowDeleted);
 
-            await services.UserService.DeleteById(userData.UserId);
-            services.Logger.LogInformation("Deleted user {UserId} ({Email}) from Auth0 webhook", userData.UserId, userData.Email);
+            foreach (var warning in erasureResult.Warnings)
+            {
+                services.Logger.LogWarning("User erasure warning for {UserId}: {Warning}", userData.UserId, warning);
+            }
         }
         catch (Exception ex)
         {

@@ -56,6 +56,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.AddSingleton(_ => new BlobServiceClient("UseDevelopmentStorage=true"));
             services.RemoveAll<ISearchIndexService>();
             services.AddSingleton<ISearchIndexService, FakeSearchIndexService>();
+            services.RemoveAll<IUserMemoryIndexService>();
+            services.AddScoped<IUserMemoryIndexService, NoOpUserMemoryIndexService>();
+            services.RemoveAll<IUserMemoryRetrievalService>();
+            services.AddScoped<IUserMemoryRetrievalService, SqlUserMemoryRetrievalService>();
 
             var hostedServicesToRemove = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&

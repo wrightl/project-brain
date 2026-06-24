@@ -443,6 +443,8 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
             new ApplicationSetting { Key = "AI:PromptBudget:EpisodesReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:PromptBudget:OnboardingReserve", Value = "500", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:PromptBudget:HistoryReserve", Value = "800", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:ToolDefinitionsReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:ToolResultsReserve", Value = "400", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:TokenEstimator", Value = "character", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" });
         await _context.SaveChangesAsync();
 
@@ -509,6 +511,8 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
             new ApplicationSetting { Key = "AI:PromptBudget:EpisodesReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:PromptBudget:OnboardingReserve", Value = "500", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:PromptBudget:HistoryReserve", Value = "800", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:ToolDefinitionsReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:ToolResultsReserve", Value = "400", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:TokenEstimator", Value = "character", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" });
         await _context.SaveChangesAsync();
 

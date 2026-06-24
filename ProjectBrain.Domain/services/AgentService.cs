@@ -1,6 +1,7 @@
 namespace ProjectBrain.Domain;
 
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -12,28 +13,34 @@ using ProjectBrain.Domain.Dtos;
 public class AgentService : IAgentService
 {
     private readonly IAgentOrchestrator _orchestrator;
-    private readonly IGoalService _goalService;
+    private readonly IAgentToolRegistry _toolRegistry;
+    private readonly IAgentToolContextFactory _toolContextFactory;
     private readonly IAgentActionTrackingService _actionTrackingService;
     private readonly IAgentOpenAIService _agentOpenAI;
+    private readonly IChatRetrievalService _chatRetrievalService;
     private readonly ILogger<AgentService> _logger;
 
     public AgentService(
         IAgentOrchestrator orchestrator,
-        IGoalService goalService,
+        IAgentToolRegistry toolRegistry,
+        IAgentToolContextFactory toolContextFactory,
         IAgentActionTrackingService actionTrackingService,
         IAgentOpenAIService agentOpenAI,
+        IChatRetrievalService chatRetrievalService,
         ILogger<AgentService> logger)
     {
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
-        _goalService = goalService ?? throw new ArgumentNullException(nameof(goalService));
+        _toolRegistry = toolRegistry ?? throw new ArgumentNullException(nameof(toolRegistry));
+        _toolContextFactory = toolContextFactory ?? throw new ArgumentNullException(nameof(toolContextFactory));
         _actionTrackingService = actionTrackingService ?? throw new ArgumentNullException(nameof(actionTrackingService));
         _agentOpenAI = agentOpenAI ?? throw new ArgumentNullException(nameof(agentOpenAI));
+        _chatRetrievalService = chatRetrievalService ?? throw new ArgumentNullException(nameof(chatRetrievalService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public List<Dictionary<string, object>> GetAvailableTools()
     {
-        return AgentTools.GetAllToolDefinitions();
+        return _toolRegistry.GetAllDefinitions().ToList();
     }
 
     public async Task<AgentResponse> ProcessAgentInteractionAsync(
@@ -47,204 +54,325 @@ public class AgentService : IAgentService
         ChatMemoryContext memoryContext,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Processing agent interaction for user {UserId}, workflow {WorkflowId}", userId, workflowId);
-
-        // Load or create workflow
-        AgentWorkflowState? workflowState = null;
-        if (workflowId.HasValue)
+        var response = new AgentResponse();
+        await foreach (var streamEvent in StreamAgentInteractionAsync(
+            userId,
+            userMessage,
+            conversationId,
+            workflowId,
+            userInformation,
+            userName,
+            conversationHistory,
+            memoryContext,
+            cancellationToken))
         {
-            workflowState = await _orchestrator.LoadWorkflowAsync(workflowId.Value, userId, cancellationToken);
-            if (workflowState == null)
+            switch (streamEvent.Type)
             {
-                _logger.LogWarning("Workflow {WorkflowId} not found, creating new workflow", workflowId);
-                workflowState = await _orchestrator.CreateWorkflowAsync(userId, conversationId, "agent_interaction", cancellationToken);
+                case "workflow":
+                    if (streamEvent.Value is Guid wfId)
+                    {
+                        response.WorkflowId = wfId;
+                    }
+                    else if (streamEvent.Value is JsonElement wfElement && wfElement.TryGetProperty("id", out var idProp))
+                    {
+                        response.WorkflowId = Guid.Parse(idProp.GetString()!);
+                    }
+
+                    break;
+
+                case "text":
+                    response.Message = (response.Message ?? string.Empty) + streamEvent.Value?.ToString();
+                    break;
+
+                case "tools_executed":
+                    if (streamEvent.Value is List<ToolExecutionRecord> tools)
+                    {
+                        response.ExecutedTools.AddRange(tools);
+                    }
+
+                    break;
+
+                case "citations":
+                    if (streamEvent.Value is List<ChatCitationDto> citations)
+                    {
+                        response.Citations = citations;
+                    }
+
+                    break;
+
+                case "status":
+                    if (streamEvent.Value is AgentStreamStatus status)
+                    {
+                        response.Status = status.Status;
+                        response.ErrorMessage = status.Error;
+                    }
+
+                    break;
             }
         }
-        else
-        {
-            workflowState = await _orchestrator.CreateWorkflowAsync(userId, conversationId, "agent_interaction", cancellationToken);
-        }
 
-        var response = new AgentResponse
+        return response;
+    }
+
+    public async IAsyncEnumerable<AgentStreamEvent> StreamAgentInteractionAsync(
+        string userId,
+        string userMessage,
+        Guid? conversationId,
+        Guid? workflowId,
+        string userInformation,
+        string userName,
+        List<AgentChatMessage> conversationHistory,
+        ChatMemoryContext memoryContext,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Streaming agent interaction for user {UserId}, workflow {WorkflowId}", userId, workflowId);
+
+        AgentWorkflowState? workflowState = null;
+        workflowState = await LoadOrCreateWorkflowAsync(userId, conversationId, workflowId, cancellationToken);
+        yield return new AgentStreamEvent
         {
-            WorkflowId = workflowState.Id,
-            Status = "completed"
+            Type = "workflow",
+            Value = new { id = workflowState.Id }
         };
 
-        try
+        var recentActions = await _actionTrackingService.GetRecentActionsAsync(userId, 5, cancellationToken);
+        var recentActionsContext = string.Join(", ", recentActions.Select(a => $"{a.ToolName} at {a.ExecutedAt:HH:mm}"));
+        if (!string.IsNullOrEmpty(recentActionsContext))
         {
-            // Get recent actions for context
-            var recentActions = await _actionTrackingService.GetRecentActionsAsync(userId, 5, cancellationToken);
-            var recentActionsContext = string.Join(", ", recentActions.Select(a => $"{a.ToolName} at {a.ExecutedAt:HH:mm}"));
+            userInformation += $"\n\nRecent agent actions: {recentActionsContext}";
+        }
 
-            // Add recent actions to user information if available
-            if (!string.IsNullOrEmpty(recentActionsContext))
+        var correlationId = Guid.NewGuid().ToString("N");
+        var retrieval = await _chatRetrievalService.RetrieveAsync(
+            userMessage,
+            userId,
+            memoryContext,
+            correlationId,
+            cancellationToken);
+
+        if (retrieval.Citations.Count > 0)
+        {
+            yield return new AgentStreamEvent
             {
-                userInformation += $"\n\nRecent agent actions: {recentActionsContext}";
+                Type = "citations",
+                Value = retrieval.Citations.ToList()
+            };
+        }
+
+        var tools = GetAvailableTools();
+        var toolContext = _toolContextFactory.Create(userId, conversationId, workflowState.Id, userMessage);
+
+        var session = await _agentOpenAI.BeginSessionAsync(new AgentSessionRequest
+        {
+            UserQuery = userMessage,
+            UserId = userId,
+            UserInformation = userInformation,
+            UserName = userName,
+            History = conversationHistory,
+            MemoryContext = memoryContext,
+            ConversationId = conversationId,
+            CorrelationId = correlationId,
+            SourcesFormatted = retrieval.SourcesFormatted,
+            CitationCount = retrieval.Citations.Count,
+            CitationIds = retrieval.Citations.Select(c => c.Id).ToList()
+        }, cancellationToken);
+
+        const int maxToolIterations = 10;
+        var iteration = 0;
+
+        while (iteration < maxToolIterations)
+        {
+            iteration++;
+            _logger.LogInformation("Agent iteration {Iteration}", iteration);
+
+            var toolCalls = new List<AgentToolCall>();
+            var assistantMessage = new StringBuilder();
+
+            await foreach (var update in _agentOpenAI.StreamTurnAsync(session, tools, cancellationToken))
+            {
+                if (update.Text != null)
+                {
+                    assistantMessage.Append(update.Text);
+                    yield return new AgentStreamEvent { Type = "text", Value = update.Text };
+                }
+
+                if (update.ToolCalls.Count > 0)
+                {
+                    toolCalls.AddRange(update.ToolCalls);
+                }
             }
 
-            // Get available tools
-            var tools = GetAvailableTools();
+            var assistantText = assistantMessage.Length > 0 ? assistantMessage.ToString() : null;
 
-            // Get agent response with function calling
-            var agentResponseEnumerable = _agentOpenAI.GetAgentResponseAsync(
-                userMessage,
-                userId,
-                userInformation,
-                userName,
-                conversationHistory,
-                memoryContext,
-                tools,
-                conversationId,
-                correlationId: Guid.NewGuid().ToString("N"),
-                cancellationToken);
-
-            // Process the streaming response and handle tool calls
-            var maxToolIterations = 10; // Prevent infinite loops
-            var iteration = 0;
-            var messages = new List<AgentChatMessage>(conversationHistory);
-            messages.Add(new AgentChatMessage { Role = AgentChatMessageRole.User, Content = userMessage });
-
-            while (iteration < maxToolIterations)
-            {
-                iteration++;
-                _logger.LogInformation("Agent iteration {Iteration}", iteration);
-
-                // Collect tool calls from the response
-                var toolCalls = new List<(string ToolCallId, string FunctionName, Dictionary<string, object> Parameters)>();
-                var assistantMessage = new StringBuilder();
-
-                await foreach (var update in agentResponseEnumerable)
-                {
-                    if (update.Text != null)
-                    {
-                        assistantMessage.Append(update.Text);
-                    }
-
-                    foreach (var toolCall in update.ToolCalls)
-                    {
-                        toolCalls.Add((toolCall.ToolCallId, toolCall.FunctionName, toolCall.Parameters));
-                    }
-                }
-
-                // Add assistant message to history and response
-                if (assistantMessage.Length > 0)
-                {
-                    var messageContent = assistantMessage.ToString();
-                    messages.Add(new AgentChatMessage
-                    {
-                        Role = AgentChatMessageRole.Assistant,
-                        Content = messageContent
-                    });
-                    // Set the response message (will be overwritten if there are multiple iterations)
-                    response.Message = messageContent;
-                }
-
-                // If no tool calls, we're done
                 if (toolCalls.Count == 0)
                 {
                     break;
                 }
 
-                // Execute tools
-                foreach (var (toolCallId, functionName, parameters) in toolCalls)
+                var validToolCalls = toolCalls
+                    .Where(tc => !string.IsNullOrWhiteSpace(tc.FunctionName))
+                    .ToList();
+
+                if (validToolCalls.Count == 0)
                 {
-                    try
+                    _logger.LogWarning("Model returned tool calls without function names; ending turn.");
+                    break;
+                }
+
+                var iterationTools = new List<ToolExecutionRecord>();
+                var toolResults = new List<AgentToolResult>();
+
+                foreach (var toolCall in validToolCalls)
+                {
+                    ToolExecutionRecord record;
+                object? toolResult = null;
+                try
+                {
+                    _logger.LogInformation(
+                        "Executing tool: {FunctionName} with parameters: {Parameters}",
+                        toolCall.FunctionName,
+                        JsonSerializer.Serialize(toolCall.Parameters));
+
+                    toolResult = await _toolRegistry.ExecuteAsync(
+                        toolCall.FunctionName,
+                        toolContext,
+                        toolCall.Parameters,
+                        cancellationToken);
+
+                    await _actionTrackingService.RecordActionAsync(
+                        userId,
+                        conversationId,
+                        workflowState.Id,
+                        toolCall.FunctionName,
+                        toolCall.Parameters,
+                        toolResult,
+                        true,
+                        null,
+                        cancellationToken);
+
+                    record = new ToolExecutionRecord
                     {
-                        _logger.LogInformation("Executing tool: {FunctionName} with parameters: {Parameters}", functionName, JsonSerializer.Serialize(parameters));
+                        ToolName = toolCall.FunctionName,
+                        Parameters = toolCall.Parameters,
+                        Result = toolResult,
+                        Success = true,
+                        ExecutedAt = DateTime.UtcNow
+                    };
 
-                        // Execute the tool
-                        var toolResult = await AgentTools.ExecuteTool(functionName, _goalService, userId, parameters, cancellationToken);
-
-                        // Track the action
-                        await _actionTrackingService.RecordActionAsync(
-                            userId,
-                            conversationId,
-                            workflowState.Id,
-                            functionName,
-                            parameters,
-                            toolResult,
-                            true,
-                            null,
-                            cancellationToken);
-
-                        // Record in workflow
-                        workflowState.ToolExecutionHistory.Add(new ToolExecutionRecord
-                        {
-                            ToolName = functionName,
-                            Parameters = parameters,
-                            Result = toolResult,
-                            Success = true,
-                            ExecutedAt = DateTime.UtcNow
-                        });
-
-                        response.ExecutedTools.Add(workflowState.ToolExecutionHistory.Last());
-
-                        // Create function message for next iteration
-                        var functionMessage = _agentOpenAI.CreateFunctionMessage(toolCallId, functionName, toolResult);
-
-                        // Note: We would need to add this to the conversation for the next iteration
-                        // For now, we'll update the workflow state and continue
-                    }
-                    catch (Exception ex)
+                    toolResults.Add(new AgentToolResult
                     {
-                        _logger.LogError(ex, "Error executing tool {FunctionName}", functionName);
+                        ToolCallId = toolCall.ToolCallId,
+                        FunctionName = toolCall.FunctionName,
+                        Result = toolResult
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error executing tool {FunctionName}", toolCall.FunctionName);
 
-                        var errorResult = new { success = false, error = ex.Message };
+                    var errorResult = new { success = false, error = ex.Message };
 
-                        // Track failed action
-                        await _actionTrackingService.RecordActionAsync(
-                            userId,
-                            conversationId,
-                            workflowState.Id,
-                            functionName,
-                            parameters,
-                            errorResult,
-                            false,
-                            ex.Message,
-                            cancellationToken);
+                    await _actionTrackingService.RecordActionAsync(
+                        userId,
+                        conversationId,
+                        workflowState.Id,
+                        toolCall.FunctionName,
+                        toolCall.Parameters,
+                        errorResult,
+                        false,
+                        ex.Message,
+                        cancellationToken);
 
-                        // Record in workflow
-                        workflowState.ToolExecutionHistory.Add(new ToolExecutionRecord
-                        {
-                            ToolName = functionName,
-                            Parameters = parameters,
-                            Result = errorResult,
-                            Success = false,
-                            ErrorMessage = ex.Message,
-                            ExecutedAt = DateTime.UtcNow
-                        });
+                    record = new ToolExecutionRecord
+                    {
+                        ToolName = toolCall.FunctionName,
+                        Parameters = toolCall.Parameters,
+                        Result = errorResult,
+                        Success = false,
+                        ErrorMessage = ex.Message,
+                        ExecutedAt = DateTime.UtcNow
+                    };
 
-                        response.ExecutedTools.Add(workflowState.ToolExecutionHistory.Last());
+                    toolResults.Add(new AgentToolResult
+                    {
+                        ToolCallId = toolCall.ToolCallId,
+                        FunctionName = toolCall.FunctionName,
+                        Result = errorResult
+                    });
+                }
+
+                if (record.Success && toolCall.FunctionName == "suggest_coping_strategies" && toolResult is not null)
+                {
+                    var strategies = ExtractStrategies(toolResult);
+                    if (strategies.Count > 0)
+                    {
+                        yield return new AgentStreamEvent { Type = "strategies", Value = strategies };
                     }
                 }
 
-                // Update workflow state
-                workflowState.CurrentStep++;
-                await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);
-
-                // If we executed tools, we need another iteration to get the agent's response
-                // For now, we'll break after first iteration to avoid complexity
-                // In a full implementation, we'd continue the loop with the function results
-                break;
+                workflowState.ToolExecutionHistory.Add(record);
+                iterationTools.Add(record);
             }
 
-            // Complete workflow
-            await _orchestrator.CompleteWorkflowAsync(workflowState, cancellationToken);
-            response.Status = "completed";
+            if (iterationTools.Count > 0)
+            {
+                yield return new AgentStreamEvent { Type = "tools_executed", Value = iterationTools };
+            }
+
+                _agentOpenAI.AppendToolResults(session, assistantText, validToolCalls, toolResults);
+
+            workflowState.CurrentStep++;
+            await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);
         }
-        catch (Exception ex)
+
+        await _orchestrator.CompleteWorkflowAsync(workflowState, cancellationToken);
+        yield return new AgentStreamEvent
         {
-            _logger.LogError(ex, "Error processing agent interaction");
+            Type = "status",
+            Value = new AgentStreamStatus { Status = "completed" }
+        };
+    }
+
+    private async Task<AgentWorkflowState> LoadOrCreateWorkflowAsync(
+        string userId,
+        Guid? conversationId,
+        Guid? workflowId,
+        CancellationToken cancellationToken)
+    {
+        if (workflowId.HasValue)
+        {
+            var workflowState = await _orchestrator.LoadWorkflowAsync(workflowId.Value, userId, cancellationToken);
             if (workflowState != null)
             {
-                await _orchestrator.FailWorkflowAsync(workflowState, ex.Message, cancellationToken);
+                return workflowState;
             }
-            response.Status = "failed";
-            response.ErrorMessage = ex.Message;
+
+            _logger.LogWarning("Workflow {WorkflowId} not found, creating new workflow", workflowId);
         }
 
-        return response;
+        return await _orchestrator.CreateWorkflowAsync(userId, conversationId, "agent_interaction", cancellationToken);
+    }
+
+    private static List<object> ExtractStrategies(object toolResult)
+    {
+        var json = JsonSerializer.Serialize(toolResult);
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("strategies", out var strategies) || strategies.ValueKind != JsonValueKind.Array)
+        {
+            return new List<object>();
+        }
+
+        return strategies.EnumerateArray().Select(s => (object)new
+        {
+            title = s.TryGetProperty("title", out var title) ? title.GetString() : null,
+            description = s.TryGetProperty("description", out var desc) ? desc.GetString() : null,
+            iconKey = s.TryGetProperty("iconKey", out var icon) ? icon.GetString() : null
+        }).ToList();
     }
 }
 
+public sealed class AgentStreamStatus
+{
+    public required string Status { get; init; }
+    public string? Error { get; init; }
+}

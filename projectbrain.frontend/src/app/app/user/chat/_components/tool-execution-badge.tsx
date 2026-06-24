@@ -20,8 +20,18 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
     const getToolDisplayName = (toolName: string): string => {
         const displayNames: Record<string, string> = {
             create_daily_goals: 'Created daily goals',
+            create_goals_for_days: 'Planned goals for multiple days',
             get_todays_goals: "Retrieved today's goals",
             complete_goal: 'Updated goal',
+            suggest_coping_strategies: 'Suggested coping strategies',
+            save_coping_strategy: 'Saved coping strategy',
+            get_coping_strategies: 'Retrieved coping strategies',
+            rate_coping_strategy: 'Rated coping strategy',
+            upload_knowledge_document: 'Uploaded knowledge document',
+            list_knowledge_resources: 'Listed knowledge resources',
+            delete_knowledge_resource: 'Deleted knowledge resource',
+            search_coaches: 'Searched coaches',
+            get_connected_coaches: 'Retrieved connected coaches',
         };
         return displayNames[toolName] || toolName;
     };
@@ -60,6 +70,31 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
             tool.toolName === 'create_daily_goals' &&
             Array.isArray(result.goals)
         );
+    };
+
+    const getDeepLink = (): { href: string; label: string } | null => {
+        if (!tool.success) {
+            return null;
+        }
+
+        switch (tool.toolName) {
+            case 'create_daily_goals':
+            case 'create_goals_for_days':
+                return { href: '/app/user/eggs', label: 'View your goals' };
+            case 'save_coping_strategy':
+            case 'get_coping_strategies':
+            case 'rate_coping_strategy':
+            case 'suggest_coping_strategies':
+                return { href: '/app/user/strategies', label: 'View your strategies' };
+            case 'upload_knowledge_document':
+            case 'list_knowledge_resources':
+                return { href: '/app/user/manage-resources', label: 'Manage resources' };
+            case 'search_coaches':
+            case 'get_connected_coaches':
+                return { href: '/app/user/find-coaches', label: 'Find coaches' };
+            default:
+                return null;
+        }
     };
 
     const formatDate = (dateString: string): string => {
@@ -140,13 +175,13 @@ export default function ToolExecutionBadge({ tool }: ToolExecutionBadgeProps) {
                         </details>
                     )}
 
-                    {hasGoalsResult() && (
+                    {(hasGoalsResult() || getDeepLink()) && (
                         <div className="pt-2">
                             <Link
-                                href="/app/user/eggs"
+                                href={getDeepLink()?.href ?? '/app/user/eggs'}
                                 className="text-xs text-indigo-600 hover:text-indigo-800 underline font-medium"
                             >
-                                View your goals →
+                                {getDeepLink()?.label ?? 'View your goals'} →
                             </Link>
                         </div>
                     )}

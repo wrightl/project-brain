@@ -325,6 +325,8 @@ public class ApplicationSettingsService : IApplicationSettingsService
             EpisodesReserve = int.TryParse(GetValue("AI:PromptBudget:EpisodesReserve"), out var episodes) ? episodes : 300,
             OnboardingReserve = int.TryParse(GetValue("AI:PromptBudget:OnboardingReserve"), out var onboarding) ? onboarding : 500,
             HistoryReserve = int.TryParse(GetValue("AI:PromptBudget:HistoryReserve"), out var history) ? history : 800,
+            ToolDefinitionsReserve = int.TryParse(GetValue("AI:PromptBudget:ToolDefinitionsReserve"), out var toolDefs) ? toolDefs : 300,
+            ToolResultsReserve = int.TryParse(GetValue("AI:PromptBudget:ToolResultsReserve"), out var toolResults) ? toolResults : 400,
             TokenEstimator = GetValue("AI:TokenEstimator") ?? "character"
         };
     }
@@ -341,6 +343,8 @@ public class ApplicationSettingsService : IApplicationSettingsService
         await UpdateSettingAsync("AI:PromptBudget:EpisodesReserve", settings.EpisodesReserve.ToString(), updatedBy);
         await UpdateSettingAsync("AI:PromptBudget:OnboardingReserve", settings.OnboardingReserve.ToString(), updatedBy);
         await UpdateSettingAsync("AI:PromptBudget:HistoryReserve", settings.HistoryReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:ToolDefinitionsReserve", settings.ToolDefinitionsReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:PromptBudget:ToolResultsReserve", settings.ToolResultsReserve.ToString(), updatedBy);
         await UpdateSettingAsync("AI:TokenEstimator", settings.TokenEstimator, updatedBy);
     }
 

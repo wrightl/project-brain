@@ -16,6 +16,10 @@ type CacheEntry = {
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 let cache: CacheEntry | null = null;
 
+export function clearFlagsCache(): void {
+    cache = null;
+}
+
 export async function getFlags(): Promise<FeatureFlags> {
     const now = Date.now();
 

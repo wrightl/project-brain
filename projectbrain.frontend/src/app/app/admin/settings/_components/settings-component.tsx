@@ -3,6 +3,7 @@
 import AISettingsSection from './ai-settings-section';
 import ChatMemorySettingsSection from './chat-memory-settings-section';
 import ChatPolicySettingsSection from './chat-policy-settings-section';
+import FeatureFlagsSettingsSection from './feature-flags-settings-section';
 import MemoryFormationSettingsSection from './memory-formation-settings-section';
 import PromptBudgetSettingsSection from './prompt-budget-settings-section';
 import SubscriptionSettingsSection from './subscription-settings-section';
@@ -18,6 +19,7 @@ export default function SettingsComponent() {
                 </p>
             </div>
 
+            <FeatureFlagsSettingsSection />
             <SubscriptionSettingsSection />
             <ReferralSettingsSection />
             <AISettingsSection />

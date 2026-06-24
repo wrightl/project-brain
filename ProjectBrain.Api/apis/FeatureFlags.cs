@@ -1,4 +1,3 @@
-using System.Reflection;
 using ProjectBrain.Domain;
 
 public class FeatureFlagServices(
@@ -26,35 +25,7 @@ public static class FeatureFlagEndpoints
     {
         try
         {
-            // Use reflection to get all public const string fields from the FeatureFlags class
-            var featureFlagsType = typeof(FeatureFlags);
-            var fields = featureFlagsType.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
-                .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string))
-                .ToList();
-
-            var flags = new Dictionary<string, bool>();
-
-            // Check each flag's status
-            foreach (var field in fields)
-            {
-                var flagKey = field.GetValue(null)?.ToString();
-                if (string.IsNullOrEmpty(flagKey))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var isEnabled = await services.FeatureService.IsFeatureEnabled(flagKey);
-                    flags[flagKey] = isEnabled;
-                }
-                catch (Exception ex)
-                {
-                    services.Logger.LogWarning(ex, "Error evaluating feature flag '{FlagKey}'. Skipping.", flagKey);
-                    // Optionally include failed flags with a default value or skip them
-                }
-            }
-
+            var flags = await services.FeatureService.GetAllFlagsAsync();
             return Results.Ok(flags);
         }
         catch (Exception ex)
@@ -70,4 +41,3 @@ public static class FeatureFlagEndpoints
         return Results.Ok(isEnabled);
     }
 }
-

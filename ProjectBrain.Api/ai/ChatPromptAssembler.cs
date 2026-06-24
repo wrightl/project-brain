@@ -181,7 +181,9 @@ public static class ChatPromptAssembler
         string userQuery,
         string userInformation,
         ChatMemoryContext memoryContext,
-        bool includeOnboarding = true)
+        bool includeOnboarding = true,
+        string sources = "",
+        int citationCount = 0)
     {
         var prompt = new StringBuilder();
 
@@ -203,6 +205,16 @@ public static class ChatPromptAssembler
         if (!string.IsNullOrWhiteSpace(episodesBlock))
         {
             prompt.AppendLine(episodesBlock);
+            prompt.AppendLine();
+        }
+
+        if (citationCount > 0 && !string.IsNullOrWhiteSpace(sources))
+        {
+            prompt.AppendLine($"Here are {citationCount} relevant sources from the user's documents:");
+            prompt.AppendLine("---");
+            prompt.AppendLine(sources);
+            prompt.AppendLine("---");
+            prompt.AppendLine("Use sources when relevant. Cite with [number] format when referencing them.");
             prompt.AppendLine();
         }
 

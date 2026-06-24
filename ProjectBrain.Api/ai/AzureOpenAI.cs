@@ -291,6 +291,129 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         public double Confidence { get; set; }
     }
 
+    public async Task<(List<CitationInfo> Citations, string SourcesFormatted, Dictionary<int, string> CitationContents)> RetrieveCitationsAsync(
+        string userQuery,
+        string userId,
+        ChatMemoryContext memoryContext,
+        string? traceId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var correlationId = string.IsNullOrEmpty(traceId) ? "no-trace" : traceId;
+        var sw = Stopwatch.StartNew();
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_retrieve_begin");
+
+        AISettings aiSettings;
+        try
+        {
+            aiSettings = await Services.ApplicationSettingsService.GetAISettingsAsync();
+        }
+        catch
+        {
+            aiSettings = new AISettings
+            {
+                MaxSearchResults = int.Parse(Services.Configuration["AI:MaxSearchResults"] ?? "5"),
+                MaxContentLengthPerSource = int.Parse(Services.Configuration["AI:MaxContentLengthPerSource"] ?? "800"),
+            };
+        }
+
+        if (memoryContext.Facts.Count > 0 || memoryContext.Episodes.Count > 0)
+        {
+            await Services.UserMemoryService.RecordRetrievalAsync(
+                memoryContext.Facts.Select(f => f.Id).ToList(),
+                memoryContext.Episodes.Select(e => e.Id).ToList());
+        }
+
+        var maxSearchResults = aiSettings.MaxSearchResults;
+        var maxContentLengthPerSource = aiSettings.MaxContentLengthPerSource;
+
+        var embedClient = Services.OpenAIClient.GetEmbeddingClient("openai-embed-deployment");
+        var embeddingOptions = new EmbeddingGenerationOptions { Dimensions = 1536 };
+        var embedResponse = await embedClient.GenerateEmbeddingAsync(userQuery, embeddingOptions, cancellationToken);
+        var queryVector = embedResponse.Value.ToFloats();
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_embedding");
+
+        var searchOptions = new SearchOptions
+        {
+            Size = maxSearchResults,
+            VectorSearch = new()
+            {
+                Queries =
+                {
+                    new VectorizedQuery(queryVector)
+                    {
+                        KNearestNeighborsCount = maxSearchResults,
+                        Fields = { "embedding" }
+                    }
+                }
+            },
+            Filter = $"ownerId eq '{userId.Replace("'", "''")}' or ownerId eq '' or ownerId eq null"
+        };
+        searchOptions.Select.Add("id");
+        searchOptions.Select.Add("content");
+        searchOptions.Select.Add("sourcefile");
+        searchOptions.Select.Add("sourcepage");
+        searchOptions.Select.Add("storageUrl");
+        searchOptions.Select.Add("category");
+        searchOptions.Select.Add("ownerId");
+
+        var searchResults = await Services.SearchIndexService.SearchAsync(userQuery, searchOptions);
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_search_async");
+
+        var sourcesFormatted = new StringBuilder();
+        var citations = new List<CitationInfo>();
+        var citationContents = new Dictionary<int, string>();
+        int citationIndex = 1;
+
+        await foreach (var result in searchResults.Value.GetResultsAsync().WithCancellation(cancellationToken))
+        {
+            var doc = result.Document;
+            var id = doc.ContainsKey("id") ? doc["id"]?.ToString() ?? "" : "";
+            var content = doc.ContainsKey("content") ? doc["content"]?.ToString() ?? "" : "";
+            var sourceFile = doc.ContainsKey("sourcefile") ? doc["sourcefile"]?.ToString() ?? "Unknown" : "Unknown";
+            var sourcePage = doc.ContainsKey("sourcepage") ? doc["sourcepage"]?.ToString() ?? "" : "";
+            var storageUrl = doc.ContainsKey("storageUrl") ? doc["storageUrl"]?.ToString() ?? "" : "";
+            var ownerId = doc.ContainsKey("ownerId") ? doc["ownerId"]?.ToString() ?? "" : "";
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
+
+            var originalContent = content;
+
+            if (content.Length > maxContentLengthPerSource)
+            {
+                content = content.Substring(0, maxContentLengthPerSource) + "... [truncated]";
+            }
+
+            citations.Add(new CitationInfo
+            {
+                Id = id,
+                Index = citationIndex,
+                SourceFile = sourceFile,
+                SourcePage = sourcePage,
+                StorageUrl = $"{storageUrl}",
+                IsShared = string.IsNullOrEmpty(ownerId)
+            });
+
+            citationContents[citationIndex] = originalContent;
+
+            sourcesFormatted.AppendLine($"[{citationIndex}] Source: {sourceFile}");
+            if (!string.IsNullOrEmpty(sourcePage))
+            {
+                sourcesFormatted.AppendLine($"    Page/Section: {sourcePage}");
+            }
+
+            sourcesFormatted.AppendLine($"    Content: {content}");
+            sourcesFormatted.AppendLine();
+
+            citationIndex++;
+        }
+
+        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_retrieve_complete", citations.Count);
+        return (citations, sourcesFormatted.ToString(), citationContents);
+    }
+
     public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(
         string userQuery,
         string userId,
@@ -841,122 +964,19 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             EnableConversationSummary = memoryContext.EnableConversationSummary
         };
 
-        if (memoryContext.Facts.Count > 0 || memoryContext.Episodes.Count > 0)
-        {
-            await Services.UserMemoryService.RecordRetrievalAsync(
-                memoryContext.Facts.Select(f => f.Id).ToList(),
-                memoryContext.Episodes.Select(e => e.Id).ToList());
-        }
-
         LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_get_ai_settings");
 
-        var maxSearchResults = aiSettings.MaxSearchResults;
-        var maxContentLengthPerSource = aiSettings.MaxContentLengthPerSource;
         var maxTotalTokens = aiSettings.MaxTotalTokens;
 
-        // Vectorize the query
-        var embedClient = Services.OpenAIClient.GetEmbeddingClient("openai-embed-deployment");
-        var embeddingOptions = new EmbeddingGenerationOptions { Dimensions = 1536 };
-        var embedResponse = await embedClient.GenerateEmbeddingAsync(userQuery, embeddingOptions);
-        var queryVector = embedResponse.Value.ToFloats();
-        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_embedding");
+        var (citations, sourcesFormattedString, citationContents) = await RetrieveCitationsAsync(
+            userQuery,
+            userId,
+            memoryContext,
+            traceId,
+            CancellationToken.None);
 
-        // Configure search options for user-specific documents
-        var searchOptions = new SearchOptions
-        {
-            Size = maxSearchResults,
-            VectorSearch = new()
-            {
-                Queries =
-                {
-                    new VectorizedQuery(queryVector)
-                    {
-                        KNearestNeighborsCount = maxSearchResults,
-                        Fields = { "embedding" }
-                    }
-                }
-            },
-            Filter = $"ownerId eq '{userId.Replace("'", "''")}' or ownerId eq '' or ownerId eq null"
-        };
-        searchOptions.Select.Add("id");
-        searchOptions.Select.Add("content");
-        searchOptions.Select.Add("sourcefile");
-        searchOptions.Select.Add("sourcepage");
-        searchOptions.Select.Add("storageUrl");
-        searchOptions.Select.Add("category");
-        searchOptions.Select.Add("ownerId");
-
-        Services.Logger.LogInformation("Executing vector search for user {UserId} with query: {UserQuery}", userId, userQuery);
-
-        // Execute the search
-        var searchResults = await Services.SearchIndexService.SearchAsync(userQuery, searchOptions);
-        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_search_async");
-
-        Services.Logger.LogInformation("Search results received, processing...");
-
-        // Build formatted sources with citations
-        var sourcesFormatted = new StringBuilder();
-        var citations = new List<CitationInfo>();
-        var citationContents = new Dictionary<int, string>(); // Store content separately for truncation
-        int citationIndex = 1;
-
-        var gotFirstSearchResult = false;
-        await foreach (var result in searchResults.Value.GetResultsAsync())
-        {
-            if (!gotFirstSearchResult)
-            {
-                LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_first_search_result");
-                gotFirstSearchResult = true;
-            }
-            var doc = result.Document;
-            var id = doc.ContainsKey("id") ? doc["id"]?.ToString() ?? "" : "";
-            var content = doc.ContainsKey("content") ? doc["content"]?.ToString() ?? "" : "";
-            var sourceFile = doc.ContainsKey("sourcefile") ? doc["sourcefile"]?.ToString() ?? "Unknown" : "Unknown";
-            var sourcePage = doc.ContainsKey("sourcepage") ? doc["sourcepage"]?.ToString() ?? "" : "";
-            var storageUrl = doc.ContainsKey("storageUrl") ? doc["storageUrl"]?.ToString() ?? "" : "";
-            var ownerId = doc.ContainsKey("ownerId") ? doc["ownerId"]?.ToString() ?? "" : "";
-
-            if (string.IsNullOrWhiteSpace(content))
-                continue;
-
-            // Store original content for potential truncation
-            var originalContent = content;
-
-            // Truncate content to limit tokens
-            if (content.Length > maxContentLengthPerSource)
-            {
-                content = content.Substring(0, maxContentLengthPerSource) + "... [truncated]";
-            }
-
-            // Store citation information
-            citations.Add(new CitationInfo
-            {
-                Id = id,
-                Index = citationIndex,
-                SourceFile = sourceFile,
-                SourcePage = sourcePage,
-                StorageUrl = $"{storageUrl}",
-                IsShared = string.IsNullOrEmpty(ownerId) ? true : false
-            });
-
-            // Store original content for truncation purposes
-            citationContents[citationIndex] = originalContent;
-
-            // Format source with citation number
-            sourcesFormatted.AppendLine($"[{citationIndex}] Source: {sourceFile}");
-            if (!string.IsNullOrEmpty(sourcePage))
-            {
-                sourcesFormatted.AppendLine($"    Page/Section: {sourcePage}");
-            }
-            sourcesFormatted.AppendLine($"    Content: {content}");
-            sourcesFormatted.AppendLine();
-
-            citationIndex++;
-        }
-
-        LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_enumerate_search_results", citations.Count);
-
-        Services.Logger.LogInformation("Found {CitationCount} relevant sources for query", citations.Count);
+        var sourcesFormatted = new StringBuilder(sourcesFormattedString);
+        var maxContentLengthPerSource = aiSettings.MaxContentLengthPerSource;
 
         // Build system prompt with instructions
         var systemPrompt = ChatPromptAssembler.BuildSystemPrompt(userName, citations.Count > 0, memoryContext);
@@ -1033,7 +1053,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             var newMaxContentLength = (int)(maxContentLengthPerSource * reductionFactor * 0.9); // 90% to be safe
 
             sourcesFormatted.Clear();
-            citationIndex = 1;
+            int citationIndex = 1;
 
             foreach (var citation in citations)
             {

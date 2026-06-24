@@ -17,9 +17,8 @@ public class GoalSuggestionsEndpointTests
     private readonly Mock<ILogger<GoalServices>> _mockLogger = new();
     private readonly Mock<IGoalService> _mockGoalService = new();
     private readonly Mock<IIdentityService> _mockIdentityService = new();
+    private readonly Mock<IGoalMutationSideEffects> _mockGoalSideEffects = new();
     private readonly Mock<IGoalsUpdatedBroadcaster> _mockGoalsBroadcaster = new();
-    private readonly Mock<IPushNotificationService> _mockPush = new();
-    private readonly Mock<ITimeTickerManager<TimeTickerEntity>> _mockTicker = new();
     private readonly Mock<IGoalDailySuggestionClient> _mockSuggestionClient = new();
     private readonly Mock<IGoalSuggestionUserContext> _mockUserContext = new();
     private readonly Mock<IUsageTrackingService> _mockUsage = new();
@@ -59,9 +58,8 @@ public class GoalSuggestionsEndpointTests
             _mockLogger.Object,
             _mockGoalService.Object,
             _mockIdentityService.Object,
+            _mockGoalSideEffects.Object,
             _mockGoalsBroadcaster.Object,
-            _mockPush.Object,
-            _mockTicker.Object,
             _mockSuggestionClient.Object,
             _mockUserContext.Object,
             _mockUsage.Object);

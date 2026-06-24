@@ -1,30 +1,32 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
     Conversation,
     ChatMessage,
     Citation,
     ToolExecution,
-} from '@/_lib/types';
-import { fetchWithAuth } from '@/_lib/fetch-with-auth';
-import { PaperAirplaneIcon, Bars3Icon } from '@heroicons/react/24/outline';
-import Link from 'next/link';
-import VoiceRecorder from '@/_components/VoiceRecorder';
-import FeatureGate from '@/_components/feature-gate';
-import ConversationsDrawer from './conversations-drawer';
-import { useAgentFeatureEnabled } from '@/_hooks/use-feature-flag';
-import ToolExecutionBadge from './tool-execution-badge';
-import { isSafeExternalUrl } from '@/_lib/url-security';
-import toast from 'react-hot-toast';
-import { apiClient } from '@/_lib/api-client';
-import { useQueryClient } from '@tanstack/react-query';
-import { copingStrategyKeys } from '@/_hooks/queries/use-coping-strategies';
+    ActionCard,
+} from "@/_lib/types";
+import { fetchWithAuth } from "@/_lib/fetch-with-auth";
+import { PaperAirplaneIcon, Bars3Icon } from "@heroicons/react/24/outline";
+import Link from "next/link";
+import VoiceRecorder from "@/_components/VoiceRecorder";
+import FeatureGate from "@/_components/feature-gate";
+import ConversationsDrawer from "./conversations-drawer";
+import { useAgentFeatureEnabled } from "@/_hooks/use-feature-flag";
+import ToolExecutionBadge from "./tool-execution-badge";
+import ActionCardWidget from "./action-card";
+import { isSafeExternalUrl } from "@/_lib/url-security";
+import toast from "react-hot-toast";
+import { apiClient } from "@/_lib/api-client";
+import { useQueryClient } from "@tanstack/react-query";
+import { copingStrategyKeys } from "@/_hooks/queries/use-coping-strategies";
 
 interface ChatInterfaceProps {
     conversation?: Conversation;
-    mode?: 'default' | 'strategies';
+    mode?: "default" | "strategies";
     displayName?: string;
 }
 
@@ -42,14 +44,14 @@ type SseJsonMessage = {
 
 export default function ChatInterface({
     conversation,
-    mode = 'default',
+    mode = "default",
     displayName,
 }: ChatInterfaceProps) {
     const router = useRouter();
     const agentFeatureEnabled = useAgentFeatureEnabled();
     const queryClient = useQueryClient();
-    const isStrategiesMode = mode === 'strategies';
-    const nameForGreeting = displayName || 'there';
+    const isStrategiesMode = mode === "strategies";
+    const nameForGreeting = displayName || "there";
     const [messages, setMessages] = useState<ChatMessage[]>(
         conversation?.messages || [],
     );
@@ -57,10 +59,10 @@ export default function ChatInterface({
         conversation?.id,
     );
     const [workflowId, setWorkflowId] = useState<string | undefined>(undefined);
-    const [input, setInput] = useState('');
+    const [input, setInput] = useState("");
     const [isStreaming, setIsStreaming] = useState(false);
-    const [streamingMessage, setStreamingMessage] = useState('');
-    const [transcribedText, setTranscribedText] = useState('');
+    const [streamingMessage, setStreamingMessage] = useState("");
+    const [transcribedText, setTranscribedText] = useState("");
     const [isProcessingVoice, setIsProcessingVoice] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [suggestedStrategies, setSuggestedStrategies] = useState<
@@ -72,22 +74,22 @@ export default function ChatInterface({
     const [isSavingStrategies, setIsSavingStrategies] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const streamingMessageRef = useRef<string>('');
+    const streamingMessageRef = useRef<string>("");
     const syncedConversationIdRef = useRef<string | undefined>(
         conversation?.id,
     );
 
     // Auto-scroll to bottom when messages change
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, streamingMessage]);
 
     // Auto-resize textarea
     useEffect(() => {
         if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = "auto";
             textareaRef.current.style.height =
-                textareaRef.current.scrollHeight + 'px';
+                textareaRef.current.scrollHeight + "px";
         }
     }, [input]);
 
@@ -124,26 +126,26 @@ export default function ChatInterface({
         onParsed: (parsed: SseJsonMessage) => void,
     ) => {
         // Normalize CRLF to LF so delimiters are consistent
-        let next = buffer + chunkText.replace(/\r\n/g, '\n');
+        let next = buffer + chunkText.replace(/\r\n/g, "\n");
 
         // SSE events are separated by a blank line (\n\n).
         // Each event can contain multiple `data:` lines.
         while (true) {
-            const delimiterIndex = next.indexOf('\n\n');
+            const delimiterIndex = next.indexOf("\n\n");
             if (delimiterIndex < 0) break;
 
             const rawEvent = next.slice(0, delimiterIndex);
             next = next.slice(delimiterIndex + 2);
 
             const dataLines = rawEvent
-                .split('\n')
-                .filter((line) => line.startsWith('data:'));
+                .split("\n")
+                .filter((line) => line.startsWith("data:"));
 
             if (dataLines.length === 0) continue;
 
             const data = dataLines
-                .map((line) => line.replace(/^data:\s?/, ''))
-                .join('\n')
+                .map((line) => line.replace(/^data:\s?/, ""))
+                .join("\n")
                 .trim();
 
             if (!data) continue;
@@ -161,7 +163,7 @@ export default function ChatInterface({
     const flushSseBuffer = (
         buffer: string,
         onParsed: (parsed: SseJsonMessage) => void,
-    ) => processSseChunk(buffer, '\n\n', onParsed);
+    ) => processSseChunk(buffer, "\n\n", onParsed);
 
     const normalizeSuggestedStrategies = (
         value: unknown,
@@ -170,38 +172,38 @@ export default function ChatInterface({
 
         const normalized = value.map((item) => {
             const obj =
-                typeof item === 'object' && item !== null
+                typeof item === "object" && item !== null
                     ? (item as Record<string, unknown>)
                     : {};
 
             const title =
-                typeof obj.title === 'string'
+                typeof obj.title === "string"
                     ? obj.title
-                    : String(obj.title ?? '');
+                    : String(obj.title ?? "");
             const description =
-                typeof obj.description === 'string'
+                typeof obj.description === "string"
                     ? obj.description
-                    : String(obj.description ?? '');
+                    : String(obj.description ?? "");
 
             const rawIconKey = obj.iconKey;
             const iconKey =
                 rawIconKey === null
                     ? null
-                    : typeof rawIconKey === 'string'
-                    ? rawIconKey === 'null'
-                        ? null
-                        : rawIconKey
-                    : null;
+                    : typeof rawIconKey === "string"
+                      ? rawIconKey === "null"
+                          ? null
+                          : rawIconKey
+                      : null;
 
             const rawArticleUrl = obj.articleUrl;
             const articleUrl =
                 rawArticleUrl === null
                     ? null
-                    : typeof rawArticleUrl === 'string'
-                    ? rawArticleUrl === 'null'
-                        ? null
-                        : rawArticleUrl
-                    : null;
+                    : typeof rawArticleUrl === "string"
+                      ? rawArticleUrl === "null"
+                          ? null
+                          : rawArticleUrl
+                      : null;
 
             return { title, description, iconKey, articleUrl };
         });
@@ -233,8 +235,8 @@ export default function ChatInterface({
 
             await Promise.all(
                 selected.map((s) =>
-                    apiClient('/api/strategies', {
-                        method: 'POST',
+                    apiClient("/api/strategies", {
+                        method: "POST",
                         body: {
                             title: s.title,
                             description: s.description,
@@ -248,13 +250,13 @@ export default function ChatInterface({
                 queryKey: copingStrategyKeys.library(),
             });
 
-            toast.success('Saved to your library');
+            toast.success("Saved to your library");
             setSelectedStrategyIndexes(new Set());
         } catch (err) {
             toast.error(
                 err instanceof Error
                     ? err.message
-                    : 'Failed to save strategies',
+                    : "Failed to save strategies",
             );
         } finally {
             setIsSavingStrategies(false);
@@ -266,32 +268,32 @@ export default function ChatInterface({
 
         setIsProcessingVoice(true);
         setIsStreaming(true);
-        setStreamingMessage('');
-        setTranscribedText('');
+        setStreamingMessage("");
+        setTranscribedText("");
 
         try {
-            streamingMessageRef.current = '';
+            streamingMessageRef.current = "";
 
             // Create FormData for voice chat
             const formData = new FormData();
-            formData.append('audio', audioBlob, 'audio.wav');
+            formData.append("audio", audioBlob, "audio.wav");
             if (conversationId) {
-                formData.append('conversationId', conversationId);
+                formData.append("conversationId", conversationId);
             }
 
             // Call API route for streaming voice chat
-            const response = await fetchWithAuth('/api/chat/voice', {
-                method: 'POST',
+            const response = await fetchWithAuth("/api/chat/voice", {
+                method: "POST",
                 body: formData,
             });
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(errorText || 'Failed to stream voice chat');
+                throw new Error(errorText || "Failed to stream voice chat");
             }
 
             // Get conversation ID from response header
-            const newConversationId = response.headers.get('X-Conversation-Id');
+            const newConversationId = response.headers.get("X-Conversation-Id");
             if (newConversationId) {
                 setConversationId(newConversationId);
                 if (
@@ -309,18 +311,18 @@ export default function ChatInterface({
             // Stream response using ReadableStream
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
-            if (!reader) throw new Error('No response body');
+            if (!reader) throw new Error("No response body");
 
             let citations: Citation[] = [];
-            let sseBuffer = '';
+            let sseBuffer = "";
             let done = false;
             const handleVoiceSseEvent = (parsed: SseJsonMessage) => {
-                if (parsed.type === 'citations' && parsed.value) {
+                if (parsed.type === "citations" && parsed.value) {
                     citations = parsed.value as Citation[];
                     return;
                 }
 
-                if (parsed.type === 'text' && parsed.value) {
+                if (parsed.type === "text" && parsed.value) {
                     streamingMessageRef.current += String(parsed.value);
                     setStreamingMessage(streamingMessageRef.current);
                     return;
@@ -328,7 +330,7 @@ export default function ChatInterface({
 
                 if (
                     isStrategiesMode &&
-                    parsed.type === 'strategies' &&
+                    parsed.type === "strategies" &&
                     Array.isArray(parsed.value)
                 ) {
                     setSuggestedStrategies(
@@ -353,26 +355,26 @@ export default function ChatInterface({
             // Add complete assistant message
             if (streamingMessageRef.current) {
                 const assistantMessage: ChatMessage = {
-                    role: 'assistant',
+                    role: "assistant",
                     content: streamingMessageRef.current,
                     citations: citations.length > 0 ? citations : undefined,
                 };
                 setMessages((prev) => [...prev, assistantMessage]);
             }
         } catch (error) {
-            console.error('Voice chat error:', error);
+            console.error("Voice chat error:", error);
             // Show error message
             const errorMessage: ChatMessage = {
-                role: 'assistant',
+                role: "assistant",
                 content:
-                    'Sorry, I encountered an error processing your voice message. Please try again.',
+                    "Sorry, I encountered an error processing your voice message. Please try again.",
             };
             setMessages((prev) => [...prev, errorMessage]);
         } finally {
             setIsProcessingVoice(false);
             setIsStreaming(false);
-            setStreamingMessage('');
-            setTranscribedText('');
+            setStreamingMessage("");
+            setTranscribedText("");
         }
     };
 
@@ -381,7 +383,7 @@ export default function ChatInterface({
         if (!trimmed || isStreaming) return;
 
         const userMessage: ChatMessage = {
-            role: 'user',
+            role: "user",
             content: trimmed,
         };
 
@@ -392,15 +394,15 @@ export default function ChatInterface({
 
         // Add user message immediately
         setMessages((prev) => [...prev, userMessage]);
-        setInput('');
+        setInput("");
         setIsStreaming(true);
-        setStreamingMessage('');
+        setStreamingMessage("");
 
         try {
-            streamingMessageRef.current = '';
+            streamingMessageRef.current = "";
 
             // Check if agent feature is enabled
-            if (agentFeatureEnabled && !isStrategiesMode) {
+            if (agentFeatureEnabled) {
                 // Use agent endpoint with tool execution support
                 const requestBody: Record<string, unknown> = {
                     content: userMessage.content,
@@ -412,22 +414,22 @@ export default function ChatInterface({
                     requestBody.workflowId = workflowId;
                 }
 
-                const response = await fetchWithAuth('/api/agent/stream', {
-                    method: 'POST',
+                const response = await fetchWithAuth("/api/agent/stream", {
+                    method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
+                        "Content-Type": "application/json",
                     },
                     body: JSON.stringify(requestBody),
                 });
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(errorText || 'Failed to stream agent chat');
+                    throw new Error(errorText || "Failed to stream agent chat");
                 }
 
                 // Get conversation ID and workflow ID from response headers
                 const newConversationId =
-                    response.headers.get('X-Conversation-Id');
+                    response.headers.get("X-Conversation-Id");
                 if (newConversationId) {
                     setConversationId(newConversationId);
                     if (
@@ -441,7 +443,7 @@ export default function ChatInterface({
                 }
 
                 const newWorkflowIdHeader =
-                    response.headers.get('X-Workflow-Id');
+                    response.headers.get("X-Workflow-Id");
                 if (newWorkflowIdHeader) {
                     setWorkflowId(newWorkflowIdHeader);
                 }
@@ -449,10 +451,11 @@ export default function ChatInterface({
                 // Stream response using ReadableStream
                 const reader = response.body?.getReader();
                 const decoder = new TextDecoder();
-                if (!reader) throw new Error('No response body');
+                if (!reader) throw new Error("No response body");
 
                 let citations: Citation[] = [];
                 let toolExecutions: ToolExecution[] = [];
+                let actionCards: ActionCard[] = [];
                 let done = false;
 
                 while (!done) {
@@ -461,20 +464,20 @@ export default function ChatInterface({
                     if (value) {
                         const text = decoder.decode(value, { stream: true });
                         // Assume SSE format: lines starting with 'data: '
-                        const lines = text.split('\n');
+                        const lines = text.split("\n");
                         for (const line of lines) {
-                            if (line.startsWith('data: ')) {
+                            if (line.startsWith("data: ")) {
                                 const data = line.slice(6);
                                 try {
                                     const parsed = JSON.parse(data);
                                     if (
-                                        parsed.type === 'citations' &&
+                                        parsed.type === "citations" &&
                                         parsed.value
                                     ) {
                                         // Handle citations metadata
                                         citations = parsed.value;
                                     } else if (
-                                        parsed.type === 'text' &&
+                                        parsed.type === "text" &&
                                         parsed.value
                                     ) {
                                         // Handle text chunks
@@ -484,7 +487,7 @@ export default function ChatInterface({
                                             streamingMessageRef.current,
                                         );
                                     } else if (
-                                        parsed.type === 'tools_executed' &&
+                                        parsed.type === "tools_executed" &&
                                         parsed.value &&
                                         Array.isArray(parsed.value)
                                     ) {
@@ -497,30 +500,46 @@ export default function ChatInterface({
                                             toolExecutions.some(
                                                 (tool) =>
                                                     tool.toolName ===
-                                                        'create_daily_goals' &&
+                                                        "create_daily_goals" &&
                                                     tool.success,
                                             );
                                         if (goalsCreated) {
                                             toast.success(
-                                                'Daily goals created successfully!',
+                                                "Daily goals created successfully!",
                                                 {
-                                                    icon: '🎯',
+                                                    icon: "🎯",
                                                 },
                                             );
                                         }
                                     } else if (
-                                        parsed.type === 'workflow' &&
+                                        parsed.type === "strategies" &&
+                                        Array.isArray(parsed.value)
+                                    ) {
+                                        setSuggestedStrategies(
+                                            parsed.value as SuggestedStrategy[],
+                                        );
+                                        setSelectedStrategyIndexes(new Set());
+                                    } else if (
+                                        parsed.type === "action_card" &&
+                                        parsed.value
+                                    ) {
+                                        actionCards = [
+                                            ...actionCards,
+                                            parsed.value as ActionCard,
+                                        ];
+                                    } else if (
+                                        parsed.type === "workflow" &&
                                         parsed.value?.id
                                     ) {
                                         // Handle workflow ID
                                         setWorkflowId(parsed.value.id);
                                     } else if (
-                                        parsed.type === 'error' &&
+                                        parsed.type === "error" &&
                                         parsed.value
                                     ) {
                                         // Handle errors
                                         console.error(
-                                            'Agent error:',
+                                            "Agent error:",
                                             parsed.value,
                                         );
                                         toast.error(
@@ -536,16 +555,22 @@ export default function ChatInterface({
                 }
 
                 // Add complete assistant message with tool executions
-                if (streamingMessageRef.current || toolExecutions.length > 0) {
+                if (
+                    streamingMessageRef.current ||
+                    toolExecutions.length > 0 ||
+                    actionCards.length > 0
+                ) {
                     const assistantMessage: ChatMessage = {
-                        role: 'assistant',
+                        role: "assistant",
                         content:
-                            streamingMessageRef.current || 'Action completed.',
+                            streamingMessageRef.current || "Action completed.",
                         citations: citations.length > 0 ? citations : undefined,
                         toolExecutions:
                             toolExecutions.length > 0
                                 ? toolExecutions
                                 : undefined,
+                        actionCards:
+                            actionCards.length > 0 ? actionCards : undefined,
                         workflowId: newWorkflowIdHeader || workflowId,
                     };
                     setMessages((prev) => [...prev, assistantMessage]);
@@ -557,25 +582,25 @@ export default function ChatInterface({
                     conversationId,
                 };
                 if (isStrategiesMode) {
-                    requestBody.mode = 'strategies';
+                    requestBody.mode = "strategies";
                 }
 
-                const response = await fetchWithAuth('/api/chat/stream', {
-                    method: 'POST',
+                const response = await fetchWithAuth("/api/chat/stream", {
+                    method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
+                        "Content-Type": "application/json",
                     },
                     body: JSON.stringify(requestBody),
                 });
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(errorText || 'Failed to stream chat');
+                    throw new Error(errorText || "Failed to stream chat");
                 }
 
                 // Get conversation ID from response header
                 const newConversationId =
-                    response.headers.get('X-Conversation-Id');
+                    response.headers.get("X-Conversation-Id");
                 if (newConversationId) {
                     setConversationId(newConversationId);
                 }
@@ -583,18 +608,18 @@ export default function ChatInterface({
                 // Stream response using ReadableStream
                 const reader = response.body?.getReader();
                 const decoder = new TextDecoder();
-                if (!reader) throw new Error('No response body');
+                if (!reader) throw new Error("No response body");
 
                 let citations: Citation[] = [];
-                let sseBuffer = '';
+                let sseBuffer = "";
                 let done = false;
                 const handleChatSseEvent = (parsed: SseJsonMessage) => {
-                    if (parsed.type === 'citations' && parsed.value) {
+                    if (parsed.type === "citations" && parsed.value) {
                         citations = parsed.value as Citation[];
                         return;
                     }
 
-                    if (parsed.type === 'text' && parsed.value) {
+                    if (parsed.type === "text" && parsed.value) {
                         streamingMessageRef.current += String(parsed.value);
                         setStreamingMessage(streamingMessageRef.current);
                         return;
@@ -602,10 +627,10 @@ export default function ChatInterface({
 
                     if (
                         isStrategiesMode &&
-                        parsed.type === 'strategies' &&
+                        parsed.type === "strategies" &&
                         Array.isArray(parsed.value)
                     ) {
-                        console.log('parsed.value', parsed.value);
+                        console.log("parsed.value", parsed.value);
                         setSuggestedStrategies(
                             normalizeSuggestedStrategies(parsed.value),
                         );
@@ -628,7 +653,7 @@ export default function ChatInterface({
                 // Add complete assistant message
                 if (streamingMessageRef.current) {
                     const assistantMessage: ChatMessage = {
-                        role: 'assistant',
+                        role: "assistant",
                         content: streamingMessageRef.current,
                         citations: citations.length > 0 ? citations : undefined,
                     };
@@ -636,16 +661,16 @@ export default function ChatInterface({
                 }
             }
         } catch (error) {
-            console.error('Chat error:', error);
+            console.error("Chat error:", error);
             // Show error message
             const errorMessage: ChatMessage = {
-                role: 'assistant',
-                content: 'Sorry, I encountered an error. Please try again.',
+                role: "assistant",
+                content: "Sorry, I encountered an error. Please try again.",
             };
             setMessages((prev) => [...prev, errorMessage]);
         } finally {
             setIsStreaming(false);
-            setStreamingMessage('');
+            setStreamingMessage("");
         }
     };
 
@@ -664,7 +689,7 @@ export default function ChatInterface({
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSubmit(e as unknown as React.FormEvent);
         }
@@ -715,7 +740,7 @@ export default function ChatInterface({
                         title={`${citation.sourceFile}${
                             citation.sourcePage
                                 ? ` - ${citation.sourcePage}`
-                                : ''
+                                : ""
                         }`}
                     >
                         [{citationNum}]
@@ -751,7 +776,7 @@ export default function ChatInterface({
                     </button>
                     <div className="flex-1 text-center">
                         <h1 className="text-lg font-semibold text-gray-900">
-                            {conversation?.title || 'Chat Assistant'}
+                            {conversation?.title || "Chat Assistant"}
                         </h1>
                     </div>
                     <div className="flex items-center justify-end w-44">
@@ -863,26 +888,26 @@ export default function ChatInterface({
                         <div
                             key={index}
                             className={`flex ${
-                                message.role === 'user'
-                                    ? 'justify-end'
-                                    : 'justify-start'
+                                message.role === "user"
+                                    ? "justify-end"
+                                    : "justify-start"
                             }`}
                         >
                             <div className="max-w-4xl">
                                 <div
                                     className={`rounded-lg px-4 py-3 ${
-                                        message.role === 'user'
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white border border-gray-200 text-gray-900'
+                                        message.role === "user"
+                                            ? "bg-indigo-600 text-white"
+                                            : "bg-white border border-gray-200 text-gray-900"
                                     }`}
                                 >
                                     <div className="text-xs font-medium mb-1 opacity-75">
-                                        {message.role === 'user'
-                                            ? 'You'
-                                            : 'Assistant'}
+                                        {message.role === "user"
+                                            ? "You"
+                                            : "Assistant"}
                                     </div>
                                     <div className="text-sm whitespace-pre-wrap">
-                                        {message.role === 'assistant' &&
+                                        {message.role === "assistant" &&
                                         message.citations
                                             ? renderMessageWithCitations(
                                                   message.content,
@@ -893,7 +918,7 @@ export default function ChatInterface({
                                 </div>
                                 {/* Tool execution badges (only for assistant messages and if feature flag enabled) */}
                                 {agentFeatureEnabled &&
-                                    message.role === 'assistant' &&
+                                    message.role === "assistant" &&
                                     message.toolExecutions &&
                                     message.toolExecutions.length > 0 && (
                                         <div className="mt-2 space-y-2">
@@ -902,6 +927,21 @@ export default function ChatInterface({
                                                     <ToolExecutionBadge
                                                         key={toolIndex}
                                                         tool={tool}
+                                                    />
+                                                ),
+                                            )}
+                                        </div>
+                                    )}
+                                {agentFeatureEnabled &&
+                                    message.role === "assistant" &&
+                                    message.actionCards &&
+                                    message.actionCards.length > 0 && (
+                                        <div className="mt-2 space-y-2">
+                                            {message.actionCards.map(
+                                                (card, cardIndex) => (
+                                                    <ActionCardWidget
+                                                        key={cardIndex}
+                                                        card={card}
                                                     />
                                                 ),
                                             )}
@@ -955,7 +995,7 @@ export default function ChatInterface({
                                         className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                                     >
                                         {isSavingStrategies
-                                            ? 'Saving...'
+                                            ? "Saving..."
                                             : `Save (${selectedStrategyIndexes.size})`}
                                     </button>
                                 )}
@@ -969,8 +1009,8 @@ export default function ChatInterface({
                                             key={`${s.title}-${i}`}
                                             className={`text-left rounded-lg border p-4 transition-colors ${
                                                 selected
-                                                    ? 'border-indigo-500 bg-indigo-50'
-                                                    : 'border-gray-200 bg-white hover:bg-gray-50'
+                                                    ? "border-indigo-500 bg-indigo-50"
+                                                    : "border-gray-200 bg-white hover:bg-gray-50"
                                             }`}
                                         >
                                             <button
@@ -988,18 +1028,21 @@ export default function ChatInterface({
                                                 </p>
                                             </button>
 
-                                            {s.articleUrl && isSafeExternalUrl(s.articleUrl) && (
-                                                <div className="mt-3">
-                                                    <a
-                                                        href={s.articleUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
-                                                    >
-                                                        Learn more
-                                                    </a>
-                                                </div>
-                                            )}
+                                            {s.articleUrl &&
+                                                isSafeExternalUrl(
+                                                    s.articleUrl,
+                                                ) && (
+                                                    <div className="mt-3">
+                                                        <a
+                                                            href={s.articleUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs font-medium text-indigo-700 hover:text-indigo-900 underline"
+                                                        >
+                                                            Learn more
+                                                        </a>
+                                                    </div>
+                                                )}
                                         </div>
                                     );
                                 })}
@@ -1013,8 +1056,8 @@ export default function ChatInterface({
                             <div className="max-w-4xl rounded-lg px-4 py-3 bg-white border border-gray-200">
                                 <div className="text-xs font-medium mb-1 opacity-75">
                                     {isProcessingVoice
-                                        ? 'Processing voice...'
-                                        : 'Assistant'}
+                                        ? "Processing voice..."
+                                        : "Assistant"}
                                 </div>
                                 <div className="flex space-x-2">
                                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
@@ -1042,12 +1085,12 @@ export default function ChatInterface({
                                 placeholder={
                                     isStrategiesMode
                                         ? "Tell me what you're dealing with... (Press Enter to send)"
-                                        : 'Type or speak your message... (Press Enter to send, Shift+Enter for new line)'
+                                        : "Type or speak your message... (Press Enter to send, Shift+Enter for new line)"
                                 }
                                 disabled={isStreaming}
                                 rows={1}
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                style={{ maxHeight: '200px' }}
+                                style={{ maxHeight: "200px" }}
                             />
                         </div>
                         <FeatureGate
@@ -1058,7 +1101,7 @@ export default function ChatInterface({
                                 onRecordingComplete={handleVoiceRecording}
                                 onError={(error) =>
                                     console.error(
-                                        'Voice recording error:',
+                                        "Voice recording error:",
                                         error,
                                     )
                                 }

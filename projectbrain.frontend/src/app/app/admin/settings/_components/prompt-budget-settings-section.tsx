@@ -15,6 +15,8 @@ interface PromptBudgetSettings {
     episodesReserve: number;
     onboardingReserve: number;
     historyReserve: number;
+    toolDefinitionsReserve: number;
+    toolResultsReserve: number;
     tokenEstimator: string;
 }
 
@@ -34,6 +36,12 @@ function parseSettings(data: Record<string, unknown>): PromptBudgetSettings {
             data.onboardingReserve ?? data.OnboardingReserve ?? 400
         ),
         historyReserve: Number(data.historyReserve ?? data.HistoryReserve ?? 800),
+        toolDefinitionsReserve: Number(
+            data.toolDefinitionsReserve ?? data.ToolDefinitionsReserve ?? 300
+        ),
+        toolResultsReserve: Number(
+            data.toolResultsReserve ?? data.ToolResultsReserve ?? 400
+        ),
         tokenEstimator: String(
             data.tokenEstimator ?? data.TokenEstimator ?? 'character'
         ),
@@ -89,6 +97,16 @@ const RESERVE_FIELDS: Array<{
         name: 'historyReserve',
         label: 'History reserve',
         description: 'Tokens reserved for recent chat history',
+    },
+    {
+        name: 'toolDefinitionsReserve',
+        label: 'Tool definitions reserve',
+        description: 'Tokens reserved for agent tool JSON schemas',
+    },
+    {
+        name: 'toolResultsReserve',
+        label: 'Tool results reserve',
+        description: 'Tokens reserved for tool execution results in multi-turn loops',
     },
 ];
 

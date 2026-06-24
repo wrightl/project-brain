@@ -203,6 +203,7 @@ export interface ChatMessage {
     createdAt?: string;
     citations?: Citation[];
     toolExecutions?: ToolExecution[];
+    actionCards?: ActionCard[];
     workflowId?: string;
 }
 
@@ -213,6 +214,24 @@ export interface ToolExecution {
     success: boolean;
     errorMessage?: string;
     executedAt: string;
+}
+
+export interface ActionCard {
+    cardType: string;
+    href?: string;
+    label?: string;
+    title?: string;
+    description?: string;
+    filename?: string;
+    resourceId?: string;
+    goals?: Array<{ index: number; message?: string; completed?: boolean }>;
+    days?: Array<{ date?: string; goalCount?: number }>;
+    coaches?: Array<{
+        coachProfileId?: string;
+        name?: string;
+        bio?: string;
+        profileUrl?: string;
+    }>;
 }
 
 export interface Conversation {

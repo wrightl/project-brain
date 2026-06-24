@@ -12,6 +12,8 @@ public sealed class PromptBudgetSettings
     public int EpisodesReserve { get; set; } = 300;
     public int OnboardingReserve { get; set; } = 500;
     public int HistoryReserve { get; set; } = 800;
+    public int ToolDefinitionsReserve { get; set; } = 300;
+    public int ToolResultsReserve { get; set; } = 400;
     public string TokenEstimator { get; set; } = "character";
 }
 

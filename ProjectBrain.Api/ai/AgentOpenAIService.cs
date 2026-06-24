@@ -3,7 +3,6 @@ namespace ProjectBrain.AI;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using OpenAI;
 using OpenAI.Chat;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Dtos;
@@ -20,6 +19,255 @@ public class AgentOpenAIService : IAgentOpenAIService
         _services = services ?? throw new ArgumentNullException(nameof(services));
     }
 
+    public async Task<AgentSession> BeginSessionAsync(
+        AgentSessionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var aiSettings = await _services.ApplicationSettingsService.GetAISettingsAsync();
+        var promptBudgetSettings = await _services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
+        var estimator = await TokenEstimatorFactory.CreateAsync(_services.ApplicationSettingsService);
+        var includeOnboarding = ChatPromptAssembler.ShouldIncludeOnboardingBlob(
+            aiSettings.IncludeFullOnboardingBlob,
+            request.UserInformation,
+            request.MemoryContext,
+            isFirstTurn: request.History.Count == 0);
+
+        var systemPrompt = BuildAgentSystemPrompt(request.UserName, request.MemoryContext);
+
+        List<AgentChatMessage> limitedHistory;
+        string userPrompt;
+        IReadOnlyList<PromptSlotTrace> slotTraces = Array.Empty<PromptSlotTrace>();
+
+        if (promptBudgetSettings.EnablePromptBudget)
+        {
+            var initialHistory = ChatPromptAssembler.SelectRecentAgentHistory(request.History, request.MemoryContext).ToList();
+            var budgeted = PromptTokenBudgetAssembler.AssembleForAgent(
+                request.UserQuery,
+                request.UserInformation,
+                request.SourcesFormatted,
+                request.CitationCount,
+                request.MemoryContext,
+                initialHistory,
+                promptBudgetSettings,
+                aiSettings.MaxTotalTokens,
+                estimator,
+                includeOnboarding);
+            userPrompt = budgeted.UserPrompt;
+            limitedHistory = budgeted.LimitedHistory.ToList();
+            slotTraces = budgeted.SlotTraces;
+        }
+        else
+        {
+            limitedHistory = ChatPromptAssembler.SelectRecentAgentHistory(request.History, request.MemoryContext).ToList();
+            userPrompt = ChatPromptAssembler.BuildAgentUserPrompt(
+                request.UserQuery,
+                request.UserInformation,
+                request.MemoryContext,
+                includeOnboarding,
+                request.SourcesFormatted,
+                request.CitationCount);
+        }
+
+        var estimatedTokens = estimator.EstimateTokens(systemPrompt) + estimator.EstimateTokens(userPrompt);
+        foreach (var msg in limitedHistory)
+        {
+            estimatedTokens += estimator.EstimateTokens(msg.Content);
+        }
+
+        var traceEnvelope = ChatTurnTraceBuilder.Build(
+            request.CorrelationId ?? "no-trace",
+            request.ConversationId ?? Guid.Empty,
+            request.UserId,
+            request.MemoryContext,
+            limitedHistory.Count,
+            citationCount: request.CitationCount,
+            citationIds: request.CitationIds,
+            retrievalMode: request.CitationCount > 0 ? "agent_rag" : "agent",
+            estimatedTokens,
+            aiSettings.MaxTotalTokens,
+            truncatedSources: false,
+            slotTraces);
+        ChatTurnTraceBuilder.Log(_services.Logger, traceEnvelope, "AgentTrace");
+
+        var messages = ToChatMessages(limitedHistory);
+        messages.Insert(0, new SystemChatMessage(systemPrompt));
+        messages.Add(new UserChatMessage(userPrompt));
+
+        return new AgentSession
+        {
+            IsInitialTurn = true,
+            CorrelationId = request.CorrelationId,
+            ConversationId = request.ConversationId,
+            SdkMessageState = messages
+        };
+    }
+
+    public async IAsyncEnumerable<AgentStreamingUpdate> StreamTurnAsync(
+        AgentSession session,
+        List<Dictionary<string, object>> tools,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var messages = GetSdkMessages(session);
+        var chatTools = BuildChatTools(tools);
+        var options = new ChatCompletionOptions
+        {
+            ToolChoice = chatTools.Count > 0 ? ChatToolChoice.CreateAutoChoice() : ChatToolChoice.CreateNoneChoice()
+        };
+        foreach (var tool in chatTools)
+        {
+            options.Tools.Add(tool);
+        }
+
+        var chatClient = _services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
+        var response = chatClient.CompleteChatStreamingAsync(messages, options, cancellationToken);
+
+        var toolCallsByIndex = new Dictionary<int, StreamingToolCallAccumulator>();
+
+        await foreach (var update in response.WithCancellation(cancellationToken))
+        {
+            var domainUpdate = new AgentStreamingUpdate();
+
+            foreach (var choice in update.ContentUpdate)
+            {
+                if (choice.Text != null)
+                {
+                    domainUpdate.Text = choice.Text;
+                }
+            }
+
+            foreach (var toolCallUpdate in update.ToolCallUpdates)
+            {
+                if (!toolCallsByIndex.TryGetValue(toolCallUpdate.Index, out var accumulator))
+                {
+                    accumulator = new StreamingToolCallAccumulator();
+                    toolCallsByIndex[toolCallUpdate.Index] = accumulator;
+                }
+
+                if (!string.IsNullOrEmpty(toolCallUpdate.ToolCallId))
+                {
+                    accumulator.ToolCallId = toolCallUpdate.ToolCallId;
+                }
+
+                if (!string.IsNullOrEmpty(toolCallUpdate.FunctionName))
+                {
+                    accumulator.FunctionName = toolCallUpdate.FunctionName;
+                }
+
+                if (toolCallUpdate.FunctionArgumentsUpdate is { } argumentsUpdate)
+                {
+                    accumulator.ArgumentsBuilder.Append(argumentsUpdate.ToString());
+                }
+            }
+
+            if (domainUpdate.Text != null)
+            {
+                yield return domainUpdate;
+            }
+        }
+
+        var completedToolCalls = BuildAgentToolCalls(toolCallsByIndex);
+        if (completedToolCalls.Count > 0)
+        {
+            yield return new AgentStreamingUpdate
+            {
+                ToolCalls = completedToolCalls
+            };
+        }
+
+        session.IsInitialTurn = false;
+    }
+
+    private sealed class StreamingToolCallAccumulator
+    {
+        public string ToolCallId { get; set; } = string.Empty;
+        public string FunctionName { get; set; } = string.Empty;
+        public StringBuilder ArgumentsBuilder { get; } = new();
+    }
+
+    private static List<AgentToolCall> BuildAgentToolCalls(
+        Dictionary<int, StreamingToolCallAccumulator> toolCallsByIndex)
+    {
+        var result = new List<AgentToolCall>();
+
+        foreach (var (index, accumulator) in toolCallsByIndex.OrderBy(kv => kv.Key))
+        {
+            if (string.IsNullOrWhiteSpace(accumulator.FunctionName))
+            {
+                continue;
+            }
+
+            var toolCallId = string.IsNullOrWhiteSpace(accumulator.ToolCallId)
+                ? $"call_{index}"
+                : accumulator.ToolCallId;
+
+            var parameters = new Dictionary<string, object>();
+            if (accumulator.ArgumentsBuilder.Length > 0)
+            {
+                try
+                {
+                    parameters = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        accumulator.ArgumentsBuilder.ToString()) ?? new Dictionary<string, object>();
+                }
+                catch (JsonException)
+                {
+                    // Model may stream malformed JSON; leave parameters empty.
+                }
+            }
+
+            result.Add(new AgentToolCall
+            {
+                ToolCallId = toolCallId,
+                FunctionName = accumulator.FunctionName,
+                Parameters = parameters
+            });
+        }
+
+        return result;
+    }
+
+    public void AppendToolResults(
+        AgentSession session,
+        string? assistantText,
+        IReadOnlyList<AgentToolCall> toolCalls,
+        IReadOnlyList<AgentToolResult> toolResults)
+    {
+        var messages = GetSdkMessages(session);
+
+        var validToolCalls = toolCalls
+            .Where(tc => !string.IsNullOrWhiteSpace(tc.FunctionName) && !string.IsNullOrWhiteSpace(tc.ToolCallId))
+            .ToList();
+
+        if (validToolCalls.Count > 0)
+        {
+            var sdkToolCalls = validToolCalls.Select(tc =>
+                ChatToolCall.CreateFunctionToolCall(
+                    tc.ToolCallId,
+                    tc.FunctionName,
+                    BinaryData.FromString(JsonSerializer.Serialize(tc.Parameters)))).ToList();
+
+            messages.Add(new AssistantChatMessage(sdkToolCalls));
+        }
+        else if (!string.IsNullOrWhiteSpace(assistantText))
+        {
+            messages.Add(new AssistantChatMessage(assistantText));
+        }
+
+        foreach (var result in toolResults)
+        {
+            if (string.IsNullOrWhiteSpace(result.FunctionName) || string.IsNullOrWhiteSpace(result.ToolCallId))
+            {
+                continue;
+            }
+
+            messages.Add((ToolChatMessage)CreateFunctionMessage(
+                result.ToolCallId,
+                result.FunctionName,
+                result.Result));
+        }
+
+        session.SdkMessageState = messages;
+    }
+
     public async IAsyncEnumerable<AgentStreamingUpdate> GetAgentResponseAsync(
         string userQuery,
         string userId,
@@ -32,204 +280,62 @@ public class AgentOpenAIService : IAgentOpenAIService
         string? correlationId = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _services.Logger.LogInformation("Starting GetAgentResponseAsync for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
-
-        var aiSettings = await _services.ApplicationSettingsService.GetAISettingsAsync();
-        var promptBudgetSettings = await _services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
-        var estimator = await TokenEstimatorFactory.CreateAsync(_services.ApplicationSettingsService);
-        var includeOnboarding = ChatPromptAssembler.ShouldIncludeOnboardingBlob(
-            aiSettings.IncludeFullOnboardingBlob,
-            userInformation,
-            memoryContext,
-            isFirstTurn: history.Count == 0);
-
-        // Build system prompt with memory-aware policies and preferences
-        var systemPrompt = BuildAgentSystemPrompt(userName, memoryContext);
-
-        List<AgentChatMessage> limitedHistory;
-        string userPrompt;
-        IReadOnlyList<PromptSlotTrace> slotTraces = Array.Empty<PromptSlotTrace>();
-
-        if (promptBudgetSettings.EnablePromptBudget)
+        var session = await BeginSessionAsync(new AgentSessionRequest
         {
-            var initialHistory = ChatPromptAssembler.SelectRecentAgentHistory(history, memoryContext).ToList();
-            var budgeted = PromptTokenBudgetAssembler.AssembleForAgent(
-                userQuery,
-                userInformation,
-                memoryContext,
-                initialHistory,
-                promptBudgetSettings,
-                aiSettings.MaxTotalTokens,
-                estimator,
-                includeOnboarding);
-            userPrompt = budgeted.UserPrompt;
-            limitedHistory = budgeted.LimitedHistory.ToList();
-            slotTraces = budgeted.SlotTraces;
-        }
-        else
+            UserQuery = userQuery,
+            UserId = userId,
+            UserInformation = userInformation,
+            UserName = userName,
+            History = history,
+            MemoryContext = memoryContext,
+            ConversationId = conversationId,
+            CorrelationId = correlationId
+        }, cancellationToken);
+
+        await foreach (var update in StreamTurnAsync(session, tools, cancellationToken))
         {
-            limitedHistory = ChatPromptAssembler.SelectRecentAgentHistory(history, memoryContext).ToList();
-            userPrompt = ChatPromptAssembler.BuildAgentUserPrompt(
-                userQuery,
-                userInformation,
-                memoryContext,
-                includeOnboarding);
-        }
-
-        var estimatedTokens = estimator.EstimateTokens(systemPrompt) + estimator.EstimateTokens(userPrompt);
-        foreach (var msg in limitedHistory)
-        {
-            estimatedTokens += estimator.EstimateTokens(msg.Content);
-        }
-
-        var traceEnvelope = ChatTurnTraceBuilder.Build(
-            correlationId ?? "no-trace",
-            conversationId ?? Guid.Empty,
-            userId,
-            memoryContext,
-            limitedHistory.Count,
-            citationCount: 0,
-            citationIds: Array.Empty<string>(),
-            retrievalMode: "agent",
-            estimatedTokens,
-            aiSettings.MaxTotalTokens,
-            truncatedSources: false,
-            slotTraces);
-        ChatTurnTraceBuilder.Log(_services.Logger, traceEnvelope, "AgentTrace");
-
-        // Create chat messages
-        var messages = ToChatMessages(limitedHistory);
-
-        // Add system message
-        messages.Insert(0, new SystemChatMessage(systemPrompt));
-
-        // Build user prompt with memory context
-        messages.Add(new UserChatMessage(userPrompt));
-
-        // Convert tools to ChatTool format for function calling
-        var chatTools = new List<ChatTool>();
-        foreach (var toolDef in tools)
-        {
-            if (toolDef.TryGetValue("type", out var type) && type?.ToString() == "function")
-            {
-                if (toolDef.TryGetValue("function", out var funcObj) && funcObj is Dictionary<string, object> funcDict)
-                {
-                    var toolName = funcDict["name"]?.ToString() ?? "";
-                    var toolDescription = funcDict.TryGetValue("description", out var desc) ? desc?.ToString() : null;
-                    var toolParameters = funcDict.TryGetValue("parameters", out var paramsObj) ? JsonSerializer.Serialize(paramsObj) : "{}";
-
-                    // Create function tool using the SDK's ChatTool.CreateFunctionTool
-                    var tool = ChatTool.CreateFunctionTool(toolName, toolDescription, BinaryData.FromString(toolParameters));
-                    chatTools.Add(tool);
-                }
-            }
-        }
-
-        // Get streaming response with tools
-        // Note: The OpenAI SDK may require tools to be passed differently based on version
-        // For now, we'll use the basic streaming API and handle tools in the response
-        var chatClient = _services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
-
-        // TODO: Add tools support when SDK version is confirmed
-        // The tools will be detected in the streaming response as tool calls
-        var response = chatClient.CompleteChatStreamingAsync(messages);
-
-        // Convert to domain types
-        // Track tool calls by ID to aggregate partial updates
-        var toolCallsMap = new Dictionary<string, AgentToolCall>();
-        var currentText = new StringBuilder();
-
-        await foreach (var update in response)
-        {
-            var domainUpdate = new AgentStreamingUpdate();
-
-            foreach (var choice in update.ContentUpdate)
-            {
-                if (choice.Text != null)
-                {
-                    currentText.Append(choice.Text);
-                    domainUpdate.Text = choice.Text; // Send incremental text updates
-                }
-            }
-
-            // foreach (StreamingChatToolCallUpdate toolUpdate in update.ToolCallUpdates)
-            // {
-            //     int index = toolUpdate.Index;
-
-            //     if (!toolCallsMap.ContainsKey(index))
-            //     {
-            //         toolCallsMap[index] = (toolUpdate.ToolCallId, toolUpdate.FunctionName, new StringBuilder());
-            //     }
-
-            //     // Concatenate the BinaryData fragment as text
-            //     if (toolUpdate.FunctionArgumentsUpdate != null && !toolUpdate.FunctionArgumentsUpdate.IsEmpty)
-            //     {
-            //         toolCallsMap[index].Arguments.Append(toolUpdate.FunctionArgumentsUpdate.ToString());
-            //     }
-            // }
-
-            foreach (var toolCall in update.ToolCallUpdates)
-            {
-                var toolCallId = toolCall.ToolCallId ?? Guid.NewGuid().ToString();
-
-                // Aggregate tool call data across multiple updates
-                if (!toolCallsMap.TryGetValue(toolCallId, out var existingCall))
-                {
-                    existingCall = new AgentToolCall
-                    {
-                        ToolCallId = toolCallId,
-                        FunctionName = toolCall.FunctionName ?? "",
-                        Parameters = new Dictionary<string, object>()
-                    };
-                    toolCallsMap[toolCallId] = existingCall;
-                }
-
-                // Append function arguments (they may come in chunks)
-                if (toolCall.FunctionArgumentsUpdate != null)
-                {
-                    try
-                    {
-                        var newParams = JsonSerializer.Deserialize<Dictionary<string, object>>(BinaryData.FromStream(toolCall.FunctionArgumentsUpdate.ToStream())) ?? new Dictionary<string, object>();
-                        foreach (var kvp in newParams)
-                        {
-                            existingCall.Parameters[kvp.Key] = kvp.Value;
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore parse errors for partial arguments
-                    }
-                }
-
-                // Update function name if provided
-                if (!string.IsNullOrEmpty(toolCall.FunctionName))
-                {
-                    existingCall.FunctionName = toolCall.FunctionName;
-                }
-            }
-
-            // If we have text, yield it
-            if (domainUpdate.Text != null)
-            {
-                yield return domainUpdate;
-            }
-        }
-
-        // Yield final tool calls if any
-        if (toolCallsMap.Count > 0)
-        {
-            var toolCallUpdate = new AgentStreamingUpdate
-            {
-                ToolCalls = toolCallsMap.Values.ToList()
-            };
-            yield return toolCallUpdate;
+            yield return update;
         }
     }
 
     public object CreateFunctionMessage(string toolCallId, string functionName, object result)
     {
         var resultJson = JsonSerializer.Serialize(result);
-        return new ToolChatMessage(toolCallId, functionName, resultJson);
+        return new ToolChatMessage(toolCallId, resultJson);
+    }
+
+    private static List<ChatMessage> GetSdkMessages(AgentSession session)
+    {
+        if (session.SdkMessageState is not List<ChatMessage> messages)
+        {
+            throw new InvalidOperationException("Agent session has no SDK message state.");
+        }
+
+        return messages;
+    }
+
+    private static List<ChatTool> BuildChatTools(List<Dictionary<string, object>> tools)
+    {
+        var chatTools = new List<ChatTool>();
+        foreach (var toolDef in tools)
+        {
+            if (toolDef.TryGetValue("type", out var type) && type?.ToString() == "function"
+                && toolDef.TryGetValue("function", out var funcObj) && funcObj is Dictionary<string, object> funcDict)
+            {
+                var toolName = funcDict["name"]?.ToString() ?? "";
+                var toolDescription = funcDict.TryGetValue("description", out var desc) ? desc?.ToString() : null;
+                var toolParameters = funcDict.TryGetValue("parameters", out var paramsObj)
+                    ? JsonSerializer.Serialize(paramsObj)
+                    : "{}";
+
+                chatTools.Add(ChatTool.CreateFunctionTool(
+                    toolName,
+                    toolDescription,
+                    BinaryData.FromString(toolParameters)));
+            }
+        }
+
+        return chatTools;
     }
 
     private string BuildAgentSystemPrompt(string userName, ChatMemoryContext memoryContext)
@@ -254,8 +360,13 @@ public class AgentOpenAIService : IAgentOpenAIService
 
         prompt.AppendLine("Your capabilities:");
         prompt.AppendLine("- Create daily goals when users mention tasks or objectives");
+        prompt.AppendLine("- Plan daily goals for multiple days (up to 7) using create_goals_for_days");
         prompt.AppendLine("- Retrieve and view existing goals");
         prompt.AppendLine("- Mark goals as complete or incomplete");
+        prompt.AppendLine("- Suggest, save, rate, and list coping strategies");
+        prompt.AppendLine("- Upload, list, and delete markdown knowledge documents");
+        prompt.AppendLine("- Search for coaches and view connected coaches");
+        prompt.AppendLine("- Answer questions using the user's uploaded knowledge sources when provided");
         prompt.AppendLine("- Help organize and prioritize tasks");
         prompt.AppendLine("- Suggest actions based on conversation context");
         prompt.AppendLine();
@@ -282,8 +393,7 @@ public class AgentOpenAIService : IAgentOpenAIService
         return prompt.ToString();
     }
 
-
-    private List<ChatMessage> ToChatMessages(List<AgentChatMessage> history)
+    private static List<ChatMessage> ToChatMessages(List<AgentChatMessage> history)
     {
         var messages = new List<ChatMessage>();
         foreach (var msg in history)
@@ -297,7 +407,7 @@ public class AgentOpenAIService : IAgentOpenAIService
                 messages.Add(new AssistantChatMessage(msg.Content));
             }
         }
+
         return messages;
     }
 }
-

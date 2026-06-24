@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.AgentTools;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;
 
@@ -93,6 +94,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICopingStrategyService, CopingStrategyService>();
         builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
         builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
+        builder.Services.AddScoped<IFeatureFlagSettingsService, FeatureFlagSettingsService>();
         builder.Services.AddScoped<IChatMemoryContextService, ChatMemoryContextService>();
         builder.Services.AddScoped<IUserFactService, UserFactService>();
         builder.Services.AddScoped<IUserEpisodeService, UserEpisodeService>();
@@ -106,6 +108,21 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IReferralSettingsService, ReferralSettingsService>();
         builder.Services.AddScoped<IReferralService, ReferralService>();
         builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+        builder.Services.AddScoped<IAgentToolRegistry, AgentToolRegistry>();
+        builder.Services.AddScoped<IAgentToolContextFactory, AgentToolContextFactory>();
+        builder.Services.AddScoped<IAgentToolHandler, CreateDailyGoalsToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, CreateGoalsForDaysToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, GetTodaysGoalsToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, CompleteGoalToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, SuggestCopingStrategiesToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, SaveCopingStrategyToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, GetCopingStrategiesToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, RateCopingStrategyToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, UploadKnowledgeDocumentToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, ListKnowledgeResourcesToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, DeleteKnowledgeResourceToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, SearchCoachesToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, GetConnectedCoachesToolHandler>();
         builder.Services.AddScoped<IAgentService, AgentService>();
         builder.Services.AddScoped<IAgentActionTrackingService, AgentActionTrackingService>();
         builder.Services.AddScoped<IAchievementService, AchievementService>();

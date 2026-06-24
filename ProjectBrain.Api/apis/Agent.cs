@@ -1,7 +1,9 @@
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Background;
+using ProjectBrain.Api.Services;
 using ProjectBrain.Domain;
 using DomainConversationService = ProjectBrain.Domain.IConversationService;
 using DomainChatService = ProjectBrain.Domain.IChatService;
@@ -162,8 +164,11 @@ public static class AgentEndpoints
             }
         }
 
-        // Process agent interaction
-        var agentResponse = await services.AgentService.ProcessAgentInteractionAsync(
+        // Stream agent events incrementally
+        var assistantContentBuilder = new StringBuilder();
+        var allToolExecutions = new List<ToolExecutionRecord>();
+
+        await foreach (var streamEvent in services.AgentService.StreamAgentInteractionAsync(
             userId!,
             request.Content,
             conversation.Id,
@@ -172,48 +177,90 @@ public static class AgentEndpoints
             userName,
             history,
             memoryContext,
-            http.RequestAborted);
-
-        // Send workflow ID
-        if (agentResponse.WorkflowId.HasValue)
+            http.RequestAborted))
         {
-            await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "workflow", value = new { id = agentResponse.WorkflowId.Value } })}\n\n");
-            await http.Response.Body.FlushAsync();
-        }
-
-        // Send assistant message as text chunks (if available)
-        if (!string.IsNullOrEmpty(agentResponse.Message))
-        {
-            // Send the message as text chunks to simulate streaming
-            var message = agentResponse.Message;
-            await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "text", value = message })}\n\n");
-            await http.Response.Body.FlushAsync();
-        }
-
-        // Send tool execution results
-        if (agentResponse.ExecutedTools.Any())
-        {
-            var toolExecutions = agentResponse.ExecutedTools.Select(t => new
+            switch (streamEvent.Type)
             {
-                toolName = t.ToolName,
-                parameters = t.Parameters ?? new Dictionary<string, object>(),
-                result = t.Result,
-                success = t.Success,
-                errorMessage = t.ErrorMessage,
-                executedAt = t.ExecutedAt.ToString("O")
-            }).ToArray();
+                case "citations":
+                    if (streamEvent.Value is List<ChatCitationDto> citations)
+                    {
+                        var citationsData = citations.Select(c => new
+                        {
+                            id = c.Id,
+                            index = c.Index,
+                            sourceFile = c.SourceFile,
+                            sourcePage = c.SourcePage,
+                            storageUrl = c.StorageUrl,
+                            isShared = c.IsShared
+                        }).ToList();
 
-            await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "tools_executed", value = toolExecutions })}\n\n");
-            await http.Response.Body.FlushAsync();
+                        await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "citations", value = citationsData })}\n\n");
+                        await http.Response.Body.FlushAsync();
+                    }
+
+                    break;
+
+                case "workflow":
+                    await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = streamEvent.Type, value = streamEvent.Value })}\n\n");
+                    await http.Response.Body.FlushAsync();
+                    break;
+
+                case "text":
+                    if (streamEvent.Value?.ToString() is { Length: > 0 } textChunk)
+                    {
+                        assistantContentBuilder.Append(textChunk);
+                        await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "text", value = textChunk })}\n\n");
+                        await http.Response.Body.FlushAsync();
+                    }
+
+                    break;
+
+                case "tools_executed":
+                    if (streamEvent.Value is List<ToolExecutionRecord> tools)
+                    {
+                        allToolExecutions.AddRange(tools);
+                        var toolExecutions = tools.Select(t => new
+                        {
+                            toolName = t.ToolName,
+                            parameters = t.Parameters ?? new Dictionary<string, object>(),
+                            result = t.Result,
+                            success = t.Success,
+                            errorMessage = t.ErrorMessage,
+                            executedAt = t.ExecutedAt.ToString("O")
+                        }).ToArray();
+
+                        await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "tools_executed", value = toolExecutions })}\n\n");
+                        await http.Response.Body.FlushAsync();
+
+                        foreach (var tool in tools)
+                        {
+                            foreach (var card in AgentActionCardMapper.MapToolResult(tool.ToolName, tool.Result, tool.Success))
+                            {
+                                await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "action_card", value = card })}\n\n");
+                                await http.Response.Body.FlushAsync();
+                            }
+                        }
+                    }
+
+                    break;
+
+                case "strategies":
+                    await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "strategies", value = streamEvent.Value })}\n\n");
+                    await http.Response.Body.FlushAsync();
+                    break;
+
+                case "status":
+                    await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "status", value = streamEvent.Value })}\n\n");
+                    await http.Response.Body.FlushAsync();
+                    break;
+            }
         }
 
-        // Send final status
-        await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "status", value = new { status = agentResponse.Status, error = agentResponse.ErrorMessage } })}\n\n");
-        await http.Response.Body.FlushAsync();
-
-        var assistantContent = !string.IsNullOrWhiteSpace(agentResponse.Message)
-            ? agentResponse.Message
-            : $"Agent processed your request. Status: {agentResponse.Status}";
+        var assistantContent = assistantContentBuilder.Length > 0
+            ? assistantContentBuilder.ToString()
+            : allToolExecutions.Count > 0
+                ? "Agent completed your requested actions."
+                : "Agent processed your request.";
 
         await ChatPersistenceHelper.EnqueueOrPersistAsync(
             services.ChatPersistenceQueue,

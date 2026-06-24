@@ -10,6 +10,9 @@ using ProjectBrain.Database.Models;
 public class GoalService : IGoalService
 {
     private const int SuggestionHistoryLookbackDays = 365;
+    public const int MaxGoalsPerDay = 3;
+    public const int MaxMultidayPlans = 7;
+    public const int MaxFutureDays = 30;
 
     private readonly IGoalRepository _repository;
     private readonly IUnitOfWork _unitOfWork;
@@ -29,26 +32,31 @@ public class GoalService : IGoalService
 
     public async Task<IEnumerable<Goal>> CreateOrUpdateGoalsAsync(string userId, List<string> goals, CancellationToken cancellationToken = default)
     {
-        if (goals == null || goals.Count == 0 || goals.Count > 3)
-        {
-            throw new ArgumentException("Goals must contain between 1 and 3 items", nameof(goals));
-        }
-
+        ValidateGoalsList(goals);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        return await CreateOrUpdateGoalsForDateAsync(userId, today, goals, cancellationToken);
+    }
 
-        // Delete existing goals for today
-        await _repository.DeleteGoalsForDateAsync(userId, today, cancellationToken);
+    public async Task<IEnumerable<Goal>> CreateOrUpdateGoalsForDateAsync(
+        string userId,
+        DateOnly date,
+        List<string> goals,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateGoalsList(goals);
+        ValidateGoalDate(date);
 
-        // Create new goals
+        await _repository.DeleteGoalsForDateAsync(userId, date, cancellationToken);
+
         var newGoals = new List<Goal>();
-        for (int i = 0; i < 3; i++)
+        for (var i = 0; i < MaxGoalsPerDay; i++)
         {
             var message = i < goals.Count ? goals[i] : string.Empty;
             var goal = new Goal
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                Date = today,
+                Date = date,
                 Index = i,
                 Message = message ?? string.Empty,
                 Completed = false,
@@ -61,9 +69,74 @@ public class GoalService : IGoalService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        // Return goals ordered by index
         return newGoals.OrderBy(g => g.Index);
+    }
+
+    public async Task<IReadOnlyList<MultidayGoalsResult>> CreateOrUpdateGoalsForDatesAsync(
+        string userId,
+        IReadOnlyList<MultidayGoalPlan> dayPlans,
+        CancellationToken cancellationToken = default)
+    {
+        if (dayPlans is null || dayPlans.Count == 0)
+        {
+            throw new ArgumentException("At least one day plan is required", nameof(dayPlans));
+        }
+
+        if (dayPlans.Count > MaxMultidayPlans)
+        {
+            throw new ArgumentException($"Cannot create goals for more than {MaxMultidayPlans} days at once", nameof(dayPlans));
+        }
+
+        if (dayPlans.Select(p => p.Date).Distinct().Count() != dayPlans.Count)
+        {
+            throw new ArgumentException("Each date may only appear once in dayPlans", nameof(dayPlans));
+        }
+
+        var results = new List<MultidayGoalsResult>();
+
+        foreach (var plan in dayPlans.OrderBy(p => p.Date))
+        {
+            ValidateGoalsList(plan.Goals);
+            ValidateGoalDate(plan.Date);
+
+            var goals = await CreateOrUpdateGoalsForDateAsync(userId, plan.Date, plan.Goals, cancellationToken);
+            results.Add(new MultidayGoalsResult
+            {
+                Date = plan.Date,
+                Goals = goals.Select(g => new GoalSummary
+                {
+                    Index = g.Index,
+                    Message = g.Message,
+                    Completed = g.Completed
+                }).ToList()
+            });
+        }
+
+        return results;
+    }
+
+    private static void ValidateGoalsList(List<string> goals)
+    {
+        if (goals == null || goals.Count == 0 || goals.Count > MaxGoalsPerDay)
+        {
+            throw new ArgumentException($"Goals must contain between 1 and {MaxGoalsPerDay} items", nameof(goals));
+        }
+    }
+
+    private static void ValidateGoalDate(DateOnly date)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var maxDate = today.AddDays(MaxFutureDays);
+
+        if (date < today)
+        {
+            throw new ArgumentException("Goal dates cannot be in the past");
+        }
+
+        if (date > maxDate)
+        {
+            throw new ArgumentException($"Goal dates cannot be more than {MaxFutureDays} days in the future");
+        }
     }
 
     public async Task<IEnumerable<Goal>> CompleteGoalAsync(string userId, int index, bool completed, CancellationToken cancellationToken = default)

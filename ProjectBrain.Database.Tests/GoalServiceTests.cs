@@ -116,6 +116,62 @@ public class GoalServiceTests : IDisposable
         backlog.Should().HaveCount(15);
     }
 
+    [Fact]
+    public async Task CreateOrUpdateGoalsForDatesAsync_CreatesGoalsForMultipleDays()
+    {
+        var userId = "auth0|multiday";
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var day1 = today;
+        var day2 = today.AddDays(1);
+
+        var results = await _goalService.CreateOrUpdateGoalsForDatesAsync(userId, new[]
+        {
+            new MultidayGoalPlan { Date = day1, Goals = new List<string> { "Goal A", "Goal B" } },
+            new MultidayGoalPlan { Date = day2, Goals = new List<string> { "Tomorrow goal" } }
+        });
+
+        results.Should().HaveCount(2);
+        results[0].Date.Should().Be(day1);
+        results[0].Goals.Should().HaveCount(3);
+        results[0].Goals.Count(g => !string.IsNullOrEmpty(g.Message)).Should().Be(2);
+
+        results[1].Date.Should().Be(day2);
+        results[1].Goals.Count(g => !string.IsNullOrEmpty(g.Message)).Should().Be(1);
+
+        var storedDay1 = await _context.Goals.Where(g => g.UserId == userId && g.Date == day1).ToListAsync();
+        storedDay1.Should().HaveCount(3);
+        storedDay1.Single(g => g.Index == 0).Message.Should().Be("Goal A");
+    }
+
+    [Fact]
+    public async Task CreateOrUpdateGoalsForDatesAsync_RejectsPastDates()
+    {
+        var userId = "auth0|past";
+        var yesterday = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+
+        var act = () => _goalService.CreateOrUpdateGoalsForDatesAsync(userId, new[]
+        {
+            new MultidayGoalPlan { Date = yesterday, Goals = new List<string> { "Too late" } }
+        });
+
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*past*");
+    }
+
+    [Fact]
+    public async Task CreateOrUpdateGoalsForDatesAsync_RejectsDuplicateDates()
+    {
+        var userId = "auth0|dup";
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var act = () => _goalService.CreateOrUpdateGoalsForDatesAsync(userId, new[]
+        {
+            new MultidayGoalPlan { Date = today, Goals = new List<string> { "One" } },
+            new MultidayGoalPlan { Date = today, Goals = new List<string> { "Two" } }
+        });
+
+        await act.Should().ThrowAsync<ArgumentException>().WithMessage("*once*");
+    }
+
     public void Dispose()
     {
         _context.Dispose();

@@ -395,6 +395,20 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             },
             new()
             {
+                Key = "AI:PromptBudget:ToolDefinitionsReserve",
+                Value = "300",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for agent tool definitions"
+            },
+            new()
+            {
+                Key = "AI:PromptBudget:ToolResultsReserve",
+                Value = "400",
+                Category = "AI:PromptBudget",
+                Description = "Reserved tokens for agent tool results"
+            },
+            new()
+            {
                 Key = "AI:IncludeFullOnboardingBlob",
                 Value = "true",
                 Category = "AI",

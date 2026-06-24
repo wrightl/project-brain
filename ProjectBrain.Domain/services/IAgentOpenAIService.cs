@@ -8,8 +8,31 @@ using ProjectBrain.Domain.Dtos;
 public interface IAgentOpenAIService
 {
     /// <summary>
-    /// Gets a streaming chat response with function calling support
-    /// Returns an async enumerable of update objects
+    /// Prepares a new agent session with the initial prompt and message list.
+    /// </summary>
+    Task<AgentSession> BeginSessionAsync(
+        AgentSessionRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Streams one model turn for the given session (initial or continuation).
+    /// </summary>
+    IAsyncEnumerable<AgentStreamingUpdate> StreamTurnAsync(
+        AgentSession session,
+        List<Dictionary<string, object>> tools,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Appends assistant tool-call message and tool results for the next turn.
+    /// </summary>
+    void AppendToolResults(
+        AgentSession session,
+        string? assistantText,
+        IReadOnlyList<AgentToolCall> toolCalls,
+        IReadOnlyList<AgentToolResult> toolResults);
+
+    /// <summary>
+    /// Legacy first-turn streaming (delegates to BeginSession + StreamTurn).
     /// </summary>
     IAsyncEnumerable<AgentStreamingUpdate> GetAgentResponseAsync(
         string userQuery,
@@ -24,7 +47,7 @@ public interface IAgentOpenAIService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Creates a function message for tool execution results
+    /// Creates a function message for tool execution results (SDK-specific; used internally).
     /// </summary>
     object CreateFunctionMessage(string toolCallId, string functionName, object result);
 }
@@ -47,4 +70,3 @@ public class AgentToolCall
     public string FunctionName { get; set; } = string.Empty;
     public Dictionary<string, object> Parameters { get; set; } = new();
 }
-

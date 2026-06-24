@@ -18,6 +18,23 @@ public interface IGoalService
     Task<IEnumerable<Goal>> CreateOrUpdateGoalsAsync(string userId, List<string> goals, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Creates or updates goals for a specific date (always 3 goal slots).
+    /// </summary>
+    Task<IEnumerable<Goal>> CreateOrUpdateGoalsForDateAsync(
+        string userId,
+        DateOnly date,
+        List<string> goals,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates or updates goals for multiple dates in one operation.
+    /// </summary>
+    Task<IReadOnlyList<MultidayGoalsResult>> CreateOrUpdateGoalsForDatesAsync(
+        string userId,
+        IReadOnlyList<MultidayGoalPlan> dayPlans,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Completes or uncompletes a goal at the specified index
     /// </summary>
     Task<IEnumerable<Goal>> CompleteGoalAsync(string userId, int index, bool completed, CancellationToken cancellationToken = default);

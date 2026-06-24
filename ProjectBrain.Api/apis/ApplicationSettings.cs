@@ -8,12 +8,14 @@ public class ApplicationSettingsServices(
     ILogger<ApplicationSettingsServices> logger,
     IIdentityService identityService,
     IApplicationSettingsService applicationSettingsService,
-    ISubscriptionService subscriptionService)
+    ISubscriptionService subscriptionService,
+    IFeatureFlagSettingsService featureFlagSettingsService)
 {
     public ILogger<ApplicationSettingsServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public IApplicationSettingsService ApplicationSettingsService { get; } = applicationSettingsService;
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
+    public IFeatureFlagSettingsService FeatureFlagSettingsService { get; } = featureFlagSettingsService;
 }
 
 public static class ApplicationSettingsEndpoints
@@ -42,6 +44,7 @@ public static class ApplicationSettingsEndpoints
         group.MapGet("/chat-policies", GetChatPolicySettings).WithName("GetChatPolicySettings");
         group.MapGet("/memory-formation", GetMemoryFormationSettings).WithName("GetMemoryFormationSettings");
         group.MapGet("/prompt-budget", GetPromptBudgetSettings).WithName("GetPromptBudgetSettings");
+        group.MapGet("/feature-flags", GetFeatureFlagSettings).WithName("GetFeatureFlagSettings");
         group.MapPut("/{key}", UpdateSetting).WithName("UpdateSetting");
         group.MapPut("/ai", UpdateAISettings).WithName("UpdateAISettings");
         group.MapPut("/subscription", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
@@ -50,6 +53,7 @@ public static class ApplicationSettingsEndpoints
         group.MapPut("/memory-formation", UpdateMemoryFormationSettings).WithName("UpdateMemoryFormationSettings");
         group.MapPut("/prompt-budget", UpdatePromptBudgetSettings).WithName("UpdatePromptBudgetSettings");
         group.MapPut("/chat-policies", UpdateChatPolicySettings).WithName("UpdateChatPolicySettings");
+        group.MapPut("/feature-flags", UpdateFeatureFlagSettings).WithName("UpdateFeatureFlagSettings");
     }
 
     private static async Task<IResult> GetAllSettings([AsParameters] ApplicationSettingsServices services)
@@ -746,6 +750,8 @@ public static class ApplicationSettingsEndpoints
         EpisodesReserve = settings.EpisodesReserve,
         OnboardingReserve = settings.OnboardingReserve,
         HistoryReserve = settings.HistoryReserve,
+        ToolDefinitionsReserve = settings.ToolDefinitionsReserve,
+        ToolResultsReserve = settings.ToolResultsReserve,
         TokenEstimator = settings.TokenEstimator
     };
 
@@ -761,6 +767,72 @@ public static class ApplicationSettingsEndpoints
         EpisodesReserve = request.EpisodesReserve,
         OnboardingReserve = request.OnboardingReserve,
         HistoryReserve = request.HistoryReserve,
+        ToolDefinitionsReserve = request.ToolDefinitionsReserve,
+        ToolResultsReserve = request.ToolResultsReserve,
         TokenEstimator = request.TokenEstimator
     };
+
+    private static async Task<IResult> GetFeatureFlagSettings([AsParameters] ApplicationSettingsServices services)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var settings = await services.FeatureFlagSettingsService.GetFeatureFlagSettingsAsync();
+            var dto = new FeatureFlagSettingsDto
+            {
+                Flags = settings.Select(flag => new FeatureFlagItemDto
+                {
+                    Key = flag.Key,
+                    Label = flag.Label,
+                    Description = flag.Description,
+                    Enabled = flag.Enabled
+                }).ToList()
+            };
+
+            return Results.Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving feature flag settings");
+            return Results.Problem("An error occurred while retrieving feature flag settings");
+        }
+    }
+
+    private static async Task<IResult> UpdateFeatureFlagSettings(
+        [AsParameters] ApplicationSettingsServices services,
+        UpdateFeatureFlagSettingsRequestDto request)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var adminId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Results.Unauthorized();
+        }
+
+        try
+        {
+            await services.FeatureFlagSettingsService.UpdateFeatureFlagSettingsAsync(
+                request.Flags,
+                adminId);
+
+            return Results.Ok(new { message = "Feature flag settings updated successfully" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error updating feature flag settings");
+            return Results.Problem("An error occurred while updating feature flag settings");
+        }
+    }
 }

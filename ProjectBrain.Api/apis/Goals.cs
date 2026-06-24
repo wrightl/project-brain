@@ -15,9 +15,8 @@ public class GoalServices(
     ILogger<GoalServices> logger,
     IGoalService goalService,
     IIdentityService identityService,
+    IGoalMutationSideEffects goalMutationSideEffects,
     IGoalsUpdatedBroadcaster goalsUpdatedBroadcaster,
-    IPushNotificationService pushNotificationService,
-    ITimeTickerManager<TimeTickerEntity> timeTickerManager,
     IGoalDailySuggestionClient goalDailySuggestionClient,
     IGoalSuggestionUserContext goalSuggestionUserContext,
     IUsageTrackingService usageTrackingService)
@@ -25,9 +24,8 @@ public class GoalServices(
     public ILogger<GoalServices> Logger { get; } = logger;
     public IGoalService GoalService { get; } = goalService;
     public IIdentityService IdentityService { get; } = identityService;
+    public IGoalMutationSideEffects GoalMutationSideEffects { get; } = goalMutationSideEffects;
     public IGoalsUpdatedBroadcaster GoalsUpdatedBroadcaster { get; } = goalsUpdatedBroadcaster;
-    public IPushNotificationService PushNotificationService { get; } = pushNotificationService;
-    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
     public IGoalDailySuggestionClient GoalDailySuggestionClient { get; } = goalDailySuggestionClient;
     public IGoalSuggestionUserContext GoalSuggestionUserContext { get; } = goalSuggestionUserContext;
     public IUsageTrackingService UsageTrackingService { get; } = usageTrackingService;
@@ -85,24 +83,9 @@ public static class GoalEndpoints
         return Results.Empty;
     }
 
-    private static void NotifyGoalsUpdatedAndPush(GoalServices services, string userId)
+    private static async Task NotifyGoalsUpdated(GoalServices services, string userId)
     {
-        var evt = new GoalsUpdatedEvent { UpdatedAt = DateTime.UtcNow.ToString("O") };
-        services.GoalsUpdatedBroadcaster.NotifyGoalsUpdated(userId, evt);
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await services.PushNotificationService.SendDataOnlyToUserAsync(
-                    userId,
-                    new Dictionary<string, string> { ["type"] = "goals_updated" });
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogWarning(ex, "Failed to send goals_updated FCM to user {UserId}", userId);
-            }
-        });
+        await services.GoalMutationSideEffects.NotifyGoalsChangedAsync(userId);
     }
 
     private static async Task<IResult> GetTodaysGoals(
@@ -154,15 +137,8 @@ public static class GoalEndpoints
 
             var response = GoalMapper.ToDtoList(goals).ToList();
 
-            NotifyGoalsUpdatedAndPush(services, currentUserId);
+            NotifyGoalsUpdated(services, currentUserId);
 
-            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
-
-            // Check if goals existed before (by checking if any had non-empty messages)
-            // Since we just created/updated, we need to check if this was the first time
-            // We'll use a simple heuristic: if all goals are new (just created), return 201
-            // Otherwise return 200. For simplicity, we'll always return 200 since the service
-            // handles both create and update the same way.
             return Results.Ok(response);
         }
         catch (ArgumentException ex)
@@ -215,9 +191,7 @@ public static class GoalEndpoints
 
             var response = GoalMapper.ToDtoList(goals).ToList();
 
-            NotifyGoalsUpdatedAndPush(services, currentUserId);
-
-            await UserContextTickerEnqueue.EnqueueGoalsUploadAsync(services.TimeTickerManager, currentUserId);
+            NotifyGoalsUpdated(services, currentUserId);
 
             return Results.Ok(response);
         }

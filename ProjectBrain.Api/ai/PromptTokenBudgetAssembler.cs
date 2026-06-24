@@ -219,6 +219,8 @@ public static class PromptTokenBudgetAssembler
     public static AgentBudgetedPromptResult AssembleForAgent(
         string userQuery,
         string userInformation,
+        string sourcesFormatted,
+        int citationCount,
         ChatMemoryContext memoryContext,
         IReadOnlyList<AgentChatMessage> history,
         PromptBudgetSettings budget,
@@ -228,7 +230,7 @@ public static class PromptTokenBudgetAssembler
     {
         var slotTraces = new List<PromptSlotTrace>();
         var reserved = budget.SystemReserve + budget.PoliciesReserve + budget.PreferencesReserve
-            + budget.QueryReserve;
+            + budget.QueryReserve + budget.ToolDefinitionsReserve + budget.ToolResultsReserve;
         var remaining = Math.Max(0, maxTotalTokens - reserved);
 
         var summaryText = TrimSummary(memoryContext.ConversationSummary, budget.SummaryReserve, remaining, estimator, slotTraces);
@@ -259,6 +261,17 @@ public static class PromptTokenBudgetAssembler
             remaining += budget.OnboardingReserve;
         }
 
+        var sourcesBudget = Math.Max(0, remaining - budget.HistoryReserve);
+        var trimmedSources = TrimToCharBudget(sourcesFormatted, sourcesBudget, estimator);
+        var truncatedSources = trimmedSources.Length < sourcesFormatted.Length;
+        slotTraces.Add(new PromptSlotTrace
+        {
+            SlotName = "sources",
+            EstimatedTokens = estimator.EstimateTokens(trimmedSources),
+            Truncated = truncatedSources
+        });
+        remaining -= slotTraces.Last().EstimatedTokens;
+
         var historyBudget = Math.Min(budget.HistoryReserve, remaining);
         var limitedHistory = SelectAgentHistoryByTokenBudget(history, historyBudget, estimator, slotTraces);
 
@@ -279,7 +292,9 @@ public static class PromptTokenBudgetAssembler
             userQuery,
             trimmedOnboarding,
             trimmedContext,
-            includeOnboarding);
+            includeOnboarding,
+            trimmedSources,
+            citationCount);
 
         slotTraces.Add(new PromptSlotTrace
         {

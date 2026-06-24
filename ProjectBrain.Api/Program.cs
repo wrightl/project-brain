@@ -10,7 +10,9 @@ using ProjectBrain.Api.Authentication;
 using ProjectBrain.Api.Background;
 using ProjectBrain.Api.Goals;
 using ProjectBrain.Api.Middlewares;
+using ProjectBrain.Api.Services;
 using ProjectBrain.Api.Validators;
+using ProjectBrain.Domain;
 using ProjectBrain.Database.Interfaces;
 using Scalar.AspNetCore;
 using TickerQ.DependencyInjection;
@@ -48,6 +50,12 @@ builder.Services.AddHttpClient("Mailgun", (serviceProvider, client) =>
 }).AddAsKeyed();
 
 builder.AddProjectBrainDomain();
+
+builder.Services.AddScoped<IChatRetrievalService, ChatRetrievalService>();
+builder.Services.AddScoped<IGoalMutationSideEffects, GoalMutationSideEffectsService>();
+builder.Services.AddScoped<ICopingStrategySideEffects, CopingStrategySideEffectsService>();
+builder.Services.AddScoped<IStrategySuggestionService, StrategySuggestionService>();
+builder.Services.AddScoped<IUserKnowledgeUploadService, UserKnowledgeUploadService>();
 
 var queuesConnectionString = builder.Configuration.GetConnectionString("queues");
 if (!string.IsNullOrWhiteSpace(queuesConnectionString))

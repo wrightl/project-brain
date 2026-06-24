@@ -12,18 +12,14 @@ public class CopingStrategyServices(
     ILogger<CopingStrategyServices> logger,
     ICopingStrategyService copingStrategyService,
     IIdentityService identityService,
-    Storage storage,
-    ISearchIndexService searchIndexService,
-    ITimeTickerManager<TimeTickerEntity> timeTickerManager,
-    IMemoryPromotionService memoryPromotionService)
+    ICopingStrategySideEffects copingStrategySideEffects,
+    Storage storage)
 {
     public ILogger<CopingStrategyServices> Logger { get; } = logger;
     public ICopingStrategyService CopingStrategyService { get; } = copingStrategyService;
     public IIdentityService IdentityService { get; } = identityService;
+    public ICopingStrategySideEffects CopingStrategySideEffects { get; } = copingStrategySideEffects;
     public Storage Storage { get; } = storage;
-    public ISearchIndexService SearchIndexService { get; } = searchIndexService;
-    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
-    public IMemoryPromotionService MemoryPromotionService { get; } = memoryPromotionService;
 }
 
 public static class CopingStrategyEndpoints
@@ -82,30 +78,16 @@ public static class CopingStrategyEndpoints
                 request.IconKey,
                 CancellationToken.None);
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
-            {
-                UserId = userId,
-                StrategyId = created.Id,
-                Title = created.Title,
-                Description = created.Description,
-                IconKey = created.IconKey,
-                Rating = created.Rating,
-                SavedAt = created.SavedAt
-            });
-
-            try
-            {
-                await services.MemoryPromotionService.PromoteStrategyEpisodeAsync(
-                    userId,
-                    created.Id,
-                    created.Title,
-                    conversationId: null,
-                    CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogWarning(ex, "Failed to create episodic memory for strategy {StrategyId}", created.Id);
-            }
+            await services.CopingStrategySideEffects.OnStrategyCreatedAsync(
+                userId,
+                created.Id,
+                created.Title,
+                created.Description,
+                created.IconKey,
+                created.Rating,
+                created.SavedAt,
+                conversationId: null,
+                CancellationToken.None);
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {
@@ -170,16 +152,15 @@ public static class CopingStrategyEndpoints
 
             if (updated == null) return Results.NotFound();
 
-            await UserContextTickerEnqueue.EnqueueStrategyUploadAsync(services.TimeTickerManager, new StrategyUploadRequest
-            {
-                UserId = userId,
-                StrategyId = updated.Id,
-                Title = updated.Title,
-                Description = updated.Description,
-                IconKey = updated.IconKey,
-                Rating = updated.Rating,
-                SavedAt = updated.SavedAt
-            });
+            await services.CopingStrategySideEffects.EnqueueStrategyReindexAsync(
+                userId,
+                updated.Id,
+                updated.Title,
+                updated.Description,
+                updated.IconKey,
+                updated.Rating,
+                updated.SavedAt,
+                CancellationToken.None);
 
             return Results.Ok(new CopingStrategyLibraryItemDto
             {

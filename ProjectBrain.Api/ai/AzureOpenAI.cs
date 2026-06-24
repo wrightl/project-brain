@@ -12,6 +12,7 @@ using OpenAI.Audio;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
 using ProjectBrain.Domain;
+using ProjectBrain.Domain.Dtos;
 using _shared = Models;
 
 // public interface IChatService
@@ -123,15 +124,83 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         }
     }
 
+    public async Task<string> UpdateConversationContextSummaryAsync(
+        string? existingSummary,
+        IReadOnlyList<global::ChatMessage> newMessages,
+        int maxSummaryLength,
+        CancellationToken cancellationToken = default)
+    {
+        if (newMessages.Count == 0)
+        {
+            return existingSummary ?? string.Empty;
+        }
+
+        Services.Logger.LogInformation(
+            "Updating conversation context summary with {MessageCount} new messages (existing length: {ExistingLength})",
+            newMessages.Count,
+            existingSummary?.Length ?? 0);
+
+        try
+        {
+            var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
+            var transcript = new StringBuilder();
+            foreach (var message in newMessages)
+            {
+                transcript.AppendLine($"{message.Role}: {message.Content}");
+            }
+
+            var userPrompt = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(existingSummary))
+            {
+                userPrompt.AppendLine("Existing summary:");
+                userPrompt.AppendLine(existingSummary);
+                userPrompt.AppendLine();
+                userPrompt.AppendLine("New conversation turns:");
+            }
+            else
+            {
+                userPrompt.AppendLine("Conversation turns:");
+            }
+
+            userPrompt.AppendLine(transcript.ToString());
+            userPrompt.AppendLine();
+            userPrompt.AppendLine($"Produce an updated rolling summary (max {maxSummaryLength} characters). Preserve important facts, topics, decisions, and emotional context. Omit filler and greetings. Return only the summary text.");
+
+            var response = await chatClient.CompleteChatAsync(
+                [
+                    new SystemChatMessage(
+                        "You compress chat transcripts into concise rolling summaries for an AI assistant. Output plain text only."),
+                    new UserChatMessage(userPrompt.ToString())
+                ],
+                cancellationToken: cancellationToken);
+
+            var summary = response.Value.Content.FirstOrDefault()?.Text?.Trim() ?? string.Empty;
+            if (summary.Length > maxSummaryLength)
+            {
+                summary = summary[..maxSummaryLength];
+            }
+
+            return summary;
+        }
+        catch (Exception ex)
+        {
+            Services.Logger.LogError(ex, "Error updating conversation context summary");
+            return existingSummary ?? string.Empty;
+        }
+    }
+
     public async Task<(AsyncCollectionResult<StreamingChatCompletionUpdate> Response, List<CitationInfo> Citations)> GetResponseWithCitations(
         string userQuery,
         string userId,
         string userInformation,
         string userName,
         List<_shared.ChatMessage> history,
+        ChatMemoryContext memoryContext,
+        Guid conversationId,
         string? traceId = null)
     {
-        return await getChatResponseWithCitations(userQuery, userId, userInformation, userName, history, traceId);
+        return await getChatResponseWithCitations(
+            userQuery, userId, userInformation, userName, history, memoryContext, conversationId, traceId);
     }
 
     public async Task<List<StrategySuggestion>> GetStrategySuggestionsAsync(
@@ -140,30 +209,13 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         string userInformation,
         string userName,
         List<_shared.ChatMessage> history,
+        ChatMemoryContext memoryContext,
         CancellationToken cancellationToken = default)
     {
         Services.Logger.LogInformation("Generating strategy suggestions for user {UserId}", userId);
 
         var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
-
-        var systemPrompt = new StringBuilder();
-        systemPrompt.AppendLine("You are a friendly and supportive assistant helping neurodiverse individuals.");
-        systemPrompt.AppendLine("Your job is to suggest practical coping strategies that are safe, gentle, and actionable.");
-        systemPrompt.AppendLine("Avoid medical claims. If the user describes immediate danger, encourage seeking urgent professional help.");
-        systemPrompt.AppendLine();
-        if (!string.IsNullOrWhiteSpace(userName))
-        {
-            systemPrompt.AppendLine($"You are chatting with {userName}. Use their name occasionally and naturally.");
-            systemPrompt.AppendLine();
-        }
-        systemPrompt.AppendLine("Return ONLY valid JSON. No markdown. No extra text.");
-        systemPrompt.AppendLine("Return exactly 3 items in this shape:");
-        systemPrompt.AppendLine("{\"items\":[{\"title\":\"...\",\"description\":\"...\",\"iconKey\":\"sparkles|lightbulb|null\",\"articleUrl\":\"https://...|null\"}]}");
-        systemPrompt.AppendLine("Constraints:");
-        systemPrompt.AppendLine("- titles <= 60 chars");
-        systemPrompt.AppendLine("- descriptions <= 280 chars");
-        systemPrompt.AppendLine("- descriptions must be specific steps the user can try");
-        systemPrompt.AppendLine("- articleUrl must be https and from one of these domains (or null): nhs.uk, apa.org, mind.org.uk, helpguide.org");
+        var systemPrompt = ChatPromptAssembler.BuildStrategySystemPrompt(userName, memoryContext);
 
         var userPrompt = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(userInformation))
@@ -175,10 +227,18 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             userPrompt.AppendLine();
         }
 
-        if (history.Count > 0)
+        if (memoryContext.EnableConversationSummary
+            && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary))
+        {
+            userPrompt.AppendLine(ChatPromptAssembler.FormatSummaryBlock(memoryContext.ConversationSummary));
+            userPrompt.AppendLine();
+        }
+
+        var limitedHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext);
+        if (limitedHistory.Count > 0)
         {
             userPrompt.AppendLine("Conversation context:");
-            foreach (var msg in history.TakeLast(6))
+            foreach (var msg in limitedHistory)
             {
                 userPrompt.AppendLine($"- {msg.Role}: {msg.Content}");
             }
@@ -195,7 +255,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         {
             response = await chatClient.CompleteChatAsync(
                 [
-                    new SystemChatMessage(systemPrompt.ToString()),
+                    new SystemChatMessage(systemPrompt),
                     new UserChatMessage(userPrompt.ToString()),
                 ],
                 cancellationToken: cancellationToken);
@@ -605,6 +665,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         string userInformation,
         string userName,
         List<_shared.ChatMessage> history,
+        ChatMemoryContext memoryContext,
+        Guid conversationId,
         string? traceId)
     {
         var correlationId = string.IsNullOrEmpty(traceId) ? "no-trace" : traceId;
@@ -627,15 +689,32 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
                 MaxSearchResults = int.Parse(Services.Configuration["AI:MaxSearchResults"] ?? "5"),
                 MaxContentLengthPerSource = int.Parse(Services.Configuration["AI:MaxContentLengthPerSource"] ?? "800"),
                 MaxHistoryMessages = int.Parse(Services.Configuration["AI:MaxHistoryMessages"] ?? "10"),
-                MaxTotalTokens = int.Parse(Services.Configuration["AI:MaxTotalTokens"] ?? "7000")
+                MaxTotalTokens = int.Parse(Services.Configuration["AI:MaxTotalTokens"] ?? "7000"),
+                RecentMessageWindow = int.Parse(Services.Configuration["AI:RecentMessageWindow"] ?? "4"),
+                ConversationSummaryInterval = int.Parse(Services.Configuration["AI:ConversationSummaryInterval"] ?? "6"),
+                MaxConversationSummaryLength = int.Parse(Services.Configuration["AI:MaxConversationSummaryLength"] ?? "1500"),
+                EnableConversationSummary = !bool.TryParse(Services.Configuration["AI:EnableConversationSummary"], out var enabled) || enabled
             };
         }
+
+        memoryContext = new ChatMemoryContext
+        {
+            Policies = memoryContext.Policies,
+            UserPreferences = memoryContext.UserPreferences,
+            ConversationSummary = memoryContext.ConversationSummary,
+            RecentMessageWindow = memoryContext.RecentMessageWindow > 0
+                ? memoryContext.RecentMessageWindow
+                : aiSettings.RecentMessageWindow,
+            MaxHistoryMessages = memoryContext.MaxHistoryMessages > 0
+                ? memoryContext.MaxHistoryMessages
+                : aiSettings.MaxHistoryMessages,
+            EnableConversationSummary = memoryContext.EnableConversationSummary
+        };
 
         LogChatRagPhase(Services.Logger, correlationId, sw, "rag_after_get_ai_settings");
 
         var maxSearchResults = aiSettings.MaxSearchResults;
         var maxContentLengthPerSource = aiSettings.MaxContentLengthPerSource;
-        var maxHistoryMessages = aiSettings.MaxHistoryMessages;
         var maxTotalTokens = aiSettings.MaxTotalTokens;
 
         // Vectorize the query
@@ -743,13 +822,14 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         Services.Logger.LogInformation("Found {CitationCount} relevant sources for query", citations.Count);
 
         // Build system prompt with instructions
-        var systemPrompt = BuildSystemPrompt(userName, citations.Count > 0);
+        var systemPrompt = ChatPromptAssembler.BuildSystemPrompt(userName, citations.Count > 0, memoryContext);
 
-        // Limit conversation history to most recent messages
-        var limitedHistory = history.TakeLast(maxHistoryMessages).ToList();
+        // Limit conversation history using memory-aware window
+        var limitedHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext).ToList();
 
         // Build the user prompt with context, sources, and instructions
-        var userPrompt = BuildUserPrompt(userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, limitedHistory);
+        var userPrompt = ChatPromptAssembler.BuildUserPrompt(
+            userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext);
 
         Services.Logger.LogInformation("Formatted prompt with {SourceCount} sources and {HistoryCount} history messages (limited from {OriginalHistoryCount})",
             citations.Count, limitedHistory.Count, history.Count);
@@ -762,6 +842,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
         // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
         var estimatedTokens = combinedPrompt.Length / 4;
+        var truncatedSources = false;
 
         // Also estimate tokens from history messages
         foreach (var msg in messages)
@@ -776,6 +857,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         // If still over limit, truncate sources further
         if (estimatedTokens > maxTotalTokens)
         {
+            truncatedSources = true;
             Services.Logger.LogWarning("Estimated tokens ({EstimatedTokens}) exceed limit ({MaxTokens}). Truncating sources further.",
                 estimatedTokens, maxTotalTokens);
 
@@ -804,7 +886,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             }
 
             // Rebuild user prompt with truncated sources
-            userPrompt = BuildUserPrompt(userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, limitedHistory);
+            userPrompt = ChatPromptAssembler.BuildUserPrompt(
+                userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext);
             combinedPrompt = $"{systemPrompt}\n\n{userPrompt}";
 
             estimatedTokens = (combinedPrompt.Length / 4) + (messages.Sum(m => m.Content.Count) / 4);
@@ -813,6 +896,38 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
         messages.Add(new UserChatMessage(combinedPrompt));
 
+        var traceEnvelope = new ChatTurnTraceEnvelope
+        {
+            CorrelationId = correlationId,
+            ConversationId = conversationId,
+            UserId = userId,
+            Retrieval = new ChatTurnRetrievalTrace
+            {
+                CitationCount = citations.Count,
+                CitationIds = citations.Select(c => c.Id).ToList(),
+                RetrievalMode = "vector"
+            },
+            Memory = new ChatTurnMemoryTrace
+            {
+                PoliciesApplied = memoryContext.Policies.Select(p => p.Key).ToList(),
+                HasUserPreferences = memoryContext.UserPreferences != null,
+                HasConversationSummary = memoryContext.EnableConversationSummary
+                    && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary),
+                SummaryLength = memoryContext.ConversationSummary?.Length ?? 0,
+                RecentHistoryCount = limitedHistory.Count
+            },
+            Prompt = new ChatTurnPromptTrace
+            {
+                EstimatedTokens = estimatedTokens,
+                MaxTotalTokens = maxTotalTokens,
+                TruncatedSources = truncatedSources
+            }
+        };
+
+        Services.Logger.LogInformation(
+            "[ChatTrace] {TraceEnvelope}",
+            JsonSerializer.Serialize(traceEnvelope));
+
         // Get streaming response
         var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
         LogChatRagPhase(Services.Logger, correlationId, sw, "rag_before_complete_chat_streaming", messages.Count);
@@ -820,84 +935,6 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         LogChatRagPhase(Services.Logger, correlationId, sw, "rag_returning_stream");
 
         return (response, citations);
-    }
-
-    private string BuildSystemPrompt(string userName, bool hasSources)
-    {
-        var prompt = new StringBuilder();
-
-        prompt.AppendLine("You are a friendly and supportive assistant helping neurodiverse individuals.");
-        prompt.AppendLine("Provide helpful, clear, and empathetic responses that are easy to understand.");
-        prompt.AppendLine();
-
-        // Use name naturally, not patronizingly
-        if (!string.IsNullOrWhiteSpace(userName))
-        {
-            prompt.AppendLine($"You are chatting with {userName}. Use their name occasionally and naturally - not in every sentence, and never in a patronizing or condescending way.");
-        }
-
-        prompt.AppendLine();
-        prompt.AppendLine("Communication style:");
-        prompt.AppendLine("- Be clear, concise, and break down complex information into manageable parts");
-        prompt.AppendLine("- Use a friendly, supportive, and respectful tone");
-        prompt.AppendLine("- If the query is unclear or ambiguous, politely ask for clarification");
-        prompt.AppendLine("- Always cite sources using [number] format (e.g., [1], [2]) when referencing documents");
-
-        if (hasSources)
-        {
-            // prompt.AppendLine("- Base your response on the provided sources");
-            prompt.AppendLine("- Base your response on the provided sources, the user's query and the conversation history");
-            // prompt.AppendLine("- If sources don't fully answer the question, acknowledge this and provide what you can");
-            prompt.AppendLine("- Ignore any sources that are not relevant to the user's query or conversation history");
-        }
-        else
-        {
-            prompt.AppendLine("- No specific sources were found, but provide helpful general guidance");
-        }
-
-        prompt.AppendLine();
-        prompt.AppendLine("Response structure:");
-        prompt.AppendLine("- Answer the user's query clearly and thoroughly");
-        prompt.AppendLine("- At the end, suggest 2-3 relevant follow-up questions that might help");
-        prompt.AppendLine("- If clarification is needed, ask naturally within your response");
-
-        return prompt.ToString();
-    }
-
-    private string BuildUserPrompt(string userQuery, string userInformation, string sources, int citationCount, List<_shared.ChatMessage> history)
-    {
-        var prompt = new StringBuilder();
-
-        if (citationCount > 0)
-        {
-            prompt.AppendLine($"Here are {citationCount} relevant sources from the user's documents:");
-            prompt.AppendLine("---");
-            prompt.AppendLine(sources);
-            prompt.AppendLine("---");
-            prompt.AppendLine("Answer the query using the sources above. Cite sources with [number] format. If the sources don't help answer the question, ignore them completely.");
-            prompt.AppendLine();
-        }
-        // else
-        // {
-        //     prompt.AppendLine();
-        //     prompt.AppendLine("No specific sources were found in the user's documents for this query. Provide helpful general guidance and ask if they'd like to search for more specific information.");
-        // }
-
-        prompt.AppendLine("---");
-        prompt.AppendLine("Here is some data in json format about the user based on their onboarding data:");
-        prompt.AppendLine(userInformation);
-        prompt.AppendLine("---");
-
-        prompt.AppendLine("User Query:");
-        prompt.AppendLine(userQuery);
-
-        if (history.Count > 0)
-        {
-            prompt.AppendLine();
-            prompt.AppendLine("Note: Use the conversation history above for context when answering.");
-        }
-
-        return prompt.ToString();
     }
 
     public class CitationInfo

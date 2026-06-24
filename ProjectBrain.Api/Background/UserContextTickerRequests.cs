@@ -47,3 +47,10 @@ public class ConversationTitleSummaryRequest
     public required Guid ConversationId { get; init; }
     public required string UserMessageContent { get; init; }
 }
+
+/// <summary>Request to update rolling conversation context summary after chat persistence.</summary>
+public class ConversationContextSummaryRequest
+{
+    public required string UserId { get; init; }
+    public required Guid ConversationId { get; init; }
+}

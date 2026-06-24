@@ -1,4 +1,6 @@
 using ProjectBrain.Domain;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 namespace ProjectBrain.Api.Background;
 
@@ -8,6 +10,7 @@ internal static class ChatPersistenceHelper
         IChatPersistenceQueue chatPersistenceQueue,
         IChatService chatService,
         IUsageTrackingService usageTrackingService,
+        ITimeTickerManager<TimeTickerEntity>? timeTickerManager,
         Guid conversationId,
         string userId,
         string userContent,
@@ -26,13 +29,21 @@ internal static class ChatPersistenceHelper
         if (await chatPersistenceQueue.TryEnqueueAsync(dto, cancellationToken).ConfigureAwait(false))
             return;
 
-        await PersistSynchronouslyAsync(chatService, usageTrackingService, conversationId, userId, userContent, assistantContent)
+        await PersistSynchronouslyAsync(
+                chatService,
+                usageTrackingService,
+                timeTickerManager,
+                conversationId,
+                userId,
+                userContent,
+                assistantContent)
             .ConfigureAwait(false);
     }
 
     public static async Task PersistSynchronouslyAsync(
         IChatService chatService,
         IUsageTrackingService usageTrackingService,
+        ITimeTickerManager<TimeTickerEntity>? timeTickerManager,
         Guid conversationId,
         string userId,
         string userContent,
@@ -63,5 +74,21 @@ internal static class ChatPersistenceHelper
             }).ConfigureAwait(false);
 
         await usageTrackingService.TrackAIQueryAsync(userId).ConfigureAwait(false);
+
+        if (timeTickerManager is not null)
+        {
+            try
+            {
+                await UserContextTickerEnqueue.EnqueueConversationContextSummaryAsync(
+                    timeTickerManager,
+                    userId,
+                    conversationId,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Summary enqueue is best-effort; persistence already succeeded.
+            }
+        }
     }
 }

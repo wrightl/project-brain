@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import AISettingsSection from './ai-settings-section';
+import ChatMemorySettingsSection from './chat-memory-settings-section';
+import ChatPolicySettingsSection from './chat-policy-settings-section';
 import SubscriptionSettingsSection from './subscription-settings-section';
 import ReferralSettingsSection from './referral-settings-section';
 
@@ -18,6 +19,8 @@ export default function SettingsComponent() {
             <SubscriptionSettingsSection />
             <ReferralSettingsSection />
             <AISettingsSection />
+            <ChatMemorySettingsSection />
+            <ChatPolicySettingsSection />
         </div>
     );
 }

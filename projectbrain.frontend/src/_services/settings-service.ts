@@ -23,6 +23,23 @@ export interface UpdateAISettingsRequest {
     maxTotalTokens: number;
 }
 
+export interface ChatMemorySettings {
+    recentMessageWindow: number;
+    conversationSummaryInterval: number;
+    maxConversationSummaryLength: number;
+    enableConversationSummary: boolean;
+}
+
+export interface ChatPolicySetting {
+    key: string;
+    value: string;
+    description?: string | null;
+}
+
+export interface ChatPolicySettings {
+    policies: ChatPolicySetting[];
+}
+
 export class SettingsService {
     /**
      * Get all settings (admin only)
@@ -80,6 +97,48 @@ export class SettingsService {
         });
         if (!response.ok) {
             throw new Error('Failed to update AI settings');
+        }
+        return response.json();
+    }
+
+    static async getChatMemorySettings(): Promise<ChatMemorySettings> {
+        const response = await callBackendApi('/admin/settings/chat-memory');
+        if (!response.ok) {
+            throw new Error('Failed to fetch chat memory settings');
+        }
+        return response.json();
+    }
+
+    static async updateChatMemorySettings(
+        settings: ChatMemorySettings
+    ): Promise<ChatMemorySettings> {
+        const response = await callBackendApi('/admin/settings/chat-memory', {
+            method: 'PUT',
+            body: settings,
+        });
+        if (!response.ok) {
+            throw new Error('Failed to update chat memory settings');
+        }
+        return response.json();
+    }
+
+    static async getChatPolicySettings(): Promise<ChatPolicySettings> {
+        const response = await callBackendApi('/admin/settings/chat-policies');
+        if (!response.ok) {
+            throw new Error('Failed to fetch chat policy settings');
+        }
+        return response.json();
+    }
+
+    static async updateChatPolicySettings(
+        settings: ChatPolicySettings
+    ): Promise<ChatPolicySettings> {
+        const response = await callBackendApi('/admin/settings/chat-policies', {
+            method: 'PUT',
+            body: settings,
+        });
+        if (!response.ok) {
+            throw new Error('Failed to update chat policy settings');
         }
         return response.json();
     }

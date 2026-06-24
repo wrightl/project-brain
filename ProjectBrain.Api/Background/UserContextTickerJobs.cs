@@ -1,4 +1,5 @@
 using System.Text;
+using System.Linq;
 using ProjectBrain.AI;
 using ProjectBrain.Domain;
 using ProjectBrain.Database.Models;
@@ -234,6 +235,94 @@ public class UserContextTickerJobs(IServiceScopeFactory serviceScopeFactory, ILo
         catch (Exception ex)
         {
             logger.LogError(ex, "Error updating conversation title for {ConversationId}", req.ConversationId);
+        }
+    }
+
+    [TickerFunction("UserContext_ConversationContextSummary")]
+    public async Task ConversationContextSummary(
+        TickerFunctionContext<ConversationContextSummaryRequest> context,
+        CancellationToken cancellationToken)
+    {
+        var req = context.Request;
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var conversationService = scope.ServiceProvider.GetRequiredService<IConversationService>();
+            var azureOpenAI = scope.ServiceProvider.GetRequiredService<AzureOpenAI>();
+            var applicationSettingsService = scope.ServiceProvider.GetRequiredService<IApplicationSettingsService>();
+
+            var aiSettings = await applicationSettingsService.GetAISettingsAsync();
+            if (!aiSettings.EnableConversationSummary)
+            {
+                logger.LogDebug("Conversation context summary disabled; skipping {ConversationId}", req.ConversationId);
+                return;
+            }
+
+            var conversation = await conversationService.GetByIdWithMessages(req.ConversationId, req.UserId);
+            if (conversation is null)
+            {
+                logger.LogWarning("Conversation {ConversationId} not found for context summary; skipping", req.ConversationId);
+                return;
+            }
+
+            var messageCount = conversation.Messages.Count;
+            var newMessageCount = messageCount - conversation.SummaryMessageCount;
+            var hasSummary = !string.IsNullOrWhiteSpace(conversation.ContextSummary);
+
+            if (hasSummary && newMessageCount < aiSettings.ConversationSummaryInterval)
+            {
+                logger.LogDebug(
+                    "Skipping context summary for {ConversationId}: only {NewCount} new messages (interval {Interval})",
+                    req.ConversationId,
+                    newMessageCount,
+                    aiSettings.ConversationSummaryInterval);
+                return;
+            }
+
+            if (messageCount == 0)
+            {
+                return;
+            }
+
+            var newMessages = conversation.Messages
+                .OrderBy(m => m.CreatedAt)
+                .Skip(conversation.SummaryMessageCount)
+                .ToList();
+
+            if (newMessages.Count == 0 && hasSummary)
+            {
+                return;
+            }
+
+            var messagesToSummarize = newMessages.Count > 0
+                ? newMessages
+                : conversation.Messages.OrderBy(m => m.CreatedAt).ToList();
+
+            var summary = await azureOpenAI.UpdateConversationContextSummaryAsync(
+                conversation.ContextSummary,
+                messagesToSummarize,
+                aiSettings.MaxConversationSummaryLength,
+                cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(summary))
+            {
+                logger.LogWarning("Empty context summary for conversation {ConversationId}; leaving unchanged", req.ConversationId);
+                return;
+            }
+
+            conversation.ContextSummary = summary;
+            conversation.SummaryMessageCount = messageCount;
+            conversation.UpdatedAt = DateTime.UtcNow;
+            await conversationService.Update(conversation);
+            logger.LogInformation(
+                "Updated conversation {ConversationId} context summary ({Length} chars, {MessageCount} messages)",
+                req.ConversationId,
+                summary.Length,
+                messageCount);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error updating conversation context summary for {ConversationId}", req.ConversationId);
         }
     }
 

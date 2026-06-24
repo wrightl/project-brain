@@ -73,6 +73,9 @@ export default function ChatInterface({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const streamingMessageRef = useRef<string>('');
+    const syncedConversationIdRef = useRef<string | undefined>(
+        conversation?.id,
+    );
 
     // Auto-scroll to bottom when messages change
     useEffect(() => {
@@ -88,15 +91,17 @@ export default function ChatInterface({
         }
     }, [input]);
 
-    // Sync conversationId and messages when conversation prop changes
+    // Sync conversationId always; load messages only when navigating to a different thread.
+    // Avoid overwriting local state after sends when router.refresh() returns stale server data.
     useEffect(() => {
         if (conversation) {
             setConversationId(conversation.id);
-            // Update messages from server when conversation prop changes
-            // This ensures we show previous messages when resuming a conversation
-            setMessages(conversation.messages || []);
+            if (syncedConversationIdRef.current !== conversation.id) {
+                syncedConversationIdRef.current = conversation.id;
+                setMessages(conversation.messages || []);
+            }
         } else {
-            // If conversation is undefined, reset to empty
+            syncedConversationIdRef.current = undefined;
             setConversationId(undefined);
             setMessages([]);
         }
@@ -152,6 +157,11 @@ export default function ChatInterface({
 
         return next;
     };
+
+    const flushSseBuffer = (
+        buffer: string,
+        onParsed: (parsed: SseJsonMessage) => void,
+    ) => processSseChunk(buffer, '\n\n', onParsed);
 
     const normalizeSuggestedStrategies = (
         value: unknown,
@@ -304,35 +314,41 @@ export default function ChatInterface({
             let citations: Citation[] = [];
             let sseBuffer = '';
             let done = false;
+            const handleVoiceSseEvent = (parsed: SseJsonMessage) => {
+                if (parsed.type === 'citations' && parsed.value) {
+                    citations = parsed.value as Citation[];
+                    return;
+                }
+
+                if (parsed.type === 'text' && parsed.value) {
+                    streamingMessageRef.current += String(parsed.value);
+                    setStreamingMessage(streamingMessageRef.current);
+                    return;
+                }
+
+                if (
+                    isStrategiesMode &&
+                    parsed.type === 'strategies' &&
+                    Array.isArray(parsed.value)
+                ) {
+                    setSuggestedStrategies(
+                        normalizeSuggestedStrategies(parsed.value),
+                    );
+                }
+            };
             while (!done) {
                 const { value, done: streamDone } = await reader.read();
                 done = streamDone;
                 if (value) {
                     const text = decoder.decode(value, { stream: true });
-                    sseBuffer = processSseChunk(sseBuffer, text, (parsed) => {
-                        if (parsed.type === 'citations' && parsed.value) {
-                            citations = parsed.value as Citation[];
-                            return;
-                        }
-
-                        if (parsed.type === 'text' && parsed.value) {
-                            streamingMessageRef.current += String(parsed.value);
-                            setStreamingMessage(streamingMessageRef.current);
-                            return;
-                        }
-
-                        if (
-                            isStrategiesMode &&
-                            parsed.type === 'strategies' &&
-                            Array.isArray(parsed.value)
-                        ) {
-                            setSuggestedStrategies(
-                                normalizeSuggestedStrategies(parsed.value),
-                            );
-                        }
-                    });
+                    sseBuffer = processSseChunk(
+                        sseBuffer,
+                        text,
+                        handleVoiceSseEvent,
+                    );
                 }
             }
+            flushSseBuffer(sseBuffer, handleVoiceSseEvent);
 
             // Add complete assistant message
             if (streamingMessageRef.current) {
@@ -357,9 +373,6 @@ export default function ChatInterface({
             setIsStreaming(false);
             setStreamingMessage('');
             setTranscribedText('');
-            if (!isStrategiesMode) {
-                router.refresh();
-            }
         }
     };
 
@@ -575,6 +588,29 @@ export default function ChatInterface({
                 let citations: Citation[] = [];
                 let sseBuffer = '';
                 let done = false;
+                const handleChatSseEvent = (parsed: SseJsonMessage) => {
+                    if (parsed.type === 'citations' && parsed.value) {
+                        citations = parsed.value as Citation[];
+                        return;
+                    }
+
+                    if (parsed.type === 'text' && parsed.value) {
+                        streamingMessageRef.current += String(parsed.value);
+                        setStreamingMessage(streamingMessageRef.current);
+                        return;
+                    }
+
+                    if (
+                        isStrategiesMode &&
+                        parsed.type === 'strategies' &&
+                        Array.isArray(parsed.value)
+                    ) {
+                        console.log('parsed.value', parsed.value);
+                        setSuggestedStrategies(
+                            normalizeSuggestedStrategies(parsed.value),
+                        );
+                    }
+                };
                 while (!done) {
                     const { value, done: streamDone } = await reader.read();
                     done = streamDone;
@@ -583,41 +619,11 @@ export default function ChatInterface({
                         sseBuffer = processSseChunk(
                             sseBuffer,
                             text,
-                            (parsed) => {
-                                if (
-                                    parsed.type === 'citations' &&
-                                    parsed.value
-                                ) {
-                                    citations = parsed.value as Citation[];
-                                    return;
-                                }
-
-                                if (parsed.type === 'text' && parsed.value) {
-                                    streamingMessageRef.current += String(
-                                        parsed.value,
-                                    );
-                                    setStreamingMessage(
-                                        streamingMessageRef.current,
-                                    );
-                                    return;
-                                }
-
-                                if (
-                                    isStrategiesMode &&
-                                    parsed.type === 'strategies' &&
-                                    Array.isArray(parsed.value)
-                                ) {
-                                    console.log('parsed.value', parsed.value);
-                                    setSuggestedStrategies(
-                                        normalizeSuggestedStrategies(
-                                            parsed.value,
-                                        ),
-                                    );
-                                }
-                            },
+                            handleChatSseEvent,
                         );
                     }
                 }
+                flushSseBuffer(sseBuffer, handleChatSseEvent);
 
                 // Add complete assistant message
                 if (streamingMessageRef.current) {
@@ -640,9 +646,6 @@ export default function ChatInterface({
         } finally {
             setIsStreaming(false);
             setStreamingMessage('');
-            if (!isStrategiesMode) {
-                router.refresh();
-            }
         }
     };
 

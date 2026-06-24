@@ -13,3 +13,15 @@ export function isValidGuid(guid: string): boolean {
     return guidRegex.test(guid);
 }
 
+/** Converts PascalCase, snake_case, or kebab-case strings to sentence case. */
+export function toSentenceCase(value: string): string {
+    const spaced = value
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+
+    const lower = spaced.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+

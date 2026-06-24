@@ -37,10 +37,14 @@ public static class ApplicationSettingsEndpoints
         group.MapGet("/ai", GetAISettings).WithName("GetAISettings");
         group.MapGet("/subscription", GetSubscriptionSettings).WithName("GetSubscriptionSettings");
         group.MapGet("/referrals", GetReferralSettings).WithName("GetReferralSettings");
+        group.MapGet("/chat-memory", GetChatMemorySettings).WithName("GetChatMemorySettings");
+        group.MapGet("/chat-policies", GetChatPolicySettings).WithName("GetChatPolicySettings");
         group.MapPut("/{key}", UpdateSetting).WithName("UpdateSetting");
         group.MapPut("/ai", UpdateAISettings).WithName("UpdateAISettings");
         group.MapPut("/subscription", UpdateSubscriptionSettings).WithName("UpdateSubscriptionSettings");
         group.MapPut("/referrals", UpdateReferralSettings).WithName("UpdateReferralSettings");
+        group.MapPut("/chat-memory", UpdateChatMemorySettings).WithName("UpdateChatMemorySettings");
+        group.MapPut("/chat-policies", UpdateChatPolicySettings).WithName("UpdateChatPolicySettings");
     }
 
     private static async Task<IResult> GetAllSettings([AsParameters] ApplicationSettingsServices services)
@@ -367,6 +371,184 @@ public static class ApplicationSettingsEndpoints
         {
             services.Logger.LogError(ex, "Error updating referral settings");
             return Results.Problem("An error occurred while updating referral settings");
+        }
+    }
+
+    private static async Task<IResult> GetChatMemorySettings([AsParameters] ApplicationSettingsServices services)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var settings = await services.ApplicationSettingsService.GetChatMemorySettingsAsync();
+            var dto = new ChatMemorySettingsDto
+            {
+                RecentMessageWindow = settings.RecentMessageWindow,
+                ConversationSummaryInterval = settings.ConversationSummaryInterval,
+                MaxConversationSummaryLength = settings.MaxConversationSummaryLength,
+                EnableConversationSummary = settings.EnableConversationSummary
+            };
+
+            return Results.Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving chat memory settings");
+            return Results.Problem("An error occurred while retrieving chat memory settings");
+        }
+    }
+
+    private static async Task<IResult> UpdateChatMemorySettings(
+        [AsParameters] ApplicationSettingsServices services,
+        UpdateChatMemorySettingsRequestDto request)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var adminId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request.RecentMessageWindow < 1 ||
+            request.ConversationSummaryInterval < 1 ||
+            request.MaxConversationSummaryLength < 1)
+        {
+            return Results.BadRequest(new { error = "Chat memory numeric values must be greater than 0" });
+        }
+
+        try
+        {
+            await services.ApplicationSettingsService.UpdateChatMemorySettingsAsync(
+                new ChatMemorySettings
+                {
+                    RecentMessageWindow = request.RecentMessageWindow,
+                    ConversationSummaryInterval = request.ConversationSummaryInterval,
+                    MaxConversationSummaryLength = request.MaxConversationSummaryLength,
+                    EnableConversationSummary = request.EnableConversationSummary
+                },
+                adminId);
+
+            var updated = await services.ApplicationSettingsService.GetChatMemorySettingsAsync();
+            return Results.Ok(new ChatMemorySettingsDto
+            {
+                RecentMessageWindow = updated.RecentMessageWindow,
+                ConversationSummaryInterval = updated.ConversationSummaryInterval,
+                MaxConversationSummaryLength = updated.MaxConversationSummaryLength,
+                EnableConversationSummary = updated.EnableConversationSummary
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            services.Logger.LogWarning(ex, "Chat memory settings key missing - seed required");
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error updating chat memory settings");
+            return Results.Problem("An error occurred while updating chat memory settings");
+        }
+    }
+
+    private static async Task<IResult> GetChatPolicySettings([AsParameters] ApplicationSettingsServices services)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        try
+        {
+            var policies = await services.ApplicationSettingsService.GetChatPoliciesAsync();
+            var dto = new ChatPolicySettingsDto
+            {
+                Policies = policies.Select(p => new ChatPolicySettingDto
+                {
+                    Key = p.Key,
+                    Value = p.Value,
+                    Description = p.Description
+                }).ToList()
+            };
+
+            return Results.Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error retrieving chat policy settings");
+            return Results.Problem("An error occurred while retrieving chat policy settings");
+        }
+    }
+
+    private static async Task<IResult> UpdateChatPolicySettings(
+        [AsParameters] ApplicationSettingsServices services,
+        UpdateChatPolicySettingsRequestDto request)
+    {
+        if (!services.IdentityService.IsAdmin)
+        {
+            return Results.Forbid();
+        }
+
+        var adminId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request.Policies is null || request.Policies.Count == 0)
+        {
+            return Results.BadRequest(new { error = "At least one policy is required" });
+        }
+
+        foreach (var policy in request.Policies)
+        {
+            if (string.IsNullOrWhiteSpace(policy.Key) || !policy.Key.StartsWith("AI:Policy:", StringComparison.Ordinal))
+            {
+                return Results.BadRequest(new { error = $"Invalid policy key: {policy.Key}" });
+            }
+
+            if (string.IsNullOrWhiteSpace(policy.Value))
+            {
+                return Results.BadRequest(new { error = $"Policy value cannot be empty: {policy.Key}" });
+            }
+        }
+
+        try
+        {
+            var domainPolicies = request.Policies.Select(p => new ProjectBrain.Domain.Dtos.ChatPolicyItem
+            {
+                Key = p.Key,
+                Value = p.Value,
+                Description = p.Description
+            }).ToList();
+
+            await services.ApplicationSettingsService.UpdateChatPoliciesAsync(domainPolicies, adminId);
+
+            var updated = await services.ApplicationSettingsService.GetChatPoliciesAsync();
+            return Results.Ok(new ChatPolicySettingsDto
+            {
+                Policies = updated.Select(p => new ChatPolicySettingDto
+                {
+                    Key = p.Key,
+                    Value = p.Value,
+                    Description = p.Description
+                }).ToList()
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            services.Logger.LogWarning(ex, "Chat policy settings key missing - seed required");
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            services.Logger.LogError(ex, "Error updating chat policy settings");
+            return Results.Problem("An error occurred while updating chat policy settings");
         }
     }
 }

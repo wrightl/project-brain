@@ -90,6 +90,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICopingStrategyService, CopingStrategyService>();
         builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
         builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
+        builder.Services.AddScoped<IChatMemoryContextService, ChatMemoryContextService>();
         builder.Services.AddScoped<IReferralSettingsService, ReferralSettingsService>();
         builder.Services.AddScoped<IReferralService, ReferralService>();
         builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();

@@ -3,6 +3,7 @@ namespace ProjectBrain.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectBrain.Domain.Caching;
+using ProjectBrain.Domain.Dtos;
 using ProjectBrain.Domain.UnitOfWork;
 
 public class ApplicationSettingsService : IApplicationSettingsService
@@ -141,14 +142,116 @@ public class ApplicationSettingsService : IApplicationSettingsService
         var maxContentLengthPerSource = await GetSettingAsync("AI:MaxContentLengthPerSource");
         var maxHistoryMessages = await GetSettingAsync("AI:MaxHistoryMessages");
         var maxTotalTokens = await GetSettingAsync("AI:MaxTotalTokens");
+        var recentMessageWindow = await GetSettingAsync("AI:RecentMessageWindow");
+        var conversationSummaryInterval = await GetSettingAsync("AI:ConversationSummaryInterval");
+        var maxConversationSummaryLength = await GetSettingAsync("AI:MaxConversationSummaryLength");
+        var enableConversationSummary = await GetSettingAsync("AI:EnableConversationSummary");
 
         return new AISettings
         {
             MaxSearchResults = int.TryParse(maxSearchResults, out var searchResults) ? searchResults : 5,
             MaxContentLengthPerSource = int.TryParse(maxContentLengthPerSource, out var contentLength) ? contentLength : 800,
             MaxHistoryMessages = int.TryParse(maxHistoryMessages, out var historyMessages) ? historyMessages : 10,
-            MaxTotalTokens = int.TryParse(maxTotalTokens, out var totalTokens) ? totalTokens : 7000
+            MaxTotalTokens = int.TryParse(maxTotalTokens, out var totalTokens) ? totalTokens : 7000,
+            RecentMessageWindow = int.TryParse(recentMessageWindow, out var recentWindow) ? recentWindow : 4,
+            ConversationSummaryInterval = int.TryParse(conversationSummaryInterval, out var summaryInterval) ? summaryInterval : 6,
+            MaxConversationSummaryLength = int.TryParse(maxConversationSummaryLength, out var maxSummaryLen) ? maxSummaryLen : 1500,
+            EnableConversationSummary = !bool.TryParse(enableConversationSummary, out var enableSummary) || enableSummary
         };
+    }
+
+    public async Task<ChatMemorySettings> GetChatMemorySettingsAsync()
+    {
+        var recentMessageWindow = await GetSettingAsync("AI:RecentMessageWindow");
+        var conversationSummaryInterval = await GetSettingAsync("AI:ConversationSummaryInterval");
+        var maxConversationSummaryLength = await GetSettingAsync("AI:MaxConversationSummaryLength");
+        var enableConversationSummary = await GetSettingAsync("AI:EnableConversationSummary");
+
+        return new ChatMemorySettings
+        {
+            RecentMessageWindow = int.TryParse(recentMessageWindow, out var recentWindow) ? recentWindow : 4,
+            ConversationSummaryInterval = int.TryParse(conversationSummaryInterval, out var summaryInterval) ? summaryInterval : 6,
+            MaxConversationSummaryLength = int.TryParse(maxConversationSummaryLength, out var maxSummaryLen) ? maxSummaryLen : 1500,
+            EnableConversationSummary = !bool.TryParse(enableConversationSummary, out var enableSummary) || enableSummary
+        };
+    }
+
+    public async Task UpdateChatMemorySettingsAsync(ChatMemorySettings settings, string updatedBy)
+    {
+        await UpdateSettingAsync("AI:RecentMessageWindow", settings.RecentMessageWindow.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:ConversationSummaryInterval", settings.ConversationSummaryInterval.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:MaxConversationSummaryLength", settings.MaxConversationSummaryLength.ToString(), updatedBy);
+        await UpdateSettingAsync(
+            "AI:EnableConversationSummary",
+            settings.EnableConversationSummary.ToString().ToLowerInvariant(),
+            updatedBy);
+    }
+
+    public async Task UpdateChatPoliciesAsync(IReadOnlyList<ChatPolicyItem> policies, string updatedBy)
+    {
+        foreach (var policy in policies)
+        {
+            if (string.IsNullOrWhiteSpace(policy.Key) || !policy.Key.StartsWith("AI:Policy:", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"Invalid chat policy key: '{policy.Key}'");
+            }
+
+            await UpdateSettingAsync(policy.Key, policy.Value, updatedBy);
+        }
+    }
+
+    public async Task<IReadOnlyList<ChatPolicyItem>> GetChatPoliciesAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await _context.ApplicationSettings
+            .Where(s => s.Category == "AI:Policy" || s.Key.StartsWith("AI:Policy:"))
+            .OrderBy(s => s.Key)
+            .ToListAsync(cancellationToken);
+
+        return settings
+            .Select(s => new ChatPolicyItem
+            {
+                Key = s.Key,
+                Value = s.Value,
+                Description = s.Description
+            })
+            .ToList();
+    }
+
+    public async Task<(AISettings AiSettings, IReadOnlyList<ChatPolicyItem> Policies)> GetChatMemoryApplicationSettingsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await _context.ApplicationSettings
+            .Where(s => s.Key.StartsWith("AI:"))
+            .ToListAsync(cancellationToken);
+
+        var values = settings.ToDictionary(s => s.Key, s => s.Value, StringComparer.OrdinalIgnoreCase);
+
+        string? GetValue(string key) => values.TryGetValue(key, out var value) ? value : null;
+
+        var aiSettings = new AISettings
+        {
+            MaxSearchResults = int.TryParse(GetValue("AI:MaxSearchResults"), out var searchResults) ? searchResults : 5,
+            MaxContentLengthPerSource = int.TryParse(GetValue("AI:MaxContentLengthPerSource"), out var contentLength) ? contentLength : 800,
+            MaxHistoryMessages = int.TryParse(GetValue("AI:MaxHistoryMessages"), out var historyMessages) ? historyMessages : 10,
+            MaxTotalTokens = int.TryParse(GetValue("AI:MaxTotalTokens"), out var totalTokens) ? totalTokens : 7000,
+            RecentMessageWindow = int.TryParse(GetValue("AI:RecentMessageWindow"), out var recentWindow) ? recentWindow : 4,
+            ConversationSummaryInterval = int.TryParse(GetValue("AI:ConversationSummaryInterval"), out var summaryInterval) ? summaryInterval : 6,
+            MaxConversationSummaryLength = int.TryParse(GetValue("AI:MaxConversationSummaryLength"), out var maxSummaryLen) ? maxSummaryLen : 1500,
+            EnableConversationSummary = !bool.TryParse(GetValue("AI:EnableConversationSummary"), out var enableSummary) || enableSummary
+        };
+
+        var policies = settings
+            .Where(s => s.Category == "AI:Policy" || s.Key.StartsWith("AI:Policy:", StringComparison.Ordinal))
+            .OrderBy(s => s.Key)
+            .Select(s => new ChatPolicyItem
+            {
+                Key = s.Key,
+                Value = s.Value,
+                Description = s.Description
+            })
+            .ToList();
+
+        return (aiSettings, policies);
     }
 
     public async Task UpdateAISettingsAsync(AISettings settings, string updatedBy)
@@ -169,6 +272,20 @@ public interface IApplicationSettingsService
     Task UpsertSettingAsync(string key, string value, string category, string description, string updatedBy);
     Task<AISettings> GetAISettingsAsync();
     Task UpdateAISettingsAsync(AISettings settings, string updatedBy);
+    Task<ChatMemorySettings> GetChatMemorySettingsAsync();
+    Task UpdateChatMemorySettingsAsync(ChatMemorySettings settings, string updatedBy);
+    Task<IReadOnlyList<ChatPolicyItem>> GetChatPoliciesAsync(CancellationToken cancellationToken = default);
+    Task<(AISettings AiSettings, IReadOnlyList<ChatPolicyItem> Policies)> GetChatMemoryApplicationSettingsAsync(
+        CancellationToken cancellationToken = default);
+    Task UpdateChatPoliciesAsync(IReadOnlyList<ChatPolicyItem> policies, string updatedBy);
+}
+
+public class ChatMemorySettings
+{
+    public int RecentMessageWindow { get; set; }
+    public int ConversationSummaryInterval { get; set; }
+    public int MaxConversationSummaryLength { get; set; }
+    public bool EnableConversationSummary { get; set; }
 }
 
 public class AISettings
@@ -177,4 +294,8 @@ public class AISettings
     public int MaxContentLengthPerSource { get; set; }
     public int MaxHistoryMessages { get; set; }
     public int MaxTotalTokens { get; set; }
+    public int RecentMessageWindow { get; set; }
+    public int ConversationSummaryInterval { get; set; }
+    public int MaxConversationSummaryLength { get; set; }
+    public bool EnableConversationSummary { get; set; }
 }

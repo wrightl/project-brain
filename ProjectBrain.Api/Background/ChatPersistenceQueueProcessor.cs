@@ -3,6 +3,8 @@ using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectBrain.Domain;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 namespace ProjectBrain.Api.Background;
 
@@ -85,10 +87,12 @@ public sealed class ChatPersistenceQueueProcessor : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var chatService = scope.ServiceProvider.GetRequiredService<IChatService>();
             var usage = scope.ServiceProvider.GetRequiredService<IUsageTrackingService>();
+            var timeTickerManager = scope.ServiceProvider.GetService<ITimeTickerManager<TimeTickerEntity>>();
 
             await ChatPersistenceHelper.PersistSynchronouslyAsync(
                     chatService,
                     usage,
+                    timeTickerManager,
                     dto.ConversationId,
                     dto.UserId,
                     dto.UserContent,

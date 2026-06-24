@@ -199,6 +199,55 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             },
             new()
             {
+                Key = "AI:RecentMessageWindow",
+                Value = "4",
+                Category = "AI",
+                Description = "Number of recent raw messages to include when a conversation summary is present"
+            },
+            new()
+            {
+                Key = "AI:ConversationSummaryInterval",
+                Value = "6",
+                Category = "AI",
+                Description = "Regenerate conversation context summary every N persisted messages"
+            },
+            new()
+            {
+                Key = "AI:MaxConversationSummaryLength",
+                Value = "1500",
+                Category = "AI",
+                Description = "Maximum stored conversation context summary length in characters"
+            },
+            new()
+            {
+                Key = "AI:EnableConversationSummary",
+                Value = "true",
+                Category = "AI",
+                Description = "Enable rolling conversation context summaries in chat prompts"
+            },
+            new()
+            {
+                Key = "AI:Policy:CrisisGuidance",
+                Value = "Avoid medical or diagnostic claims. If the user describes immediate danger or crisis, encourage them to seek urgent professional help or contact local emergency services.",
+                Category = "AI:Policy",
+                Description = "Crisis and safety guardrails for chat responses"
+            },
+            new()
+            {
+                Key = "AI:Policy:CommunicationStyle",
+                Value = "Be clear, concise, and break down complex information into manageable parts. Use a friendly, supportive, and respectful tone. If the query is unclear or ambiguous, politely ask for clarification. Use the user's name occasionally and naturally—not in every sentence, and never in a patronizing or condescending way.",
+                Category = "AI:Policy",
+                Description = "Communication style guardrails for chat responses"
+            },
+            new()
+            {
+                Key = "AI:Policy:CitationRules",
+                Value = "Always cite sources using [number] format (e.g., [1], [2]) when referencing documents. Base responses on provided sources, the user's query, and conversation history. Ignore sources that are not relevant to the user's query or conversation history.",
+                Category = "AI:Policy",
+                Description = "Citation and source usage rules for chat responses"
+            },
+            new()
+            {
                 Key = "Referral:Enabled",
                 Value = "true",
                 Category = "Referral",

@@ -22,7 +22,8 @@ public class ChatServices(ILogger<ChatServices> logger,
     IFeatureGateService featureGateService,
     ISubscriptionService subscriptionService,
     IChatPersistenceQueue chatPersistenceQueue,
-    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager,
+    IChatMemoryContextService chatMemoryContextService)
 {
     public ILogger<ChatServices> Logger { get; } = logger;
     public IConfiguration Config { get; } = config;
@@ -36,6 +37,7 @@ public class ChatServices(ILogger<ChatServices> logger,
     public ISubscriptionService SubscriptionService { get; } = subscriptionService;
     public IChatPersistenceQueue ChatPersistenceQueue { get; } = chatPersistenceQueue;
     public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
+    public IChatMemoryContextService ChatMemoryContextService { get; } = chatMemoryContextService;
 }
 
 public static class ChatEndpoints
@@ -384,6 +386,12 @@ public static class ChatEndpoints
 
         LogChatStreamPhase(services.Logger, correlationId, sw, "after_onboarding_blob", conversation.Id);
 
+        var memoryContext = await services.ChatMemoryContextService.BuildAsync(
+            userId!,
+            conversation.Id,
+            http.RequestAborted);
+        LogChatStreamPhase(services.Logger, correlationId, sw, "after_memory_context", conversation.Id);
+
         if (string.Equals(request.Mode, "strategies", StringComparison.OrdinalIgnoreCase))
         {
             SemaphoreSlim? strategiesSseLock = null;
@@ -412,6 +420,7 @@ public static class ChatEndpoints
                     userInformation,
                     userName,
                     history,
+                    memoryContext,
                     http.RequestAborted);
                 LogChatStreamPhase(services.Logger, correlationId, sw, "strategies_after_GetStrategySuggestionsAsync", conversation.Id);
 
@@ -453,6 +462,7 @@ public static class ChatEndpoints
                 services.ChatPersistenceQueue,
                 services.ChatService,
                 services.UsageTrackingService,
+                services.TimeTickerManager,
                 conversation.Id,
                 userId!,
                 request.Content,
@@ -481,7 +491,7 @@ public static class ChatEndpoints
         {
             LogChatStreamPhase(services.Logger, correlationId, sw, "main_before_GetResponseWithCitations", conversation.Id);
             var (chatResponse, citations) = await services.AzureOpenAI.GetResponseWithCitations(
-                request.Content, userId, userInformation, userName, history, correlationId);
+                request.Content, userId, userInformation, userName, history, memoryContext, conversation.Id, correlationId);
             LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_GetResponseWithCitations", conversation.Id);
 
             services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
@@ -553,6 +563,7 @@ public static class ChatEndpoints
                 services.ChatPersistenceQueue,
                 services.ChatService,
                 services.UsageTrackingService,
+                services.TimeTickerManager,
                 conversation.Id,
                 userId!,
                 request.Content,

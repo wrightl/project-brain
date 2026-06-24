@@ -303,7 +303,7 @@ public static class ChatEndpoints
 
         if (request.ConversationId is null)
         {
-            var placeholderTitle = BuildNewConversationPlaceholderTitle(request.Content);
+            var placeholderTitle = ConversationTitleHelper.BuildPlaceholderTitle(request.Content);
             conversation = await services.ConversationService.Add(new Conversation
             {
                 Id = Guid.NewGuid(),
@@ -580,17 +580,6 @@ public static class ChatEndpoints
                 await mainHeartbeat.DisposeAsync();
             mainSseLock?.Dispose();
         }
-    }
-
-    private static string BuildNewConversationPlaceholderTitle(string content)
-    {
-        var trimmed = content.Trim();
-        if (string.IsNullOrEmpty(trimmed))
-            return "New chat";
-        const int maxLen = 128;
-        if (trimmed.Length <= maxLen)
-            return trimmed;
-        return trimmed[..(maxLen - 3)] + "...";
     }
 
     private static TimeSpan GetSseHeartbeatInterval(IConfiguration config)

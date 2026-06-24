@@ -8,6 +8,8 @@ import {
     Citation,
     ToolExecution,
     ActionCard,
+    PendingActionConfirmResponse,
+    UserChoicePrompt,
 } from "@/_lib/types";
 import { fetchWithAuth } from "@/_lib/fetch-with-auth";
 import { PaperAirplaneIcon, Bars3Icon } from "@heroicons/react/24/outline";
@@ -18,6 +20,7 @@ import ConversationsDrawer from "./conversations-drawer";
 import { useAgentFeatureEnabled } from "@/_hooks/use-feature-flag";
 import ToolExecutionBadge from "./tool-execution-badge";
 import ActionCardWidget from "./action-card";
+import UserChoiceChips from "./user-choice-chips";
 import { isSafeExternalUrl } from "@/_lib/url-security";
 import toast from "react-hot-toast";
 import { apiClient } from "@/_lib/api-client";
@@ -72,6 +75,9 @@ export default function ChatInterface({
         Set<number>
     >(new Set());
     const [isSavingStrategies, setIsSavingStrategies] = useState(false);
+    const [answeredChoiceIndexes, setAnsweredChoiceIndexes] = useState<
+        Set<number>
+    >(new Set());
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const streamingMessageRef = useRef<string>("");
@@ -101,11 +107,13 @@ export default function ChatInterface({
             if (syncedConversationIdRef.current !== conversation.id) {
                 syncedConversationIdRef.current = conversation.id;
                 setMessages(conversation.messages || []);
+                setAnsweredChoiceIndexes(new Set());
             }
         } else {
             syncedConversationIdRef.current = undefined;
             setConversationId(undefined);
             setMessages([]);
+            setAnsweredChoiceIndexes(new Set());
         }
     }, [conversation]);
 
@@ -210,6 +218,64 @@ export default function ChatInterface({
         return normalized;
     };
 
+    const normalizeUserChoices = (value: unknown): UserChoicePrompt | null => {
+        if (typeof value !== "object" || value === null) {
+            return null;
+        }
+
+        const obj = value as Record<string, unknown>;
+        const rawOptions = obj.options;
+        if (!Array.isArray(rawOptions)) {
+            return null;
+        }
+
+        const options = rawOptions
+            .map((item) => {
+                if (typeof item !== "object" || item === null) {
+                    return null;
+                }
+
+                const option = item as Record<string, unknown>;
+                const id =
+                    typeof option.id === "string"
+                        ? option.id
+                        : String(option.id ?? "");
+                const label =
+                    typeof option.label === "string"
+                        ? option.label
+                        : String(option.label ?? "");
+
+                if (!id || !label) {
+                    return null;
+                }
+
+                return { id, label };
+            })
+            .filter(
+                (option): option is { id: string; label: string } =>
+                    option !== null,
+            );
+
+        if (options.length === 0) {
+            return null;
+        }
+
+        return {
+            prompt:
+                typeof obj.prompt === "string" && obj.prompt.trim().length > 0
+                    ? obj.prompt
+                    : undefined,
+            allowMultiple: obj.allowMultiple === true,
+            options,
+        };
+    };
+
+    const handleUserChoiceSelect = (messageIndex: number, label: string) => {
+        if (isStreaming) return;
+        setAnsweredChoiceIndexes((prev) => new Set(prev).add(messageIndex));
+        void sendMessage(label);
+    };
+
     const toggleStrategySelected = (index: number) => {
         setSelectedStrategyIndexes((prev) => {
             const next = new Set(prev);
@@ -261,6 +327,98 @@ export default function ChatInterface({
         } finally {
             setIsSavingStrategies(false);
         }
+    };
+
+    const handleConfirmPendingAction = async (card: ActionCard) => {
+        if (!card.workflowId || !card.pendingActionId) {
+            toast.error("Missing confirmation details");
+            return;
+        }
+
+        const response = await fetchWithAuth(
+            `/api/agent/workflows/${card.workflowId}/actions/${card.pendingActionId}/confirm`,
+            { method: "POST" },
+        );
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || "Failed to confirm action");
+        }
+
+        const result = (await response.json()) as PendingActionConfirmResponse;
+        if (!result.success) {
+            throw new Error(result.message || "Failed to confirm action");
+        }
+
+        setMessages((prev) =>
+            prev.map((message, index) => {
+                if (index !== prev.length - 1 || message.role !== "assistant") {
+                    return message;
+                }
+
+                const remainingCards = (message.actionCards ?? []).filter(
+                    (c) =>
+                        !(
+                            c.cardType === "pending_confirmation" &&
+                            c.pendingActionId === card.pendingActionId
+                        ),
+                );
+
+                return {
+                    ...message,
+                    actionCards: [
+                        ...remainingCards,
+                        ...(result.actionCards ?? []),
+                    ],
+                    toolExecutions: result.toolExecution
+                        ? [
+                              ...(message.toolExecutions ?? []),
+                              result.toolExecution,
+                          ]
+                        : message.toolExecutions,
+                };
+            }),
+        );
+
+        toast.success(result.message ?? "Action confirmed");
+    };
+
+    const handleCancelPendingAction = async (card: ActionCard) => {
+        if (!card.workflowId || !card.pendingActionId) {
+            toast.error("Missing confirmation details");
+            return;
+        }
+
+        const response = await fetchWithAuth(
+            `/api/agent/workflows/${card.workflowId}/actions/${card.pendingActionId}/cancel`,
+            { method: "POST" },
+        );
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || "Failed to cancel action");
+        }
+
+        setMessages((prev) =>
+            prev.map((message, index) => {
+                if (index !== prev.length - 1 || message.role !== "assistant") {
+                    return message;
+                }
+
+                return {
+                    ...message,
+                    actionCards: (message.actionCards ?? []).filter(
+                        (c) =>
+                            !(
+                                c.cardType === "pending_confirmation" &&
+                                c.pendingActionId === card.pendingActionId
+                            ),
+                    ),
+                };
+            }),
+        );
+
+        toast.success("Action cancelled");
     };
 
     const handleVoiceRecording = async (audioBlob: Blob) => {
@@ -456,6 +614,7 @@ export default function ChatInterface({
                 let citations: Citation[] = [];
                 let toolExecutions: ToolExecution[] = [];
                 let actionCards: ActionCard[] = [];
+                let userChoices: UserChoicePrompt | null = null;
                 let done = false;
 
                 while (!done) {
@@ -528,6 +687,21 @@ export default function ChatInterface({
                                             parsed.value as ActionCard,
                                         ];
                                     } else if (
+                                        parsed.type === "pending_action" &&
+                                        parsed.value
+                                    ) {
+                                        actionCards = [
+                                            ...actionCards,
+                                            parsed.value as ActionCard,
+                                        ];
+                                    } else if (
+                                        parsed.type === "user_choices" &&
+                                        parsed.value
+                                    ) {
+                                        userChoices = normalizeUserChoices(
+                                            parsed.value,
+                                        );
+                                    } else if (
                                         parsed.type === "workflow" &&
                                         parsed.value?.id
                                     ) {
@@ -558,7 +732,8 @@ export default function ChatInterface({
                 if (
                     streamingMessageRef.current ||
                     toolExecutions.length > 0 ||
-                    actionCards.length > 0
+                    actionCards.length > 0 ||
+                    userChoices
                 ) {
                     const assistantMessage: ChatMessage = {
                         role: "assistant",
@@ -571,6 +746,7 @@ export default function ChatInterface({
                                 : undefined,
                         actionCards:
                             actionCards.length > 0 ? actionCards : undefined,
+                        userChoices: userChoices ?? undefined,
                         workflowId: newWorkflowIdHeader || workflowId,
                     };
                     setMessages((prev) => [...prev, assistantMessage]);
@@ -920,16 +1096,22 @@ export default function ChatInterface({
                                 {agentFeatureEnabled &&
                                     message.role === "assistant" &&
                                     message.toolExecutions &&
-                                    message.toolExecutions.length > 0 && (
+                                    message.toolExecutions.filter(
+                                        (tool) => tool.toolName !== "ask_user",
+                                    ).length > 0 && (
                                         <div className="mt-2 space-y-2">
-                                            {message.toolExecutions.map(
-                                                (tool, toolIndex) => (
+                                            {message.toolExecutions
+                                                .filter(
+                                                    (tool) =>
+                                                        tool.toolName !==
+                                                        "ask_user",
+                                                )
+                                                .map((tool, toolIndex) => (
                                                     <ToolExecutionBadge
                                                         key={toolIndex}
                                                         tool={tool}
                                                     />
-                                                ),
-                                            )}
+                                                ))}
                                         </div>
                                     )}
                                 {agentFeatureEnabled &&
@@ -942,10 +1124,31 @@ export default function ChatInterface({
                                                     <ActionCardWidget
                                                         key={cardIndex}
                                                         card={card}
+                                                        onConfirmPendingAction={
+                                                            handleConfirmPendingAction
+                                                        }
+                                                        onCancelPendingAction={
+                                                            handleCancelPendingAction
+                                                        }
                                                     />
                                                 ),
                                             )}
                                         </div>
+                                    )}
+                                {agentFeatureEnabled &&
+                                    message.role === "assistant" &&
+                                    message.userChoices &&
+                                    !answeredChoiceIndexes.has(index) && (
+                                        <UserChoiceChips
+                                            choices={message.userChoices}
+                                            disabled={isStreaming}
+                                            onSelect={(label) =>
+                                                handleUserChoiceSelect(
+                                                    index,
+                                                    label,
+                                                )
+                                            }
+                                        />
                                     )}
                             </div>
                         </div>

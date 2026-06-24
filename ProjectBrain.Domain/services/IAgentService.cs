@@ -19,6 +19,7 @@ public interface IAgentService
       string userName,
       List<AgentChatMessage> conversationHistory,
       ChatMemoryContext memoryContext,
+      UserType userType = UserType.User,
       CancellationToken cancellationToken = default);
 
   /// <summary>
@@ -33,12 +34,41 @@ public interface IAgentService
       string userName,
       List<AgentChatMessage> conversationHistory,
       ChatMemoryContext memoryContext,
+      UserType userType = UserType.User,
       CancellationToken cancellationToken = default);
 
   /// <summary>
-  /// Gets available tools for the agent
+  /// Gets all tool definitions (unfiltered).
   /// </summary>
   List<Dictionary<string, object>> GetAvailableTools();
+
+  /// <summary>
+  /// Gets tool definitions enabled for the given user context.
+  /// </summary>
+  Task<List<Dictionary<string, object>>> GetEnabledToolsAsync(
+      string userId,
+      Guid? conversationId = null,
+      Guid? workflowId = null,
+      UserType userType = UserType.User,
+      CancellationToken cancellationToken = default);
+
+  /// <summary>
+  /// Confirms and executes a pending tool action.
+  /// </summary>
+  Task<AgentPendingActionResult> ConfirmPendingActionAsync(
+      string userId,
+      Guid workflowId,
+      Guid actionId,
+      CancellationToken cancellationToken = default);
+
+  /// <summary>
+  /// Cancels a pending tool action.
+  /// </summary>
+  Task<AgentPendingActionResult> CancelPendingActionAsync(
+      string userId,
+      Guid workflowId,
+      Guid actionId,
+      CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -52,4 +82,11 @@ public class AgentResponse
     public string? Message { get; set; } // The assistant's text response
     public List<ToolExecutionRecord> ExecutedTools { get; set; } = new();
     public List<ChatCitationDto> Citations { get; set; } = new();
+}
+
+public sealed class AgentPendingActionResult
+{
+    public required bool Success { get; init; }
+    public string? Message { get; init; }
+    public ToolExecutionRecord? ToolExecution { get; init; }
 }

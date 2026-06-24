@@ -95,10 +95,10 @@ public static class AgentActionCardMapper
                         cardType = "coaches_found",
                         coaches = coaches.EnumerateArray().Select(c => new
                         {
-                            coachProfileId = c.TryGetProperty("coachProfileId", out var id) ? id.GetString() : null,
-                            name = c.TryGetProperty("name", out var name) ? name.GetString() : null,
-                            bio = c.TryGetProperty("bio", out var bio) ? bio.GetString() : null,
-                            profileUrl = c.TryGetProperty("profileUrl", out var url) ? url.GetString() : null
+                            coachProfileId = c.TryGetProperty("coachProfileId", out var id) ? GetJsonString(id) : null,
+                            name = c.TryGetProperty("name", out var name) ? GetJsonString(name) : null,
+                            bio = c.TryGetProperty("bio", out var bio) ? GetJsonString(bio) : null,
+                            profileUrl = c.TryGetProperty("profileUrl", out var url) ? GetJsonString(url) : null
                         }),
                         href = "/app/user/find-coaches",
                         label = "Browse coaches"
@@ -117,6 +117,97 @@ public static class AgentActionCardMapper
                     label = "Manage resources"
                 };
                 break;
+
+            case "suggest_daily_goals":
+                if (root.TryGetProperty("goals", out var suggestedGoals) && suggestedGoals.ValueKind == JsonValueKind.Array)
+                {
+                    yield return new
+                    {
+                        cardType = "goals_suggested",
+                        goals = suggestedGoals.EnumerateArray().Select(g => new
+                        {
+                            message = g.ValueKind == JsonValueKind.String ? g.GetString() : g.GetRawText()
+                        }),
+                        href = "/app/user/eggs",
+                        label = "View your goals"
+                    };
+                }
+
+                break;
+
+            case "get_goal_streak":
+                if (root.TryGetProperty("currentStreak", out var currentStreak))
+                {
+                    yield return new
+                    {
+                        cardType = "goal_streak",
+                        currentStreak = currentStreak.GetInt32(),
+                        longestStreak = root.TryGetProperty("longestStreak", out var longest) ? longest.GetInt32() : 0,
+                        href = "/app/user/eggs",
+                        label = "View your goals"
+                    };
+                }
+
+                break;
+
+            case "create_journal_entry":
+                if (root.TryGetProperty("entry", out var entry))
+                {
+                    var entryId = entry.TryGetProperty("id", out var idEl) ? GetJsonString(idEl) : null;
+                    yield return new
+                    {
+                        cardType = "journal_entry_created",
+                        entryId,
+                        summary = entry.TryGetProperty("summary", out var summary) ? summary.GetString() : null,
+                        href = entryId is not null ? $"/app/user/journal/{entryId}" : "/app/user/journal",
+                        label = "View journal entry"
+                    };
+                }
+
+                break;
+
+            case "remember_fact":
+                if (root.TryGetProperty("fact", out var fact))
+                {
+                    yield return new
+                    {
+                        cardType = "memory_saved",
+                        title = fact.TryGetProperty("content", out var content) ? content.GetString() : null,
+                        description = fact.TryGetProperty("category", out var category) ? category.GetString() : null,
+                        href = "/app/user/profile",
+                        label = "View learned memories"
+                    };
+                }
+
+                break;
+
+            case "forget_memory":
+                yield return new
+                {
+                    cardType = "memory_deleted",
+                    message = root.TryGetProperty("message", out var msg) ? msg.GetString() : "Memory forgotten",
+                    href = "/app/user/profile",
+                    label = "View learned memories"
+                };
+                break;
+
+            case "delete_knowledge_resource":
+                yield return new
+                {
+                    cardType = "document_deleted",
+                    message = root.TryGetProperty("message", out var deleteMsg) ? deleteMsg.GetString() : "Resource deleted",
+                    href = "/app/user/manage-resources",
+                    label = "Manage resources"
+                };
+                break;
         }
     }
+
+    private static string? GetJsonString(JsonElement element) =>
+        element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.GetRawText(),
+            _ => null
+        };
 }

@@ -56,6 +56,9 @@ builder.Services.AddScoped<IGoalMutationSideEffects, GoalMutationSideEffectsServ
 builder.Services.AddScoped<ICopingStrategySideEffects, CopingStrategySideEffectsService>();
 builder.Services.AddScoped<IStrategySuggestionService, StrategySuggestionService>();
 builder.Services.AddScoped<IUserKnowledgeUploadService, UserKnowledgeUploadService>();
+builder.Services.AddScoped<IGoalSuggestionService, GoalSuggestionService>();
+builder.Services.AddScoped<IJournalAgentService, JournalAgentService>();
+builder.Services.AddScoped<IAgentMemoryWriteService, AgentMemoryWriteService>();
 
 var queuesConnectionString = builder.Configuration.GetConnectionString("queues");
 if (!string.IsNullOrWhiteSpace(queuesConnectionString))

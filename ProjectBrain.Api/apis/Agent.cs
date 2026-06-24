@@ -54,6 +54,8 @@ public static class AgentEndpoints
         group.MapPost("/stream/event-stream", StreamAgentEventStream).WithName("StreamAgentEventStream");
         group.MapGet("/tools", GetAvailableTools).WithName("GetAvailableTools");
         group.MapGet("/workflows", GetWorkflows).WithName("GetWorkflows");
+        group.MapPost("/workflows/{workflowId:guid}/actions/{actionId:guid}/confirm", ConfirmPendingAction).WithName("ConfirmAgentPendingAction");
+        group.MapPost("/workflows/{workflowId:guid}/actions/{actionId:guid}/cancel", CancelPendingAction).WithName("CancelAgentPendingAction");
         group.MapPost("/workflows/{id}/resume", ResumeWorkflow).WithName("ResumeWorkflow");
         group.MapPost("/workflows/{id}/cancel", CancelWorkflow).WithName("CancelWorkflow");
     }
@@ -103,23 +105,29 @@ public static class AgentEndpoints
         Conversation? conversation;
         if (request.ConversationId is null)
         {
-            var chatSummaryResponse = await services.Storage.GetFile(Constants.ONBOARDING_MARKDOWN_FILENAME, new StorageOptions
-            {
-                UserId = userId,
-                FileOwnership = FileOwnership.User,
-                StorageType = StorageType.Onboarding
-            }) != null
-                ? "Agent interaction"
-                : "Agent interaction";
-
+            var placeholderTitle = ConversationTitleHelper.BuildPlaceholderTitle(request.Content);
             conversation = await services.ConversationService.Add(new Conversation
             {
                 Id = Guid.NewGuid(),
                 UserId = userId!,
-                Title = chatSummaryResponse,
+                Title = placeholderTitle,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             });
+
+            try
+            {
+                await UserContextTickerEnqueue.EnqueueConversationTitleSummaryAsync(
+                    services.TimeTickerManager,
+                    userId!,
+                    conversation.Id,
+                    request.Content,
+                    http.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogWarning(ex, "Failed to enqueue conversation title summary for {ConversationId}", conversation.Id);
+            }
         }
         else
         {
@@ -177,6 +185,7 @@ public static class AgentEndpoints
             userName,
             history,
             memoryContext,
+            UserType.User,
             http.RequestAborted))
         {
             switch (streamEvent.Type)
@@ -249,6 +258,16 @@ public static class AgentEndpoints
                     await http.Response.Body.FlushAsync();
                     break;
 
+                case "pending_action":
+                    await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "pending_action", value = streamEvent.Value })}\n\n");
+                    await http.Response.Body.FlushAsync();
+                    break;
+
+                case "user_choices":
+                    await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "user_choices", value = streamEvent.Value })}\n\n");
+                    await http.Response.Body.FlushAsync();
+                    break;
+
                 case "status":
                     await http.Response.WriteAsync($"data: {JsonSerializer.Serialize(new { type = "status", value = streamEvent.Value })}\n\n");
                     await http.Response.Body.FlushAsync();
@@ -276,8 +295,61 @@ public static class AgentEndpoints
 
     private static async Task<IResult> GetAvailableTools([AsParameters] AgentServices services)
     {
-        var tools = services.AgentService.GetAvailableTools();
+        var userId = services.IdentityService.UserId!;
+        var tools = await services.AgentService.GetEnabledToolsAsync(userId);
         return Results.Ok(tools);
+    }
+
+    private static async Task<IResult> ConfirmPendingAction(
+        [AsParameters] AgentServices services,
+        Guid workflowId,
+        Guid actionId)
+    {
+        var userId = services.IdentityService.UserId!;
+        var result = await services.AgentService.ConfirmPendingActionAsync(userId, workflowId, actionId);
+
+        if (!result.Success)
+        {
+            return Results.BadRequest(new { success = false, message = result.Message });
+        }
+
+        var response = new
+        {
+            success = true,
+            message = result.Message,
+            toolExecution = result.ToolExecution is null ? null : new
+            {
+                toolName = result.ToolExecution.ToolName,
+                parameters = result.ToolExecution.Parameters,
+                result = result.ToolExecution.Result,
+                success = result.ToolExecution.Success,
+                executedAt = result.ToolExecution.ExecutedAt.ToString("O")
+            },
+            actionCards = result.ToolExecution is null
+                ? Array.Empty<object>()
+                : AgentActionCardMapper.MapToolResult(
+                    result.ToolExecution.ToolName,
+                    result.ToolExecution.Result,
+                    result.ToolExecution.Success).ToArray()
+        };
+
+        return Results.Ok(response);
+    }
+
+    private static async Task<IResult> CancelPendingAction(
+        [AsParameters] AgentServices services,
+        Guid workflowId,
+        Guid actionId)
+    {
+        var userId = services.IdentityService.UserId!;
+        var result = await services.AgentService.CancelPendingActionAsync(userId, workflowId, actionId);
+
+        if (!result.Success)
+        {
+            return Results.BadRequest(new { success = false, message = result.Message });
+        }
+
+        return Results.Ok(new { success = true, message = result.Message });
     }
 
     private static async Task<IResult> GetWorkflows([AsParameters] AgentServices services)

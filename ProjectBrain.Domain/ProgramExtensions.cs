@@ -114,6 +114,9 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IAgentToolHandler, CreateGoalsForDaysToolHandler>();
         builder.Services.AddScoped<IAgentToolHandler, GetTodaysGoalsToolHandler>();
         builder.Services.AddScoped<IAgentToolHandler, CompleteGoalToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, GetGoalStreakToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, GetIncompleteGoalBacklogToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, SuggestDailyGoalsToolHandler>();
         builder.Services.AddScoped<IAgentToolHandler, SuggestCopingStrategiesToolHandler>();
         builder.Services.AddScoped<IAgentToolHandler, SaveCopingStrategyToolHandler>();
         builder.Services.AddScoped<IAgentToolHandler, GetCopingStrategiesToolHandler>();
@@ -123,6 +126,13 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IAgentToolHandler, DeleteKnowledgeResourceToolHandler>();
         builder.Services.AddScoped<IAgentToolHandler, SearchCoachesToolHandler>();
         builder.Services.AddScoped<IAgentToolHandler, GetConnectedCoachesToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, CreateJournalEntryToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, GetRecentJournalEntriesToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, GetJournalStreakToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, ListMyMemoriesToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, RememberFactToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, ForgetMemoryToolHandler>();
+        builder.Services.AddScoped<IAgentToolHandler, AskUserToolHandler>();
         builder.Services.AddScoped<IAgentService, AgentService>();
         builder.Services.AddScoped<IAgentActionTrackingService, AgentActionTrackingService>();
         builder.Services.AddScoped<IAchievementService, AchievementService>();

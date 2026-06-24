@@ -204,6 +204,7 @@ export interface ChatMessage {
     citations?: Citation[];
     toolExecutions?: ToolExecution[];
     actionCards?: ActionCard[];
+    userChoices?: UserChoicePrompt;
     workflowId?: string;
 }
 
@@ -224,7 +225,16 @@ export interface ActionCard {
     description?: string;
     filename?: string;
     resourceId?: string;
-    goals?: Array<{ index: number; message?: string; completed?: boolean }>;
+    message?: string;
+    entryId?: string;
+    summary?: string;
+    currentStreak?: number;
+    longestStreak?: number;
+    pendingActionId?: string;
+    workflowId?: string;
+    toolName?: string;
+    preview?: string;
+    goals?: Array<{ index?: number; message?: string; completed?: boolean }>;
     days?: Array<{ date?: string; goalCount?: number }>;
     coaches?: Array<{
         coachProfileId?: string;
@@ -232,6 +242,24 @@ export interface ActionCard {
         bio?: string;
         profileUrl?: string;
     }>;
+}
+
+export interface PendingActionConfirmResponse {
+    success: boolean;
+    message?: string;
+    toolExecution?: ToolExecution;
+    actionCards?: ActionCard[];
+}
+
+export interface UserChoiceOption {
+    id: string;
+    label: string;
+}
+
+export interface UserChoicePrompt {
+    prompt?: string;
+    allowMultiple: boolean;
+    options: UserChoiceOption[];
 }
 
 export interface Conversation {

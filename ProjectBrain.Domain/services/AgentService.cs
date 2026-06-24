@@ -43,6 +43,119 @@ public class AgentService : IAgentService
         return _toolRegistry.GetAllDefinitions().ToList();
     }
 
+    public async Task<List<Dictionary<string, object>>> GetEnabledToolsAsync(
+        string userId,
+        Guid? conversationId = null,
+        Guid? workflowId = null,
+        UserType userType = UserType.User,
+        CancellationToken cancellationToken = default)
+    {
+        var context = _toolContextFactory.Create(userId, conversationId, workflowId, userType: userType);
+        var tools = await _toolRegistry.GetEnabledDefinitionsAsync(context, cancellationToken);
+        return tools.ToList();
+    }
+
+    public async Task<AgentPendingActionResult> ConfirmPendingActionAsync(
+        string userId,
+        Guid workflowId,
+        Guid actionId,
+        CancellationToken cancellationToken = default)
+    {
+        var workflowState = await _orchestrator.LoadWorkflowAsync(workflowId, userId, cancellationToken);
+        if (workflowState is null)
+        {
+            return new AgentPendingActionResult { Success = false, Message = "Workflow not found" };
+        }
+
+        var pendingAction = AgentPendingActionStore.Find(workflowState, actionId);
+        if (pendingAction is null)
+        {
+            return new AgentPendingActionResult { Success = false, Message = "Pending action not found" };
+        }
+
+        var toolContext = _toolContextFactory.Create(
+            userId,
+            workflowState.ConversationId,
+            workflowState.Id,
+            userType: UserType.User);
+
+        try
+        {
+            var toolResult = await _toolRegistry.ExecuteAsync(
+                pendingAction.ToolName,
+                toolContext,
+                pendingAction.Parameters,
+                cancellationToken);
+
+            await _actionTrackingService.RecordActionAsync(
+                userId,
+                workflowState.ConversationId,
+                workflowState.Id,
+                pendingAction.ToolName,
+                pendingAction.Parameters,
+                toolResult,
+                true,
+                null,
+                cancellationToken);
+
+            var record = new ToolExecutionRecord
+            {
+                ToolName = pendingAction.ToolName,
+                Parameters = pendingAction.Parameters,
+                Result = toolResult,
+                Success = true,
+                ExecutedAt = DateTime.UtcNow
+            };
+
+            workflowState.ToolExecutionHistory.Add(record);
+            AgentPendingActionStore.Remove(workflowState, actionId);
+            workflowState.Status = "active";
+            await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);
+
+            return new AgentPendingActionResult
+            {
+                Success = true,
+                Message = "Action confirmed and executed",
+                ToolExecution = record
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error confirming pending action {ActionId}", actionId);
+            return new AgentPendingActionResult { Success = false, Message = ex.Message };
+        }
+    }
+
+    public async Task<AgentPendingActionResult> CancelPendingActionAsync(
+        string userId,
+        Guid workflowId,
+        Guid actionId,
+        CancellationToken cancellationToken = default)
+    {
+        var workflowState = await _orchestrator.LoadWorkflowAsync(workflowId, userId, cancellationToken);
+        if (workflowState is null)
+        {
+            return new AgentPendingActionResult { Success = false, Message = "Workflow not found" };
+        }
+
+        var pendingAction = AgentPendingActionStore.Find(workflowState, actionId);
+        if (pendingAction is null)
+        {
+            return new AgentPendingActionResult { Success = false, Message = "Pending action not found" };
+        }
+
+        AgentPendingActionStore.MarkCancelled(workflowState, actionId);
+        AgentPendingActionStore.Remove(workflowState, actionId);
+        workflowState.Status = "active";
+        await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);
+
+        return new AgentPendingActionResult
+        {
+            Success = true,
+            Message = "Action cancelled"
+        };
+    }
+
     public async Task<AgentResponse> ProcessAgentInteractionAsync(
         string userId,
         string userMessage,
@@ -52,6 +165,7 @@ public class AgentService : IAgentService
         string userName,
         List<AgentChatMessage> conversationHistory,
         ChatMemoryContext memoryContext,
+        UserType userType = UserType.User,
         CancellationToken cancellationToken = default)
     {
         var response = new AgentResponse();
@@ -64,6 +178,7 @@ public class AgentService : IAgentService
             userName,
             conversationHistory,
             memoryContext,
+            userType,
             cancellationToken))
         {
             switch (streamEvent.Type)
@@ -123,12 +238,12 @@ public class AgentService : IAgentService
         string userName,
         List<AgentChatMessage> conversationHistory,
         ChatMemoryContext memoryContext,
+        UserType userType = UserType.User,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Streaming agent interaction for user {UserId}, workflow {WorkflowId}", userId, workflowId);
 
-        AgentWorkflowState? workflowState = null;
-        workflowState = await LoadOrCreateWorkflowAsync(userId, conversationId, workflowId, cancellationToken);
+        var workflowState = await LoadOrCreateWorkflowAsync(userId, conversationId, workflowId, cancellationToken);
         yield return new AgentStreamEvent
         {
             Type = "workflow",
@@ -159,8 +274,8 @@ public class AgentService : IAgentService
             };
         }
 
-        var tools = GetAvailableTools();
-        var toolContext = _toolContextFactory.Create(userId, conversationId, workflowState.Id, userMessage);
+        var toolContext = _toolContextFactory.Create(userId, conversationId, workflowState.Id, userMessage, userType);
+        var tools = (await _toolRegistry.GetEnabledDefinitionsAsync(toolContext, cancellationToken)).ToList();
 
         var session = await _agentOpenAI.BeginSessionAsync(new AgentSessionRequest
         {
@@ -204,27 +319,80 @@ public class AgentService : IAgentService
 
             var assistantText = assistantMessage.Length > 0 ? assistantMessage.ToString() : null;
 
-                if (toolCalls.Count == 0)
+            if (toolCalls.Count == 0)
+            {
+                break;
+            }
+
+            var validToolCalls = toolCalls
+                .Where(tc => !string.IsNullOrWhiteSpace(tc.FunctionName))
+                .ToList();
+
+            if (validToolCalls.Count == 0)
+            {
+                _logger.LogWarning("Model returned tool calls without function names; ending turn.");
+                break;
+            }
+
+            var iterationTools = new List<ToolExecutionRecord>();
+            var toolResults = new List<AgentToolResult>();
+            var stopAfterUserInput = false;
+
+            foreach (var toolCall in validToolCalls)
+            {
+                var handler = _toolRegistry.TryGetHandler(toolCall.FunctionName);
+                if (handler?.RequiresConfirmation == true)
                 {
-                    break;
+                    var pendingActionId = Guid.NewGuid();
+                    var preview = handler.BuildConfirmationPreview(toolCall.Parameters);
+                    var pendingAction = new AgentPendingAction
+                    {
+                        Id = pendingActionId,
+                        ToolName = toolCall.FunctionName,
+                        Parameters = toolCall.Parameters,
+                        Preview = preview,
+                        Status = "awaiting_confirmation",
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    AgentPendingActionStore.Add(workflowState, pendingAction);
+                    await _orchestrator.PauseWorkflowAsync(workflowState, cancellationToken);
+
+                    var pendingResult = new
+                    {
+                        success = true,
+                        status = "pending_confirmation",
+                        pendingActionId,
+                        workflowId = workflowState.Id,
+                        toolName = toolCall.FunctionName,
+                        preview
+                    };
+
+                    toolResults.Add(new AgentToolResult
+                    {
+                        ToolCallId = toolCall.ToolCallId,
+                        FunctionName = toolCall.FunctionName,
+                        Result = pendingResult
+                    });
+
+                    yield return new AgentStreamEvent
+                    {
+                        Type = "pending_action",
+                        Value = new
+                        {
+                            cardType = "pending_confirmation",
+                            pendingActionId,
+                            workflowId = workflowState.Id,
+                            toolName = toolCall.FunctionName,
+                            preview,
+                            parameters = toolCall.Parameters
+                        }
+                    };
+
+                    continue;
                 }
 
-                var validToolCalls = toolCalls
-                    .Where(tc => !string.IsNullOrWhiteSpace(tc.FunctionName))
-                    .ToList();
-
-                if (validToolCalls.Count == 0)
-                {
-                    _logger.LogWarning("Model returned tool calls without function names; ending turn.");
-                    break;
-                }
-
-                var iterationTools = new List<ToolExecutionRecord>();
-                var toolResults = new List<AgentToolResult>();
-
-                foreach (var toolCall in validToolCalls)
-                {
-                    ToolExecutionRecord record;
+                ToolExecutionRecord record;
                 object? toolResult = null;
                 try
                 {
@@ -301,6 +469,16 @@ public class AgentService : IAgentService
                     });
                 }
 
+                if (record.Success && handler?.PausesTurn == true && toolResult is not null)
+                {
+                    var userChoices = ExtractUserChoices(toolResult);
+                    if (userChoices is not null)
+                    {
+                        yield return new AgentStreamEvent { Type = "user_choices", Value = userChoices };
+                        stopAfterUserInput = true;
+                    }
+                }
+
                 if (record.Success && toolCall.FunctionName == "suggest_coping_strategies" && toolResult is not null)
                 {
                     var strategies = ExtractStrategies(toolResult);
@@ -312,6 +490,11 @@ public class AgentService : IAgentService
 
                 workflowState.ToolExecutionHistory.Add(record);
                 iterationTools.Add(record);
+
+                if (stopAfterUserInput)
+                {
+                    break;
+                }
             }
 
             if (iterationTools.Count > 0)
@@ -319,18 +502,36 @@ public class AgentService : IAgentService
                 yield return new AgentStreamEvent { Type = "tools_executed", Value = iterationTools };
             }
 
-                _agentOpenAI.AppendToolResults(session, assistantText, validToolCalls, toolResults);
+            if (stopAfterUserInput)
+            {
+                workflowState.CurrentStep++;
+                await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);
+                break;
+            }
+
+            _agentOpenAI.AppendToolResults(session, assistantText, validToolCalls, toolResults);
 
             workflowState.CurrentStep++;
             await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);
         }
 
-        await _orchestrator.CompleteWorkflowAsync(workflowState, cancellationToken);
-        yield return new AgentStreamEvent
+        if (workflowState.Status != "paused")
         {
-            Type = "status",
-            Value = new AgentStreamStatus { Status = "completed" }
-        };
+            await _orchestrator.CompleteWorkflowAsync(workflowState, cancellationToken);
+            yield return new AgentStreamEvent
+            {
+                Type = "status",
+                Value = new AgentStreamStatus { Status = "completed" }
+            };
+        }
+        else
+        {
+            yield return new AgentStreamEvent
+            {
+                Type = "status",
+                Value = new AgentStreamStatus { Status = "paused" }
+            };
+        }
     }
 
     private async Task<AgentWorkflowState> LoadOrCreateWorkflowAsync(
@@ -351,6 +552,42 @@ public class AgentService : IAgentService
         }
 
         return await _orchestrator.CreateWorkflowAsync(userId, conversationId, "agent_interaction", cancellationToken);
+    }
+
+    private static object? ExtractUserChoices(object toolResult)
+    {
+        var json = JsonSerializer.Serialize(toolResult);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("options", out var options) || options.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var parsedOptions = options.EnumerateArray()
+            .Select(option => new
+            {
+                id = option.TryGetProperty("id", out var id) ? id.GetString() : null,
+                label = option.TryGetProperty("label", out var label) ? label.GetString() : null
+            })
+            .Where(option => !string.IsNullOrWhiteSpace(option.id) && !string.IsNullOrWhiteSpace(option.label))
+            .ToList();
+
+        if (parsedOptions.Count == 0)
+        {
+            return null;
+        }
+
+        return new
+        {
+            prompt = root.TryGetProperty("prompt", out var prompt) && prompt.ValueKind == JsonValueKind.String
+                ? prompt.GetString()
+                : null,
+            allowMultiple = root.TryGetProperty("allowMultiple", out var allowMultiple)
+                            && allowMultiple.ValueKind == JsonValueKind.True,
+            options = parsedOptions
+        };
     }
 
     private static List<object> ExtractStrategies(object toolResult)

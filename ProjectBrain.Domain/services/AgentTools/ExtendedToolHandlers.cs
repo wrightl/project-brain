@@ -214,6 +214,9 @@ public sealed class UploadKnowledgeDocumentToolHandler : IAgentToolHandler
 {
     public string Name => "upload_knowledge_document";
 
+    public Task<bool> IsEnabledAsync(AgentToolContext context, CancellationToken cancellationToken = default) =>
+        AgentToolGating.IsFileUploadEnabledAsync(context, cancellationToken);
+
     public Dictionary<string, object> GetDefinition() => new()
     {
         ["type"] = "function",
@@ -301,6 +304,20 @@ public sealed class ListKnowledgeResourcesToolHandler : IAgentToolHandler
 public sealed class DeleteKnowledgeResourceToolHandler : IAgentToolHandler
 {
     public string Name => "delete_knowledge_resource";
+    public bool RequiresConfirmation => true;
+
+    public Task<bool> IsEnabledAsync(AgentToolContext context, CancellationToken cancellationToken = default) =>
+        AgentToolGating.IsFileUploadEnabledAsync(context, cancellationToken);
+
+    public string? BuildConfirmationPreview(Dictionary<string, object> parameters)
+    {
+        if (parameters.TryGetValue("resourceId", out var resourceId) && resourceId is not null)
+        {
+            return $"Delete knowledge resource {resourceId}";
+        }
+
+        return "Delete knowledge resource";
+    }
 
     public Dictionary<string, object> GetDefinition() => new()
     {
@@ -337,6 +354,9 @@ public sealed class DeleteKnowledgeResourceToolHandler : IAgentToolHandler
 public sealed class SearchCoachesToolHandler : IAgentToolHandler
 {
     public string Name => "search_coaches";
+
+    public Task<bool> IsEnabledAsync(AgentToolContext context, CancellationToken cancellationToken = default) =>
+        AgentToolGating.IsCoachFeatureEnabledAsync(context, cancellationToken);
 
     public Dictionary<string, object> GetDefinition() => new()
     {
@@ -431,6 +451,9 @@ public sealed class SearchCoachesToolHandler : IAgentToolHandler
 public sealed class GetConnectedCoachesToolHandler : IAgentToolHandler
 {
     public string Name => "get_connected_coaches";
+
+    public Task<bool> IsEnabledAsync(AgentToolContext context, CancellationToken cancellationToken = default) =>
+        AgentToolGating.IsCoachFeatureEnabledAsync(context, cancellationToken);
 
     public Dictionary<string, object> GetDefinition() => new()
     {

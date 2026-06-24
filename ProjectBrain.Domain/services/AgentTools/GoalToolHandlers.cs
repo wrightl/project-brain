@@ -409,3 +409,137 @@ public sealed class CompleteGoalToolHandler : IAgentToolHandler
         };
     }
 }
+
+public sealed class GetGoalStreakToolHandler : IAgentToolHandler
+{
+    public string Name => "get_goal_streak";
+
+    public Dictionary<string, object> GetDefinition() => new()
+    {
+        ["type"] = "function",
+        ["function"] = new Dictionary<string, object>
+        {
+            ["name"] = Name,
+            ["description"] = "Get the user's current and longest daily goal completion streaks. Use when discussing consistency or progress over time.",
+            ["parameters"] = new Dictionary<string, object>
+            {
+                ["type"] = "object",
+                ["properties"] = new Dictionary<string, object>(),
+                ["required"] = Array.Empty<string>()
+            }
+        }
+    };
+
+    public async Task<object> ExecuteAsync(AgentToolContext context, Dictionary<string, object> parameters, CancellationToken cancellationToken = default)
+    {
+        var current = await context.GoalService.GetCompletionStreakAsync(context.UserId, cancellationToken);
+        var longest = await context.GoalService.GetLongestCompletionStreakAsync(context.UserId, cancellationToken);
+        return new { success = true, currentStreak = current, longestStreak = longest };
+    }
+}
+
+public sealed class GetIncompleteGoalBacklogToolHandler : IAgentToolHandler
+{
+    public string Name => "get_incomplete_goal_backlog";
+
+    public Dictionary<string, object> GetDefinition() => new()
+    {
+        ["type"] = "function",
+        ["function"] = new Dictionary<string, object>
+        {
+            ["name"] = Name,
+            ["description"] = "Get prioritized incomplete goals from past days that the user missed. Use before suggesting or creating new goals.",
+            ["parameters"] = new Dictionary<string, object>
+            {
+                ["type"] = "object",
+                ["properties"] = new Dictionary<string, object>
+                {
+                    ["maxItems"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "integer",
+                        ["minimum"] = 1,
+                        ["maximum"] = 30,
+                        ["description"] = "Maximum backlog items to return (default 15)"
+                    }
+                },
+                ["required"] = Array.Empty<string>()
+            }
+        }
+    };
+
+    public async Task<object> ExecuteAsync(AgentToolContext context, Dictionary<string, object> parameters, CancellationToken cancellationToken = default)
+    {
+        var maxItems = 15;
+        if (parameters.TryGetValue("maxItems", out var maxObj) && maxObj is not null)
+        {
+            maxItems = AgentToolParameterParser.ParseInt(maxObj, "maxItems", 1, 30);
+        }
+
+        var backlog = await context.GoalService.GetPrioritizedIncompleteGoalBacklogAsync(
+            context.UserId,
+            maxItems,
+            cancellationToken);
+
+        return new
+        {
+            success = true,
+            items = backlog.Select(b => new
+            {
+                message = b.Message,
+                missCount = b.MissCount,
+                lastMissedDate = b.LastMissedDate.ToString("yyyy-MM-dd")
+            })
+        };
+    }
+}
+
+public sealed class SuggestDailyGoalsToolHandler : IAgentToolHandler
+{
+    public string Name => "suggest_daily_goals";
+
+    public Dictionary<string, object> GetDefinition() => new()
+    {
+        ["type"] = "function",
+        ["function"] = new Dictionary<string, object>
+        {
+            ["name"] = Name,
+            ["description"] = "Suggest 1-3 daily goals for today based on the user's profile and incomplete goal history. Does not create goals — use create_daily_goals after the user agrees.",
+            ["parameters"] = new Dictionary<string, object>
+            {
+                ["type"] = "object",
+                ["properties"] = new Dictionary<string, object>(),
+                ["required"] = Array.Empty<string>()
+            }
+        }
+    };
+
+    public async Task<object> ExecuteAsync(AgentToolContext context, Dictionary<string, object> parameters, CancellationToken cancellationToken = default)
+    {
+        if (context.GoalSuggestionService is null)
+        {
+            throw new InvalidOperationException("Goal suggestion service is not available");
+        }
+
+        var userName = "there";
+        if (context.UserService is not null)
+        {
+            var user = await context.UserService.GetById(context.UserId);
+            if (!string.IsNullOrWhiteSpace(user?.FirstName))
+            {
+                userName = user.FirstName;
+            }
+        }
+
+        var result = await context.GoalSuggestionService.SuggestDailyGoalsAsync(
+            context.UserId,
+            userName,
+            cancellationToken);
+
+        return new
+        {
+            success = true,
+            source = result.Source,
+            goals = result.Goals
+        };
+    }
+}

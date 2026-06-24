@@ -46,6 +46,8 @@ public class UserEpisode
 
     public DateTime? ExpiresAt { get; set; }
 
+    public DateTime? PinnedAt { get; set; }
+
     [ForeignKey(nameof(UserId))]
     public User? User { get; set; }
 

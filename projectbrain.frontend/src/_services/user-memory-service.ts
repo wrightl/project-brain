@@ -1,26 +1,11 @@
 import { callBackendApi } from '@/_lib/backend-api';
+import type {
+    UserEpisodeMemory,
+    UserFactMemory,
+    UserMemoryList,
+} from '@/_services/user-memory-types';
 
-export interface UserFactMemory {
-    id: string;
-    content: string;
-    category: string;
-    status: string;
-    createdAt: string;
-}
-
-export interface UserEpisodeMemory {
-    id: string;
-    summary: string;
-    topic: string;
-    outcome: string;
-    status: string;
-    createdAt: string;
-}
-
-export interface UserMemoryList {
-    facts: UserFactMemory[];
-    episodes: UserEpisodeMemory[];
-}
+export type { UserEpisodeMemory, UserFactMemory, UserMemoryList };
 
 export class UserMemoryService {
     static async listMemories(): Promise<UserMemoryList> {
@@ -46,6 +31,42 @@ export class UserMemoryService {
         });
         if (!response.ok) {
             throw new Error('Failed to delete memory');
+        }
+    }
+
+    static async pinFact(id: string): Promise<void> {
+        const response = await callBackendApi(`/user/memory/facts/${id}/pin`, {
+            method: 'POST',
+        });
+        if (!response.ok) {
+            throw new Error('Failed to pin memory');
+        }
+    }
+
+    static async unpinFact(id: string): Promise<void> {
+        const response = await callBackendApi(`/user/memory/facts/${id}/unpin`, {
+            method: 'POST',
+        });
+        if (!response.ok) {
+            throw new Error('Failed to unpin memory');
+        }
+    }
+
+    static async pinEpisode(id: string): Promise<void> {
+        const response = await callBackendApi(`/user/memory/episodes/${id}/pin`, {
+            method: 'POST',
+        });
+        if (!response.ok) {
+            throw new Error('Failed to pin memory');
+        }
+    }
+
+    static async unpinEpisode(id: string): Promise<void> {
+        const response = await callBackendApi(`/user/memory/episodes/${id}/unpin`, {
+            method: 'POST',
+        });
+        if (!response.ok) {
+            throw new Error('Failed to unpin memory');
         }
     }
 }

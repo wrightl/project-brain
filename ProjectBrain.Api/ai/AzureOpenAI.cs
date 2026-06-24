@@ -312,45 +312,70 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         string userName,
         List<_shared.ChatMessage> history,
         ChatMemoryContext memoryContext,
+        Guid? conversationId = null,
+        string? correlationId = null,
         CancellationToken cancellationToken = default)
     {
         Services.Logger.LogInformation("Generating strategy suggestions for user {UserId}", userId);
 
+        var aiSettings = await Services.ApplicationSettingsService.GetAISettingsAsync();
+        var promptBudgetSettings = await Services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
+        var estimator = await TokenEstimatorFactory.CreateAsync(Services.ApplicationSettingsService);
+        var includeOnboarding = ChatPromptAssembler.ShouldIncludeOnboardingBlob(
+            aiSettings.IncludeFullOnboardingBlob,
+            userInformation,
+            memoryContext,
+            isFirstTurn: history.Count == 0);
+
         var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);
         var systemPrompt = ChatPromptAssembler.BuildStrategySystemPrompt(userName, memoryContext);
 
-        var userPrompt = new StringBuilder();
-        if (!string.IsNullOrWhiteSpace(userInformation))
+        List<_shared.ChatMessage> limitedHistory;
+        string userPrompt;
+        IReadOnlyList<PromptSlotTrace> slotTraces = Array.Empty<PromptSlotTrace>();
+
+        if (promptBudgetSettings.EnablePromptBudget)
         {
-            userPrompt.AppendLine("---");
-            userPrompt.AppendLine("User onboarding data (json):");
-            userPrompt.AppendLine(userInformation);
-            userPrompt.AppendLine("---");
-            userPrompt.AppendLine();
+            var initialHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext).ToList();
+            var budgeted = PromptTokenBudgetAssembler.AssembleForStrategy(
+                userQuery,
+                userInformation,
+                memoryContext,
+                initialHistory,
+                promptBudgetSettings,
+                aiSettings.MaxTotalTokens,
+                estimator,
+                includeOnboarding);
+            userPrompt = budgeted.UserPrompt;
+            limitedHistory = budgeted.LimitedHistory.ToList();
+            slotTraces = budgeted.SlotTraces;
+        }
+        else
+        {
+            limitedHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext).ToList();
+            userPrompt = ChatPromptAssembler.BuildStrategyUserPrompt(
+                userQuery,
+                userInformation,
+                memoryContext,
+                limitedHistory,
+                includeOnboarding);
         }
 
-        if (memoryContext.EnableConversationSummary
-            && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary))
-        {
-            userPrompt.AppendLine(ChatPromptAssembler.FormatSummaryBlock(memoryContext.ConversationSummary));
-            userPrompt.AppendLine();
-        }
-
-        var limitedHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext);
-        if (limitedHistory.Count > 0)
-        {
-            userPrompt.AppendLine("Conversation context:");
-            foreach (var msg in limitedHistory)
-            {
-                userPrompt.AppendLine($"- {msg.Role}: {msg.Content}");
-            }
-            userPrompt.AppendLine();
-        }
-
-        userPrompt.AppendLine("User input:");
-        userPrompt.AppendLine(userQuery);
-        userPrompt.AppendLine();
-        userPrompt.AppendLine("Now return 3 coping strategy suggestions as JSON only.");
+        var estimatedTokens = estimator.EstimateTokens(systemPrompt) + estimator.EstimateTokens(userPrompt);
+        var traceEnvelope = ChatTurnTraceBuilder.Build(
+            correlationId ?? "no-trace",
+            conversationId ?? Guid.Empty,
+            userId,
+            memoryContext,
+            limitedHistory.Count,
+            citationCount: 0,
+            citationIds: Array.Empty<string>(),
+            retrievalMode: "strategies",
+            estimatedTokens,
+            aiSettings.MaxTotalTokens,
+            truncatedSources: false,
+            slotTraces);
+        ChatTurnTraceBuilder.Log(Services.Logger, traceEnvelope, "StrategyTrace");
 
         ClientResult<ChatCompletion> response;
         try
@@ -358,7 +383,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
             response = await chatClient.CompleteChatAsync(
                 [
                     new SystemChatMessage(systemPrompt),
-                    new UserChatMessage(userPrompt.ToString()),
+                    new UserChatMessage(userPrompt),
                 ],
                 cancellationToken: cancellationToken);
         }
@@ -937,7 +962,12 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         var systemPrompt = ChatPromptAssembler.BuildSystemPrompt(userName, citations.Count > 0, memoryContext);
 
         var promptBudgetSettings = await Services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
-        var estimator = new CharacterTokenEstimator();
+        var estimator = await TokenEstimatorFactory.CreateAsync(Services.ApplicationSettingsService);
+        var includeOnboarding = ChatPromptAssembler.ShouldIncludeOnboardingBlob(
+            aiSettings.IncludeFullOnboardingBlob,
+            userInformation,
+            memoryContext,
+            isFirstTurn: history.Count == 0);
         List<_shared.ChatMessage> limitedHistory;
         string userPrompt;
         var truncatedSources = false;
@@ -955,7 +985,8 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
                 initialHistory,
                 promptBudgetSettings,
                 maxTotalTokens,
-                estimator);
+                estimator,
+                includeOnboarding);
             userPrompt = budgeted.UserPrompt;
             limitedHistory = budgeted.LimitedHistory.ToList();
             truncatedSources = budgeted.TruncatedSources;
@@ -965,7 +996,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         {
             limitedHistory = ChatPromptAssembler.SelectRecentHistory(history, memoryContext).ToList();
             userPrompt = ChatPromptAssembler.BuildUserPrompt(
-                userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext);
+                userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext, includeOnboarding);
         }
 
         Services.Logger.LogInformation("Formatted prompt with {SourceCount} sources and {HistoryCount} history messages (limited from {OriginalHistoryCount})",
@@ -1023,7 +1054,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
             // Rebuild user prompt with truncated sources
             userPrompt = ChatPromptAssembler.BuildUserPrompt(
-                userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext);
+                userQuery, userInformation, sourcesFormatted.ToString(), citations.Count, memoryContext, includeOnboarding);
             combinedPrompt = $"{systemPrompt}\n\n{userPrompt}";
 
             estimatedTokens = estimator.EstimateTokens(combinedPrompt)
@@ -1033,41 +1064,20 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
         messages.Add(new UserChatMessage(combinedPrompt));
 
-        var traceEnvelope = new ChatTurnTraceEnvelope
-        {
-            CorrelationId = correlationId,
-            ConversationId = conversationId,
-            UserId = userId,
-            Retrieval = new ChatTurnRetrievalTrace
-            {
-                CitationCount = citations.Count,
-                CitationIds = citations.Select(c => c.Id).ToList(),
-                RetrievalMode = "vector"
-            },
-            Memory = new ChatTurnMemoryTrace
-            {
-                PoliciesApplied = memoryContext.Policies.Select(p => p.Key).ToList(),
-                HasUserPreferences = memoryContext.UserPreferences != null,
-                HasConversationSummary = memoryContext.EnableConversationSummary
-                    && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary),
-                SummaryLength = memoryContext.ConversationSummary?.Length ?? 0,
-                RecentHistoryCount = limitedHistory.Count,
-                FactIdsRetrieved = memoryContext.Facts.Select(f => f.Id.ToString()).ToList(),
-                EpisodeIdsRetrieved = memoryContext.Episodes.Select(e => e.Id.ToString()).ToList(),
-                MemoryRetrievalMode = memoryContext.MemoryRetrievalMode
-            },
-            Prompt = new ChatTurnPromptTrace
-            {
-                EstimatedTokens = estimatedTokens,
-                MaxTotalTokens = maxTotalTokens,
-                TruncatedSources = truncatedSources,
-                Slots = slotTraces
-            }
-        };
-
-        Services.Logger.LogInformation(
-            "[ChatTrace] {TraceEnvelope}",
-            JsonSerializer.Serialize(traceEnvelope));
+        var traceEnvelope = ChatTurnTraceBuilder.Build(
+            correlationId,
+            conversationId,
+            userId,
+            memoryContext,
+            limitedHistory.Count,
+            citations.Count,
+            citations.Select(c => c.Id).ToList(),
+            "vector",
+            estimatedTokens,
+            maxTotalTokens,
+            truncatedSources,
+            slotTraces);
+        ChatTurnTraceBuilder.Log(Services.Logger, traceEnvelope);
 
         // Get streaming response
         var chatClient = Services.OpenAIClient.GetChatClient(Constants.CHAT_CLIENT_DEPLOYMENT);

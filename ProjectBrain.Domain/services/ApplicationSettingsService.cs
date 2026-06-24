@@ -146,6 +146,7 @@ public class ApplicationSettingsService : IApplicationSettingsService
         var conversationSummaryInterval = await GetSettingAsync("AI:ConversationSummaryInterval");
         var maxConversationSummaryLength = await GetSettingAsync("AI:MaxConversationSummaryLength");
         var enableConversationSummary = await GetSettingAsync("AI:EnableConversationSummary");
+        var includeFullOnboardingBlob = await GetSettingAsync("AI:IncludeFullOnboardingBlob");
 
         return new AISettings
         {
@@ -156,7 +157,8 @@ public class ApplicationSettingsService : IApplicationSettingsService
             RecentMessageWindow = int.TryParse(recentMessageWindow, out var recentWindow) ? recentWindow : 4,
             ConversationSummaryInterval = int.TryParse(conversationSummaryInterval, out var summaryInterval) ? summaryInterval : 6,
             MaxConversationSummaryLength = int.TryParse(maxConversationSummaryLength, out var maxSummaryLen) ? maxSummaryLen : 1500,
-            EnableConversationSummary = !bool.TryParse(enableConversationSummary, out var enableSummary) || enableSummary
+            EnableConversationSummary = !bool.TryParse(enableConversationSummary, out var enableSummary) || enableSummary,
+            IncludeFullOnboardingBlob = !bool.TryParse(includeFullOnboardingBlob, out var includeBlob) || includeBlob
         };
     }
 
@@ -304,7 +306,8 @@ public class ApplicationSettingsService : IApplicationSettingsService
     {
         var settings = await _context.ApplicationSettings
             .Where(s => s.Key.StartsWith("AI:EnablePromptBudget")
-                        || s.Key.StartsWith("AI:PromptBudget:"))
+                        || s.Key.StartsWith("AI:PromptBudget:")
+                        || s.Key == "AI:TokenEstimator")
             .ToListAsync(cancellationToken);
 
         var values = settings.ToDictionary(s => s.Key, s => s.Value, StringComparer.OrdinalIgnoreCase);
@@ -321,7 +324,8 @@ public class ApplicationSettingsService : IApplicationSettingsService
             FactsReserve = int.TryParse(GetValue("AI:PromptBudget:FactsReserve"), out var facts) ? facts : 300,
             EpisodesReserve = int.TryParse(GetValue("AI:PromptBudget:EpisodesReserve"), out var episodes) ? episodes : 300,
             OnboardingReserve = int.TryParse(GetValue("AI:PromptBudget:OnboardingReserve"), out var onboarding) ? onboarding : 500,
-            HistoryReserve = int.TryParse(GetValue("AI:PromptBudget:HistoryReserve"), out var history) ? history : 800
+            HistoryReserve = int.TryParse(GetValue("AI:PromptBudget:HistoryReserve"), out var history) ? history : 800,
+            TokenEstimator = GetValue("AI:TokenEstimator") ?? "character"
         };
     }
 
@@ -337,6 +341,7 @@ public class ApplicationSettingsService : IApplicationSettingsService
         await UpdateSettingAsync("AI:PromptBudget:EpisodesReserve", settings.EpisodesReserve.ToString(), updatedBy);
         await UpdateSettingAsync("AI:PromptBudget:OnboardingReserve", settings.OnboardingReserve.ToString(), updatedBy);
         await UpdateSettingAsync("AI:PromptBudget:HistoryReserve", settings.HistoryReserve.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:TokenEstimator", settings.TokenEstimator, updatedBy);
     }
 
     public async Task UpdateAISettingsAsync(AISettings settings, string updatedBy)
@@ -345,6 +350,7 @@ public class ApplicationSettingsService : IApplicationSettingsService
         await UpdateSettingAsync("AI:MaxContentLengthPerSource", settings.MaxContentLengthPerSource.ToString(), updatedBy);
         await UpdateSettingAsync("AI:MaxHistoryMessages", settings.MaxHistoryMessages.ToString(), updatedBy);
         await UpdateSettingAsync("AI:MaxTotalTokens", settings.MaxTotalTokens.ToString(), updatedBy);
+        await UpdateSettingAsync("AI:IncludeFullOnboardingBlob", settings.IncludeFullOnboardingBlob.ToString().ToLowerInvariant(), updatedBy);
     }
 }
 
@@ -387,4 +393,5 @@ public class AISettings
     public int ConversationSummaryInterval { get; set; }
     public int MaxConversationSummaryLength { get; set; }
     public bool EnableConversationSummary { get; set; }
+    public bool IncludeFullOnboardingBlob { get; set; } = true;
 }

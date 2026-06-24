@@ -225,4 +225,75 @@ public class ChatPromptAssemblerTests
         selected.Should().HaveCount(3);
         selected.Last().Content.Should().Be("msg-8");
     }
+
+    [Fact]
+    public void ShouldIncludeOnboardingBlob_WhenDisabledAndMemoryPresent_ReturnsFalse()
+    {
+        var memoryContext = new ChatMemoryContext
+        {
+            Facts = [new RetrievedUserFact { Id = Guid.NewGuid(), Content = "Prefers lists" }]
+        };
+
+        ChatPromptAssembler.ShouldIncludeOnboardingBlob(
+                false,
+                "{\"name\":\"Alex\"}",
+                memoryContext,
+                isFirstTurn: false)
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public void ShouldIncludeOnboardingBlob_WhenDisabledAndFirstTurn_ReturnsTrue()
+    {
+        ChatPromptAssembler.ShouldIncludeOnboardingBlob(
+                false,
+                "{\"name\":\"Alex\"}",
+                new ChatMemoryContext(),
+                isFirstTurn: true)
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public void BuildUserPrompt_OmitsOnboardingWhenNotIncluded()
+    {
+        var prompt = ChatPromptAssembler.BuildUserPrompt(
+            "Hello",
+            "{\"name\":\"Alex\"}",
+            string.Empty,
+            citationCount: 0,
+            new ChatMemoryContext(),
+            includeOnboarding: false);
+
+        prompt.Should().NotContain("onboarding data");
+        prompt.Should().Contain("Hello");
+    }
+
+    [Fact]
+    public void BuildStrategyUserPrompt_IncludesFactsAndEpisodes()
+    {
+        var memoryContext = new ChatMemoryContext
+        {
+            Facts = [new RetrievedUserFact { Id = Guid.NewGuid(), Content = "Sensitive to loud noise" }],
+            Episodes =
+            [
+                new RetrievedUserEpisode
+                {
+                    Id = Guid.NewGuid(),
+                    Summary = "Quiet room helped focus",
+                    Topic = "focus",
+                    Outcome = "helpful"
+                }
+            ]
+        };
+
+        var prompt = ChatPromptAssembler.BuildStrategyUserPrompt(
+            "Need strategies",
+            "{}",
+            memoryContext,
+            Array.Empty<ProjectBrain.Models.ChatMessage>());
+
+        prompt.Should().Contain("Sensitive to loud noise");
+        prompt.Should().Contain("Quiet room helped focus");
+        prompt.Should().Contain("coping strategy suggestions");
+    }
 }

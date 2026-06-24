@@ -133,10 +133,55 @@ public static class ChatPromptAssembler
         return history.TakeLast(Math.Max(1, window)).ToList();
     }
 
+    public static bool ShouldIncludeOnboardingBlob(
+        bool includeFullOnboardingBlob,
+        string? userInformation,
+        ChatMemoryContext memoryContext,
+        bool isFirstTurn)
+    {
+        if (string.IsNullOrWhiteSpace(userInformation))
+        {
+            return false;
+        }
+
+        if (includeFullOnboardingBlob)
+        {
+            return true;
+        }
+
+        if (isFirstTurn || IsMemoryContextEmpty(memoryContext))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsMemoryContextEmpty(ChatMemoryContext memoryContext)
+    {
+        var hasSummary = memoryContext.EnableConversationSummary
+            && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary);
+
+        return memoryContext.UserPreferences is null
+            && memoryContext.Facts.Count == 0
+            && memoryContext.Episodes.Count == 0
+            && !hasSummary;
+    }
+
+    public static void AppendOnboardingBlock(StringBuilder prompt, string userInformation)
+    {
+        prompt.AppendLine("---");
+        prompt.AppendLine("Here is some data in json format about the user based on their onboarding data:");
+        prompt.AppendLine(userInformation);
+        prompt.AppendLine("---");
+        prompt.AppendLine();
+    }
+
     public static string BuildAgentUserPrompt(
         string userQuery,
         string userInformation,
-        ChatMemoryContext memoryContext)
+        ChatMemoryContext memoryContext,
+        bool includeOnboarding = true)
     {
         var prompt = new StringBuilder();
 
@@ -161,13 +206,9 @@ public static class ChatPromptAssembler
             prompt.AppendLine();
         }
 
-        if (!string.IsNullOrWhiteSpace(userInformation))
+        if (includeOnboarding && !string.IsNullOrWhiteSpace(userInformation))
         {
-            prompt.AppendLine("---");
-            prompt.AppendLine("Here is some data in json format about the user based on their onboarding data:");
-            prompt.AppendLine(userInformation);
-            prompt.AppendLine("---");
-            prompt.AppendLine();
+            AppendOnboardingBlock(prompt, userInformation);
         }
 
         prompt.AppendLine("User Query:");
@@ -230,7 +271,8 @@ public static class ChatPromptAssembler
         string userInformation,
         string sources,
         int citationCount,
-        ChatMemoryContext memoryContext)
+        ChatMemoryContext memoryContext,
+        bool includeOnboarding = true)
     {
         var prompt = new StringBuilder();
 
@@ -265,13 +307,70 @@ public static class ChatPromptAssembler
             prompt.AppendLine();
         }
 
-        prompt.AppendLine("---");
-        prompt.AppendLine("Here is some data in json format about the user based on their onboarding data:");
-        prompt.AppendLine(userInformation);
-        prompt.AppendLine("---");
+        if (includeOnboarding && !string.IsNullOrWhiteSpace(userInformation))
+        {
+            AppendOnboardingBlock(prompt, userInformation);
+        }
 
         prompt.AppendLine("User Query:");
         prompt.AppendLine(userQuery);
+
+        return prompt.ToString();
+    }
+
+    public static string BuildStrategyUserPrompt(
+        string userQuery,
+        string userInformation,
+        ChatMemoryContext memoryContext,
+        IReadOnlyList<_shared.ChatMessage> limitedHistory,
+        bool includeOnboarding = true)
+    {
+        var prompt = new StringBuilder();
+
+        if (memoryContext.EnableConversationSummary
+            && !string.IsNullOrWhiteSpace(memoryContext.ConversationSummary))
+        {
+            prompt.AppendLine(FormatSummaryBlock(memoryContext.ConversationSummary));
+            prompt.AppendLine();
+        }
+
+        var factsBlock = FormatFactsBlock(memoryContext.Facts);
+        if (!string.IsNullOrWhiteSpace(factsBlock))
+        {
+            prompt.AppendLine(factsBlock);
+            prompt.AppendLine();
+        }
+
+        var episodesBlock = FormatEpisodesBlock(memoryContext.Episodes);
+        if (!string.IsNullOrWhiteSpace(episodesBlock))
+        {
+            prompt.AppendLine(episodesBlock);
+            prompt.AppendLine();
+        }
+
+        if (includeOnboarding && !string.IsNullOrWhiteSpace(userInformation))
+        {
+            prompt.AppendLine("---");
+            prompt.AppendLine("User onboarding data (json):");
+            prompt.AppendLine(userInformation);
+            prompt.AppendLine("---");
+            prompt.AppendLine();
+        }
+
+        if (limitedHistory.Count > 0)
+        {
+            prompt.AppendLine("Conversation context:");
+            foreach (var msg in limitedHistory)
+            {
+                prompt.AppendLine($"- {msg.Role}: {msg.Content}");
+            }
+            prompt.AppendLine();
+        }
+
+        prompt.AppendLine("User input:");
+        prompt.AppendLine(userQuery);
+        prompt.AppendLine();
+        prompt.AppendLine("Now return 3 coping strategy suggestions as JSON only.");
 
         return prompt.ToString();
     }

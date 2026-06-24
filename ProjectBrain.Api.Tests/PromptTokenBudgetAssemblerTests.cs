@@ -120,4 +120,40 @@ public class PromptTokenBudgetAssemblerTests
         result.SlotTraces.Should().Contain(s => s.SlotName == "query");
         result.SlotTraces.Should().Contain(s => s.SlotName == "sources");
     }
+
+    [Fact]
+    public void AssembleForStrategy_IncludesFactsAndOmitsOnboardingWhenDisabled()
+    {
+        var memoryContext = new ChatMemoryContext
+        {
+            Facts = [new RetrievedUserFact { Id = Guid.NewGuid(), Content = "Needs quiet workspace" }]
+        };
+
+        var budget = new PromptBudgetSettings
+        {
+            EnablePromptBudget = true,
+            SystemReserve = 200,
+            PoliciesReserve = 100,
+            PreferencesReserve = 100,
+            QueryReserve = 100,
+            SummaryReserve = 100,
+            FactsReserve = 200,
+            EpisodesReserve = 100,
+            OnboardingReserve = 100,
+            HistoryReserve = 100
+        };
+
+        var result = PromptTokenBudgetAssembler.AssembleForStrategy(
+            "Suggest strategies",
+            "{\"profile\":\"large onboarding blob\"}",
+            memoryContext,
+            Array.Empty<ProjectBrain.Models.ChatMessage>(),
+            budget,
+            maxTotalTokens: 1500,
+            _estimator,
+            includeOnboarding: false);
+
+        result.UserPrompt.Should().Contain("Needs quiet workspace");
+        result.UserPrompt.Should().NotContain("onboarding blob");
+    }
 }

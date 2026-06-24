@@ -99,6 +99,72 @@ public class MemoryPromotionService : IMemoryPromotionService
         return episode;
     }
 
+    public async Task BootstrapFactsFromOnboardingAsync(
+        string userId,
+        object onboardingData,
+        MemorySettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        if (!settings.EnableMemoryFormation || onboardingData is not Dictionary<string, object?> data)
+        {
+            return;
+        }
+
+        var candidates = new List<ExtractedFactCandidate>();
+
+        if (data.TryGetValue("preferredPronoun", out var pronoun) && !string.IsNullOrWhiteSpace(pronoun?.ToString()))
+        {
+            candidates.Add(new ExtractedFactCandidate
+            {
+                Content = $"Preferred pronoun: {pronoun}",
+                Category = "preference",
+                Confidence = 0.95
+            });
+        }
+
+        if (data.TryGetValue("neurodiverseTraits", out var traits) && traits is IEnumerable<object> traitList)
+        {
+            var traitValues = traitList.Select(t => t?.ToString()).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
+            if (traitValues.Count > 0)
+            {
+                candidates.Add(new ExtractedFactCandidate
+                {
+                    Content = $"Neurodiverse traits: {string.Join(", ", traitValues)}",
+                    Category = "profile",
+                    Confidence = 0.95
+                });
+            }
+        }
+
+        if (data.TryGetValue("onboarding", out var onboardingObj) && onboardingObj is Dictionary<string, object?> onboarding)
+        {
+            foreach (var section in onboarding.Take(3))
+            {
+                if (section.Value is Dictionary<string, object?> sectionData && sectionData.Count > 0)
+                {
+                    var summary = string.Join("; ", sectionData
+                        .Where(kv => kv.Value is not null && !string.IsNullOrWhiteSpace(kv.Value.ToString()))
+                        .Take(3)
+                        .Select(kv => $"{kv.Key}: {kv.Value}"));
+                    if (!string.IsNullOrWhiteSpace(summary))
+                    {
+                        candidates.Add(new ExtractedFactCandidate
+                        {
+                            Content = $"{section.Key}: {summary}",
+                            Category = "onboarding",
+                            Confidence = 0.9
+                        });
+                    }
+                }
+            }
+        }
+
+        foreach (var candidate in candidates.Take(5))
+        {
+            await ProcessFactCandidateAsync(userId, null, candidate, settings, cancellationToken);
+        }
+    }
+
     private async Task ProcessFactCandidateAsync(
         string userId,
         Guid? conversationId,
@@ -384,5 +450,11 @@ public interface IMemoryPromotionService
         Guid strategyId,
         string strategyTitle,
         Guid? conversationId,
+        CancellationToken cancellationToken = default);
+
+    Task BootstrapFactsFromOnboardingAsync(
+        string userId,
+        object onboardingData,
+        MemorySettings settings,
         CancellationToken cancellationToken = default);
 }

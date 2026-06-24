@@ -19,6 +19,8 @@ public interface IAgentOpenAIService
         List<AgentChatMessage> history,
         ChatMemoryContext memoryContext,
         List<Dictionary<string, object>> tools,
+        Guid? conversationId = null,
+        string? correlationId = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

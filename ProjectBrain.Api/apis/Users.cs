@@ -22,6 +22,8 @@ public class UserServices(
     IUserActivityService userActivityService,
     ICoachMessageService coachMessageService,
     IOnboardingDataService onboardingDataService,
+    IMemoryPromotionService memoryPromotionService,
+    IApplicationSettingsService applicationSettingsService,
     Storage storage)
 {
     public ILogger<UserServices> Logger { get; } = logger;
@@ -37,6 +39,8 @@ public class UserServices(
     public IUserActivityService UserActivityService { get; } = userActivityService;
     public ICoachMessageService CoachMessageService { get; } = coachMessageService;
     public IOnboardingDataService OnboardingDataService { get; } = onboardingDataService;
+    public IMemoryPromotionService MemoryPromotionService { get; } = memoryPromotionService;
+    public IApplicationSettingsService ApplicationSettingsService { get; } = applicationSettingsService;
     public Storage Storage { get; } = storage;
 }
 
@@ -177,6 +181,23 @@ public static class UserEndpoints
         catch (Exception ex)
         {
             services.Logger.LogError(ex, "Failed to upload onboarding markdown for user {UserId}", userId);
+        }
+
+        if (request.Onboarding != null)
+        {
+            try
+            {
+                var memorySettings = await services.ApplicationSettingsService.GetMemorySettingsAsync();
+                var onboardingData = CreateOnboardingData(userProfile, createdUser as UserDto, request.Onboarding);
+                await services.MemoryPromotionService.BootstrapFactsFromOnboardingAsync(
+                    userId,
+                    onboardingData,
+                    memorySettings);
+            }
+            catch (Exception ex)
+            {
+                services.Logger.LogError(ex, "Failed to bootstrap onboarding facts for user {UserId}", userId);
+            }
         }
 
         return Results.Ok(createdUser);

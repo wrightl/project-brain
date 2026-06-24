@@ -9,6 +9,7 @@ public class AISettingsDto
     public required int MaxContentLengthPerSource { get; init; }
     public required int MaxHistoryMessages { get; init; }
     public required int MaxTotalTokens { get; init; }
+    public required bool IncludeFullOnboardingBlob { get; init; }
 }
 
 /// <summary>
@@ -20,4 +21,5 @@ public class UpdateAISettingsRequestDto
     public required int MaxContentLengthPerSource { get; init; }
     public required int MaxHistoryMessages { get; init; }
     public required int MaxTotalTokens { get; init; }
+    public required bool IncludeFullOnboardingBlob { get; init; }
 }

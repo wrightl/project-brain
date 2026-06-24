@@ -15,6 +15,7 @@ interface PromptBudgetSettings {
     episodesReserve: number;
     onboardingReserve: number;
     historyReserve: number;
+    tokenEstimator: string;
 }
 
 function parseSettings(data: Record<string, unknown>): PromptBudgetSettings {
@@ -33,11 +34,14 @@ function parseSettings(data: Record<string, unknown>): PromptBudgetSettings {
             data.onboardingReserve ?? data.OnboardingReserve ?? 400
         ),
         historyReserve: Number(data.historyReserve ?? data.HistoryReserve ?? 800),
+        tokenEstimator: String(
+            data.tokenEstimator ?? data.TokenEstimator ?? 'character'
+        ),
     };
 }
 
 const RESERVE_FIELDS: Array<{
-    name: keyof Omit<PromptBudgetSettings, 'enablePromptBudget'>;
+    name: keyof Omit<PromptBudgetSettings, 'enablePromptBudget' | 'tokenEstimator'>;
     label: string;
     description: string;
 }> = [
@@ -252,6 +256,35 @@ export default function PromptBudgetSettingsSection() {
                         </div>
                     ))}
                 </div>
+
+                {settings.enablePromptBudget && (
+                    <div>
+                        <label
+                            htmlFor="tokenEstimator"
+                            className="block text-sm font-medium text-gray-700"
+                        >
+                            Token estimator
+                        </label>
+                        <select
+                            id="tokenEstimator"
+                            name="tokenEstimator"
+                            value={settings.tokenEstimator}
+                            onChange={(e) =>
+                                setSettings((prev) => ({
+                                    ...prev,
+                                    tokenEstimator: e.target.value,
+                                }))
+                            }
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        >
+                            <option value="character">Character (length / 4)</option>
+                            <option value="tiktoken">Tiktoken (cl100k_base)</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                            Model used when prompt budget is enabled.
+                        </p>
+                    </div>
+                )}
 
                 <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                     <button

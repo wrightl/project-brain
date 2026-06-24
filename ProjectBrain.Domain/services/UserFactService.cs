@@ -68,7 +68,8 @@ public class UserFactService : IUserFactService
                 Content = f.Content,
                 Category = f.Category,
                 Status = f.Status,
-                CreatedAt = f.CreatedAt
+                CreatedAt = f.CreatedAt,
+                IsPinned = f.PinnedAt is not null
             }).ToList()
         };
     }
@@ -76,6 +77,41 @@ public class UserFactService : IUserFactService
     public Task TouchRetrievedAsync(IReadOnlyList<Guid> factIds, CancellationToken cancellationToken = default)
     {
         return _repository.TouchRetrievedAsync(factIds, cancellationToken);
+    }
+
+    public async Task<bool> PinAsync(string userId, Guid id, CancellationToken cancellationToken = default)
+    {
+        var fact = await _repository.GetByIdAsync(id, cancellationToken);
+        if (fact is null || fact.UserId != userId || fact.Status is MemoryStatuses.Superseded or MemoryStatuses.Rejected)
+        {
+            return false;
+        }
+
+        fact.PinnedAt = DateTime.UtcNow;
+        fact.ExpiresAt = null;
+        if (fact.Status == MemoryStatuses.Provisional)
+        {
+            fact.Status = MemoryStatuses.Active;
+        }
+
+        fact.UpdatedAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> UnpinAsync(string userId, Guid id, int activeTtlDays, CancellationToken cancellationToken = default)
+    {
+        var fact = await _repository.GetByIdAsync(id, cancellationToken);
+        if (fact is null || fact.UserId != userId || fact.PinnedAt is null)
+        {
+            return false;
+        }
+
+        fact.PinnedAt = null;
+        fact.ExpiresAt = DateTime.UtcNow.AddDays(activeTtlDays);
+        fact.UpdatedAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }
 
@@ -88,4 +124,6 @@ public interface IUserFactService
     Task<bool> SupersedeAsync(string userId, Guid id, CancellationToken cancellationToken = default);
     Task<UserMemoryListDto> ListForUserAsync(string userId, bool includeProvisional, CancellationToken cancellationToken = default);
     Task TouchRetrievedAsync(IReadOnlyList<Guid> factIds, CancellationToken cancellationToken = default);
+    Task<bool> PinAsync(string userId, Guid id, CancellationToken cancellationToken = default);
+    Task<bool> UnpinAsync(string userId, Guid id, int activeTtlDays, CancellationToken cancellationToken = default);
 }

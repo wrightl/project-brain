@@ -70,13 +70,49 @@ public class UserEpisodeService : IUserEpisodeService
             Topic = e.Topic,
             Outcome = e.Outcome,
             Status = e.Status,
-            CreatedAt = e.CreatedAt
+            CreatedAt = e.CreatedAt,
+            IsPinned = e.PinnedAt is not null
         }).ToList();
     }
 
     public Task TouchRetrievedAsync(IReadOnlyList<Guid> episodeIds, CancellationToken cancellationToken = default)
     {
         return _repository.TouchRetrievedAsync(episodeIds, cancellationToken);
+    }
+
+    public async Task<bool> PinAsync(string userId, Guid id, CancellationToken cancellationToken = default)
+    {
+        var episode = await _repository.GetByIdAsync(id, cancellationToken);
+        if (episode is null || episode.UserId != userId || episode.Status is MemoryStatuses.Superseded or MemoryStatuses.Rejected)
+        {
+            return false;
+        }
+
+        episode.PinnedAt = DateTime.UtcNow;
+        episode.ExpiresAt = null;
+        if (episode.Status == MemoryStatuses.Provisional)
+        {
+            episode.Status = MemoryStatuses.Active;
+        }
+
+        episode.UpdatedAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> UnpinAsync(string userId, Guid id, int activeTtlDays, CancellationToken cancellationToken = default)
+    {
+        var episode = await _repository.GetByIdAsync(id, cancellationToken);
+        if (episode is null || episode.UserId != userId || episode.PinnedAt is null)
+        {
+            return false;
+        }
+
+        episode.PinnedAt = null;
+        episode.ExpiresAt = DateTime.UtcNow.AddDays(activeTtlDays);
+        episode.UpdatedAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }
 
@@ -89,4 +125,6 @@ public interface IUserEpisodeService
     Task<bool> SupersedeAsync(string userId, Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<UserEpisodeDto>> ListForUserAsync(string userId, bool includeProvisional, CancellationToken cancellationToken = default);
     Task TouchRetrievedAsync(IReadOnlyList<Guid> episodeIds, CancellationToken cancellationToken = default);
+    Task<bool> PinAsync(string userId, Guid id, CancellationToken cancellationToken = default);
+    Task<bool> UnpinAsync(string userId, Guid id, int activeTtlDays, CancellationToken cancellationToken = default);
 }

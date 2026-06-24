@@ -12,6 +12,7 @@ public class PromptBudgetSettingsDto
     public required int EpisodesReserve { get; init; }
     public required int OnboardingReserve { get; init; }
     public required int HistoryReserve { get; init; }
+    public required string TokenEstimator { get; init; }
 }
 
 public class UpdatePromptBudgetSettingsRequestDto
@@ -26,4 +27,5 @@ public class UpdatePromptBudgetSettingsRequestDto
     public required int EpisodesReserve { get; init; }
     public required int OnboardingReserve { get; init; }
     public required int HistoryReserve { get; init; }
+    public required string TokenEstimator { get; init; }
 }

@@ -28,15 +28,74 @@ public class AgentOpenAIService : IAgentOpenAIService
         List<AgentChatMessage> history,
         ChatMemoryContext memoryContext,
         List<Dictionary<string, object>> tools,
-        CancellationToken cancellationToken = default)
+        Guid? conversationId = null,
+        string? correlationId = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _services.Logger.LogInformation("Starting GetAgentResponseAsync for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
+
+        var aiSettings = await _services.ApplicationSettingsService.GetAISettingsAsync();
+        var promptBudgetSettings = await _services.ApplicationSettingsService.GetPromptBudgetSettingsAsync();
+        var estimator = await TokenEstimatorFactory.CreateAsync(_services.ApplicationSettingsService);
+        var includeOnboarding = ChatPromptAssembler.ShouldIncludeOnboardingBlob(
+            aiSettings.IncludeFullOnboardingBlob,
+            userInformation,
+            memoryContext,
+            isFirstTurn: history.Count == 0);
 
         // Build system prompt with memory-aware policies and preferences
         var systemPrompt = BuildAgentSystemPrompt(userName, memoryContext);
 
-        // Limit conversation history using memory-aware window
-        var limitedHistory = ChatPromptAssembler.SelectRecentAgentHistory(history, memoryContext).ToList();
+        List<AgentChatMessage> limitedHistory;
+        string userPrompt;
+        IReadOnlyList<PromptSlotTrace> slotTraces = Array.Empty<PromptSlotTrace>();
+
+        if (promptBudgetSettings.EnablePromptBudget)
+        {
+            var initialHistory = ChatPromptAssembler.SelectRecentAgentHistory(history, memoryContext).ToList();
+            var budgeted = PromptTokenBudgetAssembler.AssembleForAgent(
+                userQuery,
+                userInformation,
+                memoryContext,
+                initialHistory,
+                promptBudgetSettings,
+                aiSettings.MaxTotalTokens,
+                estimator,
+                includeOnboarding);
+            userPrompt = budgeted.UserPrompt;
+            limitedHistory = budgeted.LimitedHistory.ToList();
+            slotTraces = budgeted.SlotTraces;
+        }
+        else
+        {
+            limitedHistory = ChatPromptAssembler.SelectRecentAgentHistory(history, memoryContext).ToList();
+            userPrompt = ChatPromptAssembler.BuildAgentUserPrompt(
+                userQuery,
+                userInformation,
+                memoryContext,
+                includeOnboarding);
+        }
+
+        var estimatedTokens = estimator.EstimateTokens(systemPrompt) + estimator.EstimateTokens(userPrompt);
+        foreach (var msg in limitedHistory)
+        {
+            estimatedTokens += estimator.EstimateTokens(msg.Content);
+        }
+
+        var traceEnvelope = ChatTurnTraceBuilder.Build(
+            correlationId ?? "no-trace",
+            conversationId ?? Guid.Empty,
+            userId,
+            memoryContext,
+            limitedHistory.Count,
+            citationCount: 0,
+            citationIds: Array.Empty<string>(),
+            retrievalMode: "agent",
+            estimatedTokens,
+            aiSettings.MaxTotalTokens,
+            truncatedSources: false,
+            slotTraces);
+        ChatTurnTraceBuilder.Log(_services.Logger, traceEnvelope, "AgentTrace");
 
         // Create chat messages
         var messages = ToChatMessages(limitedHistory);
@@ -45,7 +104,6 @@ public class AgentOpenAIService : IAgentOpenAIService
         messages.Insert(0, new SystemChatMessage(systemPrompt));
 
         // Build user prompt with memory context
-        var userPrompt = ChatPromptAssembler.BuildAgentUserPrompt(userQuery, userInformation, memoryContext);
         messages.Add(new UserChatMessage(userPrompt));
 
         // Convert tools to ChatTool format for function calling

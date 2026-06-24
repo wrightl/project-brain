@@ -22,6 +22,7 @@ public sealed class UserFactDto
     public string Category { get; init; } = "general";
     public required string Status { get; init; }
     public DateTime CreatedAt { get; init; }
+    public bool IsPinned { get; init; }
 }
 
 public sealed class UserEpisodeDto
@@ -32,6 +33,7 @@ public sealed class UserEpisodeDto
     public string Outcome { get; init; } = "unknown";
     public required string Status { get; init; }
     public DateTime CreatedAt { get; init; }
+    public bool IsPinned { get; init; }
 }
 
 public sealed class UserMemoryListDto

@@ -95,6 +95,8 @@ public class AgentService : IAgentService
                 conversationHistory,
                 memoryContext,
                 tools,
+                conversationId,
+                correlationId: Guid.NewGuid().ToString("N"),
                 cancellationToken);
 
             // Process the streaming response and handle tool calls

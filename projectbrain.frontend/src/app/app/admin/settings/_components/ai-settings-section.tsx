@@ -9,6 +9,7 @@ interface AISettings {
     maxContentLengthPerSource: number;
     maxHistoryMessages: number;
     maxTotalTokens: number;
+    includeFullOnboardingBlob: boolean;
 }
 
 export default function AISettingsSection() {
@@ -17,6 +18,7 @@ export default function AISettingsSection() {
         maxContentLengthPerSource: 800,
         maxHistoryMessages: 10,
         maxTotalTokens: 7000,
+        includeFullOnboardingBlob: true,
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -228,6 +230,35 @@ export default function AISettingsSection() {
                             Maximum total tokens allowed
                         </p>
                     </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-base font-semibold text-gray-900 mb-4">
+                        Prompt assembly
+                    </h3>
+                    <label className="flex items-center justify-between gap-4">
+                        <div>
+                            <div className="text-sm font-medium text-gray-900">
+                                Include full onboarding blob
+                            </div>
+                            <div className="text-xs text-gray-500">
+                                When off, onboarding JSON is omitted after the first
+                                turn when preferences and memories are available.
+                            </div>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={settings.includeFullOnboardingBlob}
+                            onChange={() =>
+                                setSettings((prev) => ({
+                                    ...prev,
+                                    includeFullOnboardingBlob:
+                                        !prev.includeFullOnboardingBlob,
+                                }))
+                            }
+                            className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                    </label>
                 </div>
 
                 <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">

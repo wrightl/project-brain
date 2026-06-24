@@ -395,6 +395,20 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
             },
             new()
             {
+                Key = "AI:IncludeFullOnboardingBlob",
+                Value = "true",
+                Category = "AI",
+                Description = "Include full onboarding JSON blob in every chat prompt"
+            },
+            new()
+            {
+                Key = "AI:TokenEstimator",
+                Value = "character",
+                Category = "AI",
+                Description = "Token estimator for prompt budgeting: character or tiktoken"
+            },
+            new()
+            {
                 Key = "AI:Policy:CrisisGuidance",
                 Value = "Avoid medical or diagnostic claims. If the user describes immediate danger or crisis, encourage them to seek urgent professional help or contact local emergency services.",
                 Category = "AI:Policy",

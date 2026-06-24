@@ -80,6 +80,29 @@ public class MemoryDecayServiceTests : IDisposable
         _indexService.Verify(i => i.DeleteFactAsync(fact.Id, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task ApplyDecayAsync_SkipsPinnedFact()
+    {
+        var fact = new UserFact
+        {
+            UserId = UserId,
+            Content = "Pinned fact",
+            ContentHash = "hash-pinned",
+            Status = MemoryStatuses.Active,
+            CreatedAt = DateTime.UtcNow.AddDays(-400),
+            UpdatedAt = DateTime.UtcNow.AddDays(-400),
+            PinnedAt = DateTime.UtcNow.AddDays(-1)
+        };
+        _context.UserFacts.Add(fact);
+        await _context.SaveChangesAsync();
+
+        var count = await _service.ApplyDecayAsync(UserId);
+
+        count.Should().Be(0);
+        var updated = await _context.UserFacts.FindAsync(fact.Id);
+        updated!.Status.Should().Be(MemoryStatuses.Active);
+    }
+
     public void Dispose()
     {
         _context.Dispose();

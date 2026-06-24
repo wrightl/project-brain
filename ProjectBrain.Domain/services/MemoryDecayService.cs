@@ -82,6 +82,11 @@ public class MemoryDecayService : IMemoryDecayService
 
     private static bool ShouldExpireFact(UserFact fact, MemorySettings settings, DateTime now)
     {
+        if (fact.PinnedAt is not null)
+        {
+            return false;
+        }
+
         if (fact.Status == MemoryStatuses.Provisional)
         {
             return fact.CreatedAt <= now.AddDays(-settings.ProvisionalTtlDays);
@@ -100,6 +105,11 @@ public class MemoryDecayService : IMemoryDecayService
 
     private static bool ShouldExpireEpisode(UserEpisode episode, MemorySettings settings, DateTime now)
     {
+        if (episode.PinnedAt is not null)
+        {
+            return false;
+        }
+
         if (episode.Status == MemoryStatuses.Provisional)
         {
             return episode.CreatedAt <= now.AddDays(-settings.ProvisionalTtlDays);

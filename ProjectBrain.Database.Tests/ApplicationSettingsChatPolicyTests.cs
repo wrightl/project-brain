@@ -97,6 +97,42 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
                 Description = "Enable summary",
                 UpdatedAt = DateTime.UtcNow,
                 UpdatedBy = "test"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:IncludeFullOnboardingBlob",
+                Value = "true",
+                Category = "AI",
+                Description = "Include onboarding blob",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "test"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:MaxSearchResults",
+                Value = "5",
+                Category = "AI",
+                Description = "Search results",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "test"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:MaxContentLengthPerSource",
+                Value = "800",
+                Category = "AI",
+                Description = "Content length",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "test"
+            },
+            new ApplicationSetting
+            {
+                Key = "AI:MaxTotalTokens",
+                Value = "7000",
+                Category = "AI",
+                Description = "Max tokens",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = "test"
             });
         _context.SaveChanges();
     }
@@ -406,7 +442,8 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
             new ApplicationSetting { Key = "AI:PromptBudget:FactsReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:PromptBudget:EpisodesReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
             new ApplicationSetting { Key = "AI:PromptBudget:OnboardingReserve", Value = "500", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
-            new ApplicationSetting { Key = "AI:PromptBudget:HistoryReserve", Value = "800", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" });
+            new ApplicationSetting { Key = "AI:PromptBudget:HistoryReserve", Value = "800", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:TokenEstimator", Value = "character", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" });
         await _context.SaveChangesAsync();
 
         await _service.UpdatePromptBudgetSettingsAsync(
@@ -421,7 +458,8 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
                 FactsReserve = 300,
                 EpisodesReserve = 250,
                 OnboardingReserve = 450,
-                HistoryReserve = 900
+                HistoryReserve = 900,
+                TokenEstimator = "character"
             },
             "admin-test");
 
@@ -429,6 +467,70 @@ public class ApplicationSettingsChatPolicyTests : IDisposable
         updated.EnablePromptBudget.Should().BeTrue();
         updated.SystemReserve.Should().Be(500);
         updated.HistoryReserve.Should().Be(900);
+    }
+
+    [Fact]
+    public async Task GetAISettingsAsync_IncludesIncludeFullOnboardingBlobDefault()
+    {
+        var settings = await _service.GetAISettingsAsync();
+
+        settings.IncludeFullOnboardingBlob.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateAISettingsAsync_PersistsIncludeFullOnboardingBlob()
+    {
+        await _service.UpdateAISettingsAsync(
+            new AISettings
+            {
+                MaxSearchResults = 5,
+                MaxContentLengthPerSource = 800,
+                MaxHistoryMessages = 10,
+                MaxTotalTokens = 7000,
+                IncludeFullOnboardingBlob = false
+            },
+            "admin-test");
+
+        var updated = await _service.GetAISettingsAsync();
+        updated.IncludeFullOnboardingBlob.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UpdatePromptBudgetSettingsAsync_PersistsTokenEstimator()
+    {
+        _context.ApplicationSettings.AddRange(
+            new ApplicationSetting { Key = "AI:EnablePromptBudget", Value = "false", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:SystemReserve", Value = "400", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:PoliciesReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:PreferencesReserve", Value = "200", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:QueryReserve", Value = "200", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:SummaryReserve", Value = "400", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:FactsReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:EpisodesReserve", Value = "300", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:OnboardingReserve", Value = "500", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:PromptBudget:HistoryReserve", Value = "800", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" },
+            new ApplicationSetting { Key = "AI:TokenEstimator", Value = "character", Category = "AI", UpdatedAt = DateTime.UtcNow, UpdatedBy = "seed" });
+        await _context.SaveChangesAsync();
+
+        await _service.UpdatePromptBudgetSettingsAsync(
+            new PromptBudgetSettings
+            {
+                EnablePromptBudget = true,
+                SystemReserve = 400,
+                PoliciesReserve = 300,
+                PreferencesReserve = 200,
+                QueryReserve = 200,
+                SummaryReserve = 400,
+                FactsReserve = 300,
+                EpisodesReserve = 300,
+                OnboardingReserve = 500,
+                HistoryReserve = 800,
+                TokenEstimator = "tiktoken"
+            },
+            "admin-test");
+
+        var updated = await _service.GetPromptBudgetSettingsAsync();
+        updated.TokenEstimator.Should().Be("tiktoken");
     }
 
     public void Dispose()

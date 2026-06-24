@@ -29,6 +29,13 @@ public sealed class BudgetedPromptResult
     public bool TruncatedSources { get; init; }
 }
 
+public sealed class AgentBudgetedPromptResult
+{
+    public required string UserPrompt { get; init; }
+    public IReadOnlyList<PromptSlotTrace> SlotTraces { get; init; } = Array.Empty<PromptSlotTrace>();
+    public IReadOnlyList<AgentChatMessage> LimitedHistory { get; init; } = Array.Empty<AgentChatMessage>();
+}
+
 public static class PromptTokenBudgetAssembler
 {
     public static BudgetedPromptResult Assemble(
@@ -40,7 +47,8 @@ public static class PromptTokenBudgetAssembler
         IReadOnlyList<_shared.ChatMessage> history,
         PromptBudgetSettings budget,
         int maxTotalTokens,
-        ITokenEstimator estimator)
+        ITokenEstimator estimator,
+        bool includeOnboarding = true)
     {
         var slotTraces = new List<PromptSlotTrace>();
         var reserved = budget.SystemReserve + budget.PoliciesReserve + budget.PreferencesReserve
@@ -56,15 +64,24 @@ public static class PromptTokenBudgetAssembler
         var trimmedEpisodes = TrimEpisodeList(memoryContext.Episodes, budget.EpisodesReserve, remaining, estimator, slotTraces);
         remaining -= slotTraces.Last().EstimatedTokens;
 
-        var onboardingBudget = Math.Min(budget.OnboardingReserve, remaining);
-        var trimmedOnboarding = TrimToCharBudget(userInformation, onboardingBudget, estimator);
+        var onboardingBudget = includeOnboarding
+            ? Math.Min(budget.OnboardingReserve, remaining)
+            : 0;
+        var trimmedOnboarding = includeOnboarding
+            ? TrimToCharBudget(userInformation, onboardingBudget, estimator)
+            : string.Empty;
         slotTraces.Add(new PromptSlotTrace
         {
             SlotName = "onboarding",
             EstimatedTokens = estimator.EstimateTokens(trimmedOnboarding),
-            Truncated = trimmedOnboarding.Length < (userInformation?.Length ?? 0)
+            Truncated = includeOnboarding && trimmedOnboarding.Length < (userInformation?.Length ?? 0)
         });
         remaining -= slotTraces.Last().EstimatedTokens;
+
+        if (!includeOnboarding)
+        {
+            remaining += budget.OnboardingReserve;
+        }
 
         var sourcesBudget = Math.Max(0, remaining - budget.HistoryReserve);
         var trimmedSources = TrimToCharBudget(sourcesFormatted, sourcesBudget, estimator);
@@ -98,7 +115,8 @@ public static class PromptTokenBudgetAssembler
             trimmedOnboarding,
             trimmedSources,
             citationCount,
-            trimmedContext);
+            trimmedContext,
+            includeOnboarding);
 
         slotTraces.Add(new PromptSlotTrace
         {
@@ -113,6 +131,168 @@ public static class PromptTokenBudgetAssembler
             SlotTraces = slotTraces,
             LimitedHistory = limitedHistory,
             TruncatedSources = truncatedSources
+        };
+    }
+
+    public static BudgetedPromptResult AssembleForStrategy(
+        string userQuery,
+        string userInformation,
+        ChatMemoryContext memoryContext,
+        IReadOnlyList<_shared.ChatMessage> history,
+        PromptBudgetSettings budget,
+        int maxTotalTokens,
+        ITokenEstimator estimator,
+        bool includeOnboarding)
+    {
+        var slotTraces = new List<PromptSlotTrace>();
+        var reserved = budget.SystemReserve + budget.PoliciesReserve + budget.PreferencesReserve
+            + budget.QueryReserve;
+        var remaining = Math.Max(0, maxTotalTokens - reserved);
+
+        var summaryText = TrimSummary(memoryContext.ConversationSummary, budget.SummaryReserve, remaining, estimator, slotTraces);
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        var trimmedFacts = TrimFactList(memoryContext.Facts, budget.FactsReserve, remaining, estimator, slotTraces);
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        var trimmedEpisodes = TrimEpisodeList(memoryContext.Episodes, budget.EpisodesReserve, remaining, estimator, slotTraces);
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        var onboardingBudget = includeOnboarding
+            ? Math.Min(budget.OnboardingReserve, remaining)
+            : 0;
+        var trimmedOnboarding = includeOnboarding
+            ? TrimToCharBudget(userInformation, onboardingBudget, estimator)
+            : string.Empty;
+        slotTraces.Add(new PromptSlotTrace
+        {
+            SlotName = "onboarding",
+            EstimatedTokens = estimator.EstimateTokens(trimmedOnboarding),
+            Truncated = includeOnboarding && trimmedOnboarding.Length < (userInformation?.Length ?? 0)
+        });
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        if (!includeOnboarding)
+        {
+            remaining += budget.OnboardingReserve;
+        }
+
+        var historyBudget = Math.Min(budget.HistoryReserve, remaining);
+        var limitedHistory = SelectHistoryByTokenBudget(history, historyBudget, estimator, slotTraces);
+
+        var trimmedContext = new ChatMemoryContext
+        {
+            Policies = memoryContext.Policies,
+            UserPreferences = memoryContext.UserPreferences,
+            ConversationSummary = summaryText,
+            Facts = trimmedFacts,
+            Episodes = trimmedEpisodes,
+            MemoryRetrievalMode = memoryContext.MemoryRetrievalMode,
+            RecentMessageWindow = memoryContext.RecentMessageWindow,
+            MaxHistoryMessages = memoryContext.MaxHistoryMessages,
+            EnableConversationSummary = memoryContext.EnableConversationSummary
+        };
+
+        var userPrompt = ChatPromptAssembler.BuildStrategyUserPrompt(
+            userQuery,
+            trimmedOnboarding,
+            trimmedContext,
+            limitedHistory,
+            includeOnboarding);
+
+        slotTraces.Add(new PromptSlotTrace
+        {
+            SlotName = "query",
+            EstimatedTokens = estimator.EstimateTokens(userQuery),
+            Truncated = false
+        });
+
+        return new BudgetedPromptResult
+        {
+            UserPrompt = userPrompt,
+            SlotTraces = slotTraces,
+            LimitedHistory = limitedHistory,
+            TruncatedSources = false
+        };
+    }
+
+    public static AgentBudgetedPromptResult AssembleForAgent(
+        string userQuery,
+        string userInformation,
+        ChatMemoryContext memoryContext,
+        IReadOnlyList<AgentChatMessage> history,
+        PromptBudgetSettings budget,
+        int maxTotalTokens,
+        ITokenEstimator estimator,
+        bool includeOnboarding)
+    {
+        var slotTraces = new List<PromptSlotTrace>();
+        var reserved = budget.SystemReserve + budget.PoliciesReserve + budget.PreferencesReserve
+            + budget.QueryReserve;
+        var remaining = Math.Max(0, maxTotalTokens - reserved);
+
+        var summaryText = TrimSummary(memoryContext.ConversationSummary, budget.SummaryReserve, remaining, estimator, slotTraces);
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        var trimmedFacts = TrimFactList(memoryContext.Facts, budget.FactsReserve, remaining, estimator, slotTraces);
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        var trimmedEpisodes = TrimEpisodeList(memoryContext.Episodes, budget.EpisodesReserve, remaining, estimator, slotTraces);
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        var onboardingBudget = includeOnboarding
+            ? Math.Min(budget.OnboardingReserve, remaining)
+            : 0;
+        var trimmedOnboarding = includeOnboarding
+            ? TrimToCharBudget(userInformation, onboardingBudget, estimator)
+            : string.Empty;
+        slotTraces.Add(new PromptSlotTrace
+        {
+            SlotName = "onboarding",
+            EstimatedTokens = estimator.EstimateTokens(trimmedOnboarding),
+            Truncated = includeOnboarding && trimmedOnboarding.Length < (userInformation?.Length ?? 0)
+        });
+        remaining -= slotTraces.Last().EstimatedTokens;
+
+        if (!includeOnboarding)
+        {
+            remaining += budget.OnboardingReserve;
+        }
+
+        var historyBudget = Math.Min(budget.HistoryReserve, remaining);
+        var limitedHistory = SelectAgentHistoryByTokenBudget(history, historyBudget, estimator, slotTraces);
+
+        var trimmedContext = new ChatMemoryContext
+        {
+            Policies = memoryContext.Policies,
+            UserPreferences = memoryContext.UserPreferences,
+            ConversationSummary = summaryText,
+            Facts = trimmedFacts,
+            Episodes = trimmedEpisodes,
+            MemoryRetrievalMode = memoryContext.MemoryRetrievalMode,
+            RecentMessageWindow = memoryContext.RecentMessageWindow,
+            MaxHistoryMessages = memoryContext.MaxHistoryMessages,
+            EnableConversationSummary = memoryContext.EnableConversationSummary
+        };
+
+        var userPrompt = ChatPromptAssembler.BuildAgentUserPrompt(
+            userQuery,
+            trimmedOnboarding,
+            trimmedContext,
+            includeOnboarding);
+
+        slotTraces.Add(new PromptSlotTrace
+        {
+            SlotName = "query",
+            EstimatedTokens = estimator.EstimateTokens(userQuery),
+            Truncated = false
+        });
+
+        return new AgentBudgetedPromptResult
+        {
+            UserPrompt = userPrompt,
+            SlotTraces = slotTraces,
+            LimitedHistory = limitedHistory
         };
     }
 
@@ -241,6 +421,42 @@ public static class PromptTokenBudgetAssembler
         }
 
         var selected = new List<_shared.ChatMessage>();
+        var used = 0;
+        foreach (var message in history.AsEnumerable().Reverse())
+        {
+            var cost = estimator.EstimateTokens(message.Content);
+            if (used + cost > tokenBudget)
+            {
+                break;
+            }
+
+            selected.Insert(0, message);
+            used += cost;
+        }
+
+        slotTraces.Add(new PromptSlotTrace
+        {
+            SlotName = "history",
+            EstimatedTokens = used,
+            DroppedCount = history.Count - selected.Count,
+            Truncated = selected.Count < history.Count
+        });
+        return selected;
+    }
+
+    private static IReadOnlyList<AgentChatMessage> SelectAgentHistoryByTokenBudget(
+        IReadOnlyList<AgentChatMessage> history,
+        int tokenBudget,
+        ITokenEstimator estimator,
+        List<PromptSlotTrace> slotTraces)
+    {
+        if (history.Count == 0 || tokenBudget <= 0)
+        {
+            slotTraces.Add(new PromptSlotTrace { SlotName = "history", EstimatedTokens = 0 });
+            return history;
+        }
+
+        var selected = new List<AgentChatMessage>();
         var used = 0;
         foreach (var message in history.AsEnumerable().Reverse())
         {

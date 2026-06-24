@@ -422,6 +422,8 @@ public static class ChatEndpoints
                     userName,
                     history,
                     memoryContext,
+                    conversation.Id,
+                    correlationId,
                     http.RequestAborted);
                 LogChatStreamPhase(services.Logger, correlationId, sw, "strategies_after_GetStrategySuggestionsAsync", conversation.Id);
 

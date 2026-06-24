@@ -38,6 +38,8 @@ public class UserEndpointsTests
         _mockUserActivityService = new Mock<IUserActivityService>();
         _mockCoachMessageService = new Mock<ICoachMessageService>();
         _mockOnboardingDataService = new Mock<IOnboardingDataService>();
+        var mockMemoryPromotionService = new Mock<IMemoryPromotionService>();
+        var mockApplicationSettingsService = new Mock<IApplicationSettingsService>();
         var mockMemoryCache = new Mock<IMemoryCache>();
         var mockFeatureFlagService = new Mock<IFeatureFlagService>();
         var mockConfiguration = new Mock<IConfiguration>();
@@ -64,6 +66,8 @@ public class UserEndpointsTests
             _mockUserActivityService.Object,
             _mockCoachMessageService.Object,
             _mockOnboardingDataService.Object,
+            mockMemoryPromotionService.Object,
+            mockApplicationSettingsService.Object,
             storage
         );
     }

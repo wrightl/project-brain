@@ -14,6 +14,7 @@ export interface AISettings {
     maxContentLengthPerSource: number;
     maxHistoryMessages: number;
     maxTotalTokens: number;
+    includeFullOnboardingBlob: boolean;
 }
 
 export interface UpdateAISettingsRequest {
@@ -21,6 +22,7 @@ export interface UpdateAISettingsRequest {
     maxContentLengthPerSource: number;
     maxHistoryMessages: number;
     maxTotalTokens: number;
+    includeFullOnboardingBlob: boolean;
 }
 
 export interface ChatMemorySettings {
@@ -68,6 +70,7 @@ export interface PromptBudgetSettings {
     episodesReserve: number;
     onboardingReserve: number;
     historyReserve: number;
+    tokenEstimator: string;
 }
 
 export class SettingsService {

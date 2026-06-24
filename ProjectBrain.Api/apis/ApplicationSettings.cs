@@ -127,7 +127,8 @@ public static class ApplicationSettingsEndpoints
                 MaxSearchResults = settings.MaxSearchResults,
                 MaxContentLengthPerSource = settings.MaxContentLengthPerSource,
                 MaxHistoryMessages = settings.MaxHistoryMessages,
-                MaxTotalTokens = settings.MaxTotalTokens
+                MaxTotalTokens = settings.MaxTotalTokens,
+                IncludeFullOnboardingBlob = settings.IncludeFullOnboardingBlob
             };
 
             return Results.Ok(dto);
@@ -194,7 +195,8 @@ public static class ApplicationSettingsEndpoints
                 MaxSearchResults = request.MaxSearchResults,
                 MaxContentLengthPerSource = request.MaxContentLengthPerSource,
                 MaxHistoryMessages = request.MaxHistoryMessages,
-                MaxTotalTokens = request.MaxTotalTokens
+                MaxTotalTokens = request.MaxTotalTokens,
+                IncludeFullOnboardingBlob = request.IncludeFullOnboardingBlob
             };
 
             await services.ApplicationSettingsService.UpdateAISettingsAsync(settings, adminId);
@@ -743,7 +745,8 @@ public static class ApplicationSettingsEndpoints
         FactsReserve = settings.FactsReserve,
         EpisodesReserve = settings.EpisodesReserve,
         OnboardingReserve = settings.OnboardingReserve,
-        HistoryReserve = settings.HistoryReserve
+        HistoryReserve = settings.HistoryReserve,
+        TokenEstimator = settings.TokenEstimator
     };
 
     private static PromptBudgetSettings MapPromptBudgetRequest(UpdatePromptBudgetSettingsRequestDto request) => new()
@@ -757,6 +760,7 @@ public static class ApplicationSettingsEndpoints
         FactsReserve = request.FactsReserve,
         EpisodesReserve = request.EpisodesReserve,
         OnboardingReserve = request.OnboardingReserve,
-        HistoryReserve = request.HistoryReserve
+        HistoryReserve = request.HistoryReserve,
+        TokenEstimator = request.TokenEstimator
     };
 }

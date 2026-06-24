@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import toast from 'react-hot-toast';
-import {
+import type {
     UserEpisodeMemory,
     UserFactMemory,
     UserMemoryList,
-} from '@/_services/user-memory-service';
+} from '@/_services/user-memory-types';
 
 export default function LearnedMemorySection() {
     const [memories, setMemories] = useState<UserMemoryList>({
@@ -17,6 +17,7 @@ export default function LearnedMemorySection() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [pinningId, setPinningId] = useState<string | null>(null);
 
     useEffect(() => {
         loadMemories();
@@ -111,6 +112,62 @@ export default function LearnedMemorySection() {
         }
     };
 
+    const handleTogglePinFact = async (fact: UserFactMemory) => {
+        try {
+            setPinningId(fact.id);
+            const pinPath = fact.isPinned
+                ? `/api/user/memory/facts/${fact.id}/unpin`
+                : `/api/user/memory/facts/${fact.id}/pin`;
+            const response = await fetchWithAuth(pinPath, { method: 'POST' });
+            if (!response.ok) {
+                throw new Error('Failed to update memory');
+            }
+            setMemories((prev) => ({
+                ...prev,
+                facts: prev.facts.map((f) =>
+                    f.id === fact.id ? { ...f, isPinned: !f.isPinned } : f
+                ),
+            }));
+            toast.success(fact.isPinned ? 'Memory unpinned' : 'Memory pinned');
+        } catch (err) {
+            toast.error(
+                err instanceof Error ? err.message : 'Failed to update memory'
+            );
+        } finally {
+            setPinningId(null);
+        }
+    };
+
+    const handleTogglePinEpisode = async (episode: UserEpisodeMemory) => {
+        try {
+            setPinningId(episode.id);
+            const pinPath = episode.isPinned
+                ? `/api/user/memory/episodes/${episode.id}/unpin`
+                : `/api/user/memory/episodes/${episode.id}/pin`;
+            const response = await fetchWithAuth(pinPath, { method: 'POST' });
+            if (!response.ok) {
+                throw new Error('Failed to update memory');
+            }
+            setMemories((prev) => ({
+                ...prev,
+                episodes: prev.episodes.map((e) =>
+                    e.id === episode.id
+                        ? { ...e, isPinned: !e.isPinned }
+                        : e
+                ),
+            }));
+            toast.success(
+                episode.isPinned ? 'Memory unpinned' : 'Memory pinned'
+            );
+        } catch (err) {
+            toast.error(
+                err instanceof Error ? err.message : 'Failed to update memory'
+            );
+        } finally {
+            setPinningId(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="bg-white shadow rounded-lg p-6 border border-gray-300">
@@ -163,18 +220,31 @@ export default function LearnedMemorySection() {
                                             </p>
                                             <p className="mt-1 text-xs text-gray-600">
                                                 {fact.category}
+                                                {fact.isPinned ? ' · Pinned' : ''}
                                             </p>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                handleDeleteFact(fact)
-                                            }
-                                            disabled={deletingId === fact.id}
-                                            className="shrink-0 text-sm text-red-600 hover:text-red-800 disabled:opacity-50"
-                                        >
-                                            Remove
-                                        </button>
+                                        <div className="flex shrink-0 flex-col items-end gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleTogglePinFact(fact)
+                                                }
+                                                disabled={pinningId === fact.id}
+                                                className="text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                                            >
+                                                {fact.isPinned ? 'Unpin' : 'Pin'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleDeleteFact(fact)
+                                                }
+                                                disabled={deletingId === fact.id}
+                                                className="text-sm text-red-600 hover:text-red-800 disabled:opacity-50"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
@@ -199,20 +269,37 @@ export default function LearnedMemorySection() {
                                             <p className="mt-1 text-xs text-gray-600">
                                                 Topic: {episode.topic} · Outcome:{' '}
                                                 {episode.outcome}
+                                                {episode.isPinned ? ' · Pinned' : ''}
                                             </p>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                handleDeleteEpisode(episode)
-                                            }
-                                            disabled={
-                                                deletingId === episode.id
-                                            }
-                                            className="shrink-0 text-sm text-red-600 hover:text-red-800 disabled:opacity-50"
-                                        >
-                                            Remove
-                                        </button>
+                                        <div className="flex shrink-0 flex-col items-end gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleTogglePinEpisode(episode)
+                                                }
+                                                disabled={
+                                                    pinningId === episode.id
+                                                }
+                                                className="text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                                            >
+                                                {episode.isPinned
+                                                    ? 'Unpin'
+                                                    : 'Pin'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleDeleteEpisode(episode)
+                                                }
+                                                disabled={
+                                                    deletingId === episode.id
+                                                }
+                                                className="text-sm text-red-600 hover:text-red-800 disabled:opacity-50"
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>

@@ -100,7 +100,8 @@ public static class Auth0WebhookEndpoints
             var eventId = root.TryGetProperty("id", out var eventIdElement)
                 ? eventIdElement.GetString()
                 : null;
-            if (!idempotencyService.TryMarkProcessed("auth0", eventId ?? $"{eventType}:{requestBody.GetHashCode()}", TimeSpan.FromDays(7)))
+            var idempotencyKey = eventId ?? $"{eventType}:{requestBody.GetHashCode()}";
+            if (idempotencyService.IsProcessed("auth0", idempotencyKey))
             {
                 services.Logger.LogInformation("Skipping duplicate Auth0 webhook {EventId}", eventId);
                 return Results.Ok();
@@ -124,6 +125,7 @@ public static class Auth0WebhookEndpoints
                 services.Logger.LogInformation("Unhandled Auth0 event type: {EventType}", eventType);
             }
 
+            idempotencyService.MarkProcessed("auth0", idempotencyKey, TimeSpan.FromDays(7));
             return Results.Ok();
         }
         catch (JsonException ex)

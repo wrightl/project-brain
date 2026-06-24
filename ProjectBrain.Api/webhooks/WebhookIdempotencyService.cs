@@ -6,26 +6,32 @@ namespace ProjectBrain.Api.Webhooks;
 
 public interface IWebhookIdempotencyService
 {
-    bool TryMarkProcessed(string provider, string eventId, TimeSpan ttl);
+    bool IsProcessed(string provider, string eventId);
+    void MarkProcessed(string provider, string eventId, TimeSpan ttl);
 }
 
 public class WebhookIdempotencyService(IMemoryCache cache) : IWebhookIdempotencyService
 {
-    public bool TryMarkProcessed(string provider, string eventId, TimeSpan ttl)
+    public bool IsProcessed(string provider, string eventId)
     {
         if (string.IsNullOrWhiteSpace(eventId))
-        {
-            return true;
-        }
-
-        var cacheKey = $"webhook:{provider}:{eventId}";
-        if (cache.TryGetValue(cacheKey, out _))
         {
             return false;
         }
 
+        var cacheKey = $"webhook:{provider}:{eventId}";
+        return cache.TryGetValue(cacheKey, out _);
+    }
+
+    public void MarkProcessed(string provider, string eventId, TimeSpan ttl)
+    {
+        if (string.IsNullOrWhiteSpace(eventId))
+        {
+            return;
+        }
+
+        var cacheKey = $"webhook:{provider}:{eventId}";
         cache.Set(cacheKey, true, ttl);
-        return true;
     }
 }
 

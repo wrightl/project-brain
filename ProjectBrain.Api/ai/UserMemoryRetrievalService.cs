@@ -93,21 +93,33 @@ public class UserMemoryRetrievalService : IUserMemoryRetrievalService
 
                 if (memoryType == "fact" && facts.Count < settings.MaxFactsRetrieved)
                 {
+                    var fact = await _factRepository.GetByIdForUserAsync(memoryId, userId, cancellationToken);
+                    if (fact?.Status != MemoryStatuses.Active)
+                    {
+                        continue;
+                    }
+
                     facts.Add(new RetrievedUserFact
                     {
-                        Id = memoryId,
-                        Content = doc.GetString("content") ?? string.Empty,
-                        Category = doc.GetString("topic") ?? "general"
+                        Id = fact.Id,
+                        Content = fact.Content,
+                        Category = fact.Category
                     });
                 }
                 else if (memoryType == "episode" && episodes.Count < settings.MaxEpisodesRetrieved)
                 {
+                    var episode = await _episodeRepository.GetByIdForUserAsync(memoryId, userId, cancellationToken);
+                    if (episode?.Status != MemoryStatuses.Active)
+                    {
+                        continue;
+                    }
+
                     episodes.Add(new RetrievedUserEpisode
                     {
-                        Id = memoryId,
-                        Summary = doc.GetString("content") ?? string.Empty,
-                        Topic = doc.GetString("topic") ?? "general",
-                        Outcome = "unknown"
+                        Id = episode.Id,
+                        Summary = episode.Summary,
+                        Topic = episode.Topic,
+                        Outcome = episode.Outcome
                     });
                 }
             }

@@ -276,12 +276,121 @@ public class AgentServiceTests
 
         events.Should().Contain(e => e.Type == "pending_action");
         events.Should().NotContain(e => e.Type == "tools_executed");
+        streamTurnCalls.Should().Be(1);
 
         toolRegistry.Verify(
             r => r.ExecuteAsync("delete_knowledge_resource", It.IsAny<AgentToolContext>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()),
             Times.Never);
 
+        agentOpenAi.Verify(
+            a => a.AppendToolResults(
+                It.IsAny<AgentSession>(),
+                It.IsAny<string?>(),
+                It.IsAny<IReadOnlyList<AgentToolCall>>(),
+                It.IsAny<IReadOnlyList<AgentToolResult>>()),
+            Times.Never);
+
         orchestrator.Verify(o => o.PauseWorkflowAsync(workflow, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task StreamAgentInteractionAsync_WhenConfirmationToolIsMixedWithMutation_DoesNotExecuteMutation()
+    {
+        var orchestrator = new Mock<IAgentOrchestrator>();
+        var toolRegistry = new Mock<IAgentToolRegistry>();
+        var toolContextFactory = new Mock<IAgentToolContextFactory>();
+        var actionTracking = new Mock<IAgentActionTrackingService>();
+        var agentOpenAi = new Mock<IAgentOpenAIService>();
+        var logger = new Mock<ILogger<AgentService>>();
+
+        var workflow = new AgentWorkflowState
+        {
+            Id = Guid.NewGuid(),
+            UserId = "user-1",
+            Status = "active"
+        };
+
+        orchestrator
+            .Setup(o => o.CreateWorkflowAsync("user-1", It.IsAny<Guid?>(), "agent_interaction", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workflow);
+
+        actionTracking
+            .Setup(a => a.GetRecentActionsAsync("user-1", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AgentAction>());
+
+        var toolContext = new AgentToolContext
+        {
+            UserId = "user-1",
+            GoalService = Mock.Of<IGoalService>(),
+            GoalMutationSideEffects = Mock.Of<IGoalMutationSideEffects>()
+        };
+        toolContextFactory
+            .Setup(f => f.Create("user-1", It.IsAny<Guid?>(), workflow.Id, It.IsAny<string?>(), It.IsAny<UserType>()))
+            .Returns(toolContext);
+
+        var session = new AgentSession();
+        agentOpenAi
+            .Setup(a => a.BeginSessionAsync(It.IsAny<AgentSessionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        agentOpenAi
+            .Setup(a => a.StreamTurnAsync(session, It.IsAny<List<Dictionary<string, object>>>(), It.IsAny<CancellationToken>()))
+            .Returns(FirstTurnWithDeleteAndGoalToolCalls());
+
+        toolRegistry
+            .Setup(r => r.TryGetHandler("delete_knowledge_resource"))
+            .Returns(new TestToolHandler("delete_knowledge_resource", requiresConfirmation: true));
+
+        toolRegistry
+            .Setup(r => r.TryGetHandler("create_daily_goals"))
+            .Returns(new TestToolHandler("create_daily_goals"));
+
+        toolRegistry
+            .Setup(r => r.GetEnabledDefinitionsAsync(toolContext, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Dictionary<string, object>>());
+
+        var chatRetrieval = new Mock<IChatRetrievalService>();
+        chatRetrieval
+            .Setup(r => r.RetrieveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ChatMemoryContext>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatRetrievalResult());
+
+        var service = new AgentService(
+            orchestrator.Object,
+            toolRegistry.Object,
+            toolContextFactory.Object,
+            actionTracking.Object,
+            agentOpenAi.Object,
+            chatRetrieval.Object,
+            logger.Object);
+
+        var events = new List<AgentStreamEvent>();
+        await foreach (var streamEvent in service.StreamAgentInteractionAsync(
+            "user-1",
+            "Delete my file and set my goals",
+            Guid.NewGuid(),
+            null,
+            string.Empty,
+            "Alex",
+            new List<AgentChatMessage>(),
+            new ChatMemoryContext()))
+        {
+            events.Add(streamEvent);
+        }
+
+        events.Should().Contain(e => e.Type == "pending_action");
+        events.Should().NotContain(e => e.Type == "tools_executed");
+
+        toolRegistry.Verify(
+            r => r.ExecuteAsync("create_daily_goals", It.IsAny<AgentToolContext>(), It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        agentOpenAi.Verify(
+            a => a.AppendToolResults(
+                It.IsAny<AgentSession>(),
+                It.IsAny<string?>(),
+                It.IsAny<IReadOnlyList<AgentToolCall>>(),
+                It.IsAny<IReadOnlyList<AgentToolResult>>()),
+            Times.Never);
     }
 
     [Fact]
@@ -490,6 +599,29 @@ public class AgentServiceTests
                     ToolCallId = "call-2",
                     FunctionName = "delete_knowledge_resource",
                     Parameters = new Dictionary<string, object> { ["resourceId"] = Guid.NewGuid().ToString() }
+                }
+            }
+        };
+        await Task.CompletedTask;
+    }
+
+    private static async IAsyncEnumerable<AgentStreamingUpdate> FirstTurnWithDeleteAndGoalToolCalls()
+    {
+        yield return new AgentStreamingUpdate
+        {
+            ToolCalls = new List<AgentToolCall>
+            {
+                new()
+                {
+                    ToolCallId = "call-2",
+                    FunctionName = "delete_knowledge_resource",
+                    Parameters = new Dictionary<string, object> { ["resourceId"] = Guid.NewGuid().ToString() }
+                },
+                new()
+                {
+                    ToolCallId = "call-4",
+                    FunctionName = "create_daily_goals",
+                    Parameters = new Dictionary<string, object> { ["goals"] = new[] { "Walk", "Read" } }
                 }
             }
         };

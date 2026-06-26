@@ -243,8 +243,6 @@ public class MemoryPromotionService : IMemoryPromotionService
             return;
         }
 
-        await SupersedeContradictingFactsAsync(userId, NormalizeCategory(candidate.Category), cancellationToken);
-
         var fact = new UserFact
         {
             UserId = userId,
@@ -367,30 +365,6 @@ public class MemoryPromotionService : IMemoryPromotionService
         await _memoryIndexService.IndexEpisodeAsync(episode, cancellationToken);
 
         _logger.LogInformation("[MemoryPromotion] Promoted episode {EpisodeId} for user {UserId}", episode.Id, userId);
-    }
-
-    private async Task SupersedeContradictingFactsAsync(
-        string userId,
-        string category,
-        CancellationToken cancellationToken)
-    {
-        var activeInCategory = await _factRepository.FindAsync(
-            f => f.UserId == userId && f.Category == category && f.Status == MemoryStatuses.Active,
-            cancellationToken);
-
-        foreach (var old in activeInCategory)
-        {
-            var tracked = await _factRepository.GetByIdAsync(old.Id, cancellationToken);
-            if (tracked is null)
-            {
-                continue;
-            }
-
-            tracked.Status = MemoryStatuses.Superseded;
-            tracked.UpdatedAt = DateTime.UtcNow;
-            _factRepository.Update(tracked);
-            await _memoryIndexService.DeleteFactAsync(tracked.Id, cancellationToken);
-        }
     }
 
     private async Task AuditAsync(

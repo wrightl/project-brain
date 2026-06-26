@@ -100,28 +100,40 @@ public static class Auth0WebhookEndpoints
             var eventId = root.TryGetProperty("id", out var eventIdElement)
                 ? eventIdElement.GetString()
                 : null;
-            if (!idempotencyService.TryMarkProcessed("auth0", eventId ?? $"{eventType}:{requestBody.GetHashCode()}", TimeSpan.FromDays(7)))
+            var eventKey = eventId ?? $"{eventType}:{requestBody.GetHashCode()}";
+            var idempotencyTtl = TimeSpan.FromDays(7);
+            if (!idempotencyService.TryBeginProcessing("auth0", eventKey, idempotencyTtl))
             {
                 services.Logger.LogInformation("Skipping duplicate Auth0 webhook {EventId}", eventId);
                 return Results.Ok();
             }
 
-            // Handle user.created event
-            if (eventType == "user.created")
+            try
             {
-                await HandleUserCreated(services, root);
+                // Handle user.created event
+                if (eventType == "user.created")
+                {
+                    await HandleUserCreated(services, root);
+                }
+                else if (eventType == "user.updated")
+                {
+                    await HandleUserUpdated(services, root);
+                }
+                else if (eventType == "user.deleted")
+                {
+                    await HandleUserDeleted(services, root);
+                }
+                else
+                {
+                    services.Logger.LogInformation("Unhandled Auth0 event type: {EventType}", eventType);
+                }
+
+                idempotencyService.MarkProcessed("auth0", eventKey, idempotencyTtl);
             }
-            else if (eventType == "user.updated")
+            catch
             {
-                await HandleUserUpdated(services, root);
-            }
-            else if (eventType == "user.deleted")
-            {
-                await HandleUserDeleted(services, root);
-            }
-            else
-            {
-                services.Logger.LogInformation("Unhandled Auth0 event type: {EventType}", eventType);
+                idempotencyService.ClearProcessing("auth0", eventKey);
+                throw;
             }
 
             return Results.Ok();

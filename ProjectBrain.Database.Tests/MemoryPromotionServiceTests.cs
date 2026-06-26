@@ -87,6 +87,59 @@ public class MemoryPromotionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ProcessExtractionAsync_PromotingFact_DoesNotSupersedeOtherActiveFactsInSameCategory()
+    {
+        var settings = DefaultSettings();
+        _context.UserFacts.AddRange(
+            new UserFact
+            {
+                UserId = UserId,
+                Content = "User prefers short answers",
+                Category = "preference",
+                Status = MemoryStatuses.Active,
+                Confidence = 0.9,
+                ContentHash = MemoryHashHelper.ComputeHash("User prefers short answers"),
+                ObservationCount = 1,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            },
+            new UserFact
+            {
+                UserId = UserId,
+                Content = "User prefers morning reminders",
+                Category = "preference",
+                Status = MemoryStatuses.Active,
+                Confidence = 0.9,
+                ContentHash = MemoryHashHelper.ComputeHash("User prefers morning reminders"),
+                ObservationCount = 1,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+        await _context.SaveChangesAsync();
+
+        await _service.ProcessExtractionAsync(
+            UserId,
+            Guid.NewGuid(),
+            new MemoryExtractionResult
+            {
+                Facts =
+                [
+                    new ExtractedFactCandidate
+                    {
+                        Content = "User prefers weekly summaries",
+                        Category = "preference",
+                        Confidence = 0.9
+                    }
+                ]
+            },
+            settings);
+
+        _context.UserFacts.Should().HaveCount(3);
+        _context.UserFacts.Should().OnlyContain(f => f.Status == MemoryStatuses.Active);
+        _indexService.Verify(s => s.DeleteFactAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ProcessExtractionAsync_DuplicateProvisional_IncrementsObservationAndPromotes()
     {
         var settings = DefaultSettings();

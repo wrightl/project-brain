@@ -68,6 +68,7 @@ public class UserErasureService : IUserErasureService
         await TryCancelSubscriptionAsync(userId, UserType.User, result, cancellationToken);
         await TryCancelSubscriptionAsync(userId, UserType.Coach, result, cancellationToken);
 
+        var externalErasureFailed = false;
         try
         {
             result.SearchDocumentsDeleted = await _searchIndexErasure.DeleteAllDocumentsForUserAsync(userId, cancellationToken);
@@ -76,6 +77,7 @@ public class UserErasureService : IUserErasureService
         {
             _logger.LogError(ex, "Search index erasure failed for user {UserId}", userId);
             result.Warnings.Add($"Search index erasure failed: {ex.Message}");
+            externalErasureFailed = true;
         }
 
         try
@@ -86,6 +88,13 @@ public class UserErasureService : IUserErasureService
         {
             _logger.LogError(ex, "Blob erasure failed for user {UserId}", userId);
             result.Warnings.Add($"Blob erasure failed: {ex.Message}");
+            externalErasureFailed = true;
+        }
+
+        if (externalErasureFailed)
+        {
+            throw new InvalidOperationException(
+                $"External user erasure failed for {userId}; retaining user row so erasure can be retried.");
         }
 
         result.MemoryPromotionAuditsDeleted =

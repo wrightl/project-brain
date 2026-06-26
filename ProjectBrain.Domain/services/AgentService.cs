@@ -337,6 +337,7 @@ public class AgentService : IAgentService
             var iterationTools = new List<ToolExecutionRecord>();
             var toolResults = new List<AgentToolResult>();
             var stopAfterUserInput = false;
+            var stopAfterPendingConfirmation = false;
 
             foreach (var toolCall in validToolCalls)
             {
@@ -389,7 +390,8 @@ public class AgentService : IAgentService
                         }
                     };
 
-                    continue;
+                    stopAfterPendingConfirmation = true;
+                    break;
                 }
 
                 ToolExecutionRecord record;
@@ -503,6 +505,13 @@ public class AgentService : IAgentService
             }
 
             if (stopAfterUserInput)
+            {
+                workflowState.CurrentStep++;
+                await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);
+                break;
+            }
+
+            if (stopAfterPendingConfirmation)
             {
                 workflowState.CurrentStep++;
                 await _orchestrator.UpdateWorkflowStateAsync(workflowState, cancellationToken);

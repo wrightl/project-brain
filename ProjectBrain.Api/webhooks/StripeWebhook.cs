@@ -50,33 +50,44 @@ public static class StripeWebhookEndpoints
             services.Logger.LogInformation("Received Stripe webhook: {EventType}, ID: {EventId}", 
                 stripeEvent.Type, stripeEvent.Id);
 
-            if (!idempotencyService.TryMarkProcessed("stripe", stripeEvent.Id, TimeSpan.FromDays(7)))
+            var idempotencyTtl = TimeSpan.FromDays(7);
+            if (!idempotencyService.TryBeginProcessing("stripe", stripeEvent.Id, idempotencyTtl))
             {
                 services.Logger.LogInformation("Skipping duplicate Stripe webhook {EventId}", stripeEvent.Id);
                 return Results.Ok();
             }
 
-            // Use string comparison for event types (more reliable across Stripe.NET versions)
-            var eventType = stripeEvent.Type;
-            if (eventType == "customer.subscription.created" || eventType == "customer.subscription.updated")
+            try
             {
-                await HandleSubscriptionUpdated(services, stripeEvent);
+                // Use string comparison for event types (more reliable across Stripe.NET versions)
+                var eventType = stripeEvent.Type;
+                if (eventType == "customer.subscription.created" || eventType == "customer.subscription.updated")
+                {
+                    await HandleSubscriptionUpdated(services, stripeEvent);
+                }
+                else if (eventType == "customer.subscription.deleted")
+                {
+                    await HandleSubscriptionDeleted(services, stripeEvent);
+                }
+                else if (eventType == "invoice.payment_succeeded")
+                {
+                    await HandleInvoicePaymentSucceeded(services, stripeEvent);
+                }
+                else if (eventType == "invoice.payment_failed")
+                {
+                    await HandleInvoicePaymentFailed(services, stripeEvent);
+                }
+                else
+                {
+                    services.Logger.LogInformation("Unhandled Stripe event type: {EventType}", stripeEvent.Type);
+                }
+
+                idempotencyService.MarkProcessed("stripe", stripeEvent.Id, idempotencyTtl);
             }
-            else if (eventType == "customer.subscription.deleted")
+            catch
             {
-                await HandleSubscriptionDeleted(services, stripeEvent);
-            }
-            else if (eventType == "invoice.payment_succeeded")
-            {
-                await HandleInvoicePaymentSucceeded(services, stripeEvent);
-            }
-            else if (eventType == "invoice.payment_failed")
-            {
-                await HandleInvoicePaymentFailed(services, stripeEvent);
-            }
-            else
-            {
-                services.Logger.LogInformation("Unhandled Stripe event type: {EventType}", stripeEvent.Type);
+                idempotencyService.ClearProcessing("stripe", stripeEvent.Id);
+                throw;
             }
 
             return Results.Ok();

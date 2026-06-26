@@ -86,4 +86,59 @@ public class UserErasureServiceTests
         userService.Verify(u => u.DeleteById(userId), Times.Once);
         searchErasure.Verify(s => s.DeleteAllDocumentsForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task EraseUserAsync_WhenSearchErasureFails_DoesNotDeleteUserRow()
+    {
+        const string userId = "auth0|erase-me";
+        var searchErasure = new Mock<IUserSearchIndexErasureService>();
+        searchErasure
+            .Setup(s => s.DeleteAllDocumentsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("search unavailable"));
+
+        var blobErasure = new Mock<IUserBlobErasureService>();
+        blobErasure
+            .Setup(b => b.DeleteAllUserFilesAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(3);
+
+        var auditRepo = new Mock<IMemoryPromotionAuditRepository>();
+        var quizRepo = new Mock<IQuizResponseRepository>();
+        var tagRepo = new Mock<ITagRepository>();
+        var coachMessages = new Mock<ICoachMessageService>();
+        var factRepo = new Mock<IUserFactRepository>();
+        var episodeRepo = new Mock<IUserEpisodeRepository>();
+        var memoryIndex = new Mock<IUserMemoryIndexService>();
+        var userService = new Mock<IUserService>();
+        var cache = new Mock<ICacheService>();
+
+        var subscription = new Mock<ISubscriptionService>();
+        subscription
+            .Setup(s => s.GetUserSubscriptionAsync(userId, UserType.User))
+            .ReturnsAsync((UserSubscription?)null);
+        subscription
+            .Setup(s => s.GetUserSubscriptionAsync(userId, UserType.Coach))
+            .ReturnsAsync((UserSubscription?)null);
+
+        var service = new UserErasureService(
+            subscription.Object,
+            searchErasure.Object,
+            blobErasure.Object,
+            auditRepo.Object,
+            quizRepo.Object,
+            tagRepo.Object,
+            coachMessages.Object,
+            factRepo.Object,
+            episodeRepo.Object,
+            memoryIndex.Object,
+            userService.Object,
+            cache.Object,
+            new Mock<ILogger<UserErasureService>>().Object);
+
+        var act = () => service.EraseUserAsync(userId);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*External user erasure failed*");
+        userService.Verify(u => u.DeleteById(It.IsAny<string>()), Times.Never);
+        auditRepo.Verify(r => r.DeleteByUserIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

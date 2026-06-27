@@ -24,6 +24,7 @@ fi
 azure_sql_log "dotnet-ef version: $(dotnet-ef --version)"
 
 read -r resource_group sql_server <<<"$(azure_sql_discover_server)"
+azure_sql_ensure_deploy_principal_sql_access "$resource_group" "$sql_server"
 
 run_migrations() {
   local connection_string="$1"
@@ -49,7 +50,11 @@ if run_migrations "$entra_connection_string"; then
   exit 0
 fi
 
-azure_sql_log "Entra ID migration failed; retrying with SQL authentication..."
+azure_sql_log "Entra ID migration failed; checking whether SQL authentication is available..."
+
+if azure_sql_is_entra_only_server "$resource_group" "$sql_server"; then
+  azure_sql_fail "Entra ID migration failed and the SQL server is Entra-only (SQL authentication is disabled). Ensure the GitHub Actions service principal (${AZURE_CLIENT_ID:-unknown}) is the SQL Entra admin or has db_owner on the database."
+fi
 
 if [ -z "${AZURE_PROJECTBRAIN_PASSWORD:-}" ]; then
   azure_sql_fail "Entra ID migration failed and AZURE_PROJECTBRAIN_PASSWORD is not set for SQL auth fallback."

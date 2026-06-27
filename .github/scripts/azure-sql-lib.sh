@@ -133,6 +133,56 @@ azure_sql_resolve_admin_password() {
   azure_sql_fail "SQL admin password is not available. Set AZURE_PROJECTBRAIN_PASSWORD (mapped from SQL_PASSWORD secret) in the workflow."
 }
 
+azure_sql_is_entra_only_server() {
+  local resource_group="$1"
+  local sql_server="$2"
+  local aad_only
+
+  aad_only="$(az sql server show \
+    --resource-group "$resource_group" \
+    --name "$sql_server" \
+    --query "administrators.azureAdOnlyAuthentication" \
+    -o tsv 2>/dev/null || true)"
+
+  [ "$aad_only" = "true" ] || [ "$aad_only" = "True" ]
+}
+
+azure_sql_ensure_deploy_principal_sql_access() {
+  local resource_group="$1"
+  local sql_server="$2"
+
+  if [ -z "${AZURE_CLIENT_ID:-}" ]; then
+    azure_sql_log "AZURE_CLIENT_ID is not set; skipping deploy principal SQL access check."
+    return 0
+  fi
+
+  local deployer_oid deployer_name current_oid
+  deployer_oid="$(az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv)"
+  deployer_name="$(az ad sp show --id "$AZURE_CLIENT_ID" --query displayName -o tsv)"
+  current_oid="$(az sql server ad-admin list \
+    --resource-group "$resource_group" \
+    --server "$sql_server" \
+    --query "[0].sid" \
+    -o tsv 2>/dev/null || true)"
+
+  if [ "$current_oid" = "$deployer_oid" ]; then
+    azure_sql_log "Deploy service principal is SQL Entra admin."
+    return 0
+  fi
+
+  if [ -z "$current_oid" ] || [ "$current_oid" = "null" ]; then
+    azure_sql_log "No SQL Entra admin configured; assigning deploy service principal (${deployer_name})."
+    az sql server ad-admin create \
+      --resource-group "$resource_group" \
+      --server "$sql_server" \
+      --display-name "$deployer_name" \
+      --object-id "$deployer_oid"
+    return 0
+  fi
+
+  azure_sql_log "SQL Entra admin is a different identity (${current_oid}). The GitHub Actions service principal (${AZURE_CLIENT_ID}) must be that admin, belong to that admin group, or have db_owner on the target database."
+}
+
 azure_sql_escape_connection_value() {
   local val="$1"
   if [[ "$val" == *';'* || "$val" == *'='* || "$val" == *'"'* || "$val" == *$'\''* ]]; then

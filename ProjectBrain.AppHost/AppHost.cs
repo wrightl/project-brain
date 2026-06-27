@@ -1,3 +1,4 @@
+using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Pipelines;
 using Azure.Core;
 using Azure.Provisioning.Expressions;
@@ -189,7 +190,14 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("deploy-env", environmentName)
                         .WithEnvironment("GoogleMaps__GeocodingApiKey", googleMapsGeocodingApiKey)
                         .WithEnvironment("FakeCoachAutoReply__Enabled", fakeCoachAutoReplyEnabled)
-                        .WithHttpHealthCheck("/alive")
+#pragma warning disable ASPIREPROBES001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+                        .WithHttpProbe(ProbeType.Liveness, path: "/alive")
+                        .WithHttpProbe(
+                            ProbeType.Readiness,
+                            path: "/health",
+                            timeoutSeconds: 5,
+                            failureThreshold: 6)
+#pragma warning restore ASPIREPROBES001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         .PublishAsAzureContainerApp((module, app) =>
                         {
                             // Scale to 0

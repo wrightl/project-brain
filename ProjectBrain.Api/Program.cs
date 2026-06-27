@@ -74,7 +74,7 @@ else
 
 // Add database migrations healthcheck to ensure migrations are applied before marking as healthy
 builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseMigrationsHealthCheck>("database-migrations");
+    .AddCheck<DatabaseMigrationsHealthCheck>("database-migrations", tags: ["ready", "db"]);
 
 builder.Services.AddCors(options =>
 {

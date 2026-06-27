@@ -77,8 +77,60 @@ jobs:
             --tenant-id "$Env:AZURE_TENANT_ID"
         shell: pwsh
 
+      - name: Log in to Azure CLI
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
       - name: Provision Infrastructure
         run: azd provision --no-prompt
+
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef --version 10.0.9
+
+      - name: Add GitHub runner IP to SQL firewall
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP=$(curl -fsS https://api.ipify.org)
+          echo "Runner IP: $RUNNER_IP"
+          RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP --environment "$AZURE_ENV_NAME")
+          echo "Resource group: $RESOURCE_GROUP"
+          az sql server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --server projectbrain \
+            --name github-actions-migrate \
+            2>/dev/null || true
+          az sql server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --server projectbrain \
+            --name github-actions-migrate \
+            --start-ip-address "$RUNNER_IP" \
+            --end-ip-address "$RUNNER_IP"
+
+      - name: Apply database migrations
+        shell: pwsh
+        run: |
+          $connectionString = azd env get-value ConnectionStrings__projectbraindb --environment $env:AZURE_ENV_NAME
+          dotnet ef database update `
+            --project ProjectBrain.Database/ProjectBrain.Database.csproj `
+            --startup-project ProjectBrain.Api/ProjectBrain.Api.csproj `
+            --connection $connectionString
+
+      - name: Remove GitHub runner IP from SQL firewall
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP --environment "$AZURE_ENV_NAME")
+          az sql server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --server projectbrain \
+            --name github-actions-migrate \
+            2>/dev/null || true
 
       - name: Deploy Application
         run: azd deploy --no-prompt

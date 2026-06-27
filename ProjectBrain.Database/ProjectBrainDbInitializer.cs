@@ -6,11 +6,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProjectBrain.Database;
+using ProjectBrain.Database;
 using ProjectBrain.Database.Constants;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.Database.Models;
 
 public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
+    IDatabaseStartupState startupState,
     ILogger<ProjectBrainDbInitializer> logger)
     : BackgroundService
 {
@@ -19,13 +21,15 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
 
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
+        await startupState.WaitUntilReadyAsync(cancellationToken);
+
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var identitySeedingService = scope.ServiceProvider.GetRequiredService<IIdentitySeedingService>();
         var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
         var hostEnvironment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
 
-        using var activity = _activitySource.StartActivity("Initializing catalog database", ActivityKind.Client);
+        using var activity = _activitySource.StartActivity("Deferred database seeding", ActivityKind.Client);
         await InitializeAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
     }
 
@@ -33,37 +37,13 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
     {
         var sw = Stopwatch.StartNew();
 
-        await EnsureDatabaseAsync(context, cancellationToken);
-        await RunMigrationAsync(context, cancellationToken);
-        await SeedAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
+        await SeedDeferredAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
 
-        logger.LogInformation("Database initialization completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
+        logger.LogInformation("Deferred database seeding completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
     }
 
-    private static Task EnsureDatabaseAsync(AppDbContext context, CancellationToken cancellationToken)
+    private async Task SeedDeferredAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, IHostEnvironment hostEnvironment, CancellationToken cancellationToken)
     {
-        // If you need to delete the database during development, uncomment this line
-        // return context.Database.EnsureDeletedAsync(cancellationToken);
-        return Task.CompletedTask;
-    }
-
-    private static async Task RunMigrationAsync(AppDbContext context, CancellationToken cancellationToken)
-    {
-        var strategy = context.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
-            await context.Database.MigrateAsync(cancellationToken);
-        });
-    }
-
-    private async Task SeedAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, IHostEnvironment hostEnvironment, CancellationToken cancellationToken)
-    {
-        // Seed roles
-        await SeedRolesAsync(context, cancellationToken);
-
-        // Seed subscription tiers
-        await SeedSubscriptionTiersAsync(context, cancellationToken);
-
         // Get first admin user
         User? adminUser = await SeedAdminUserAsync(context, identitySeedingService, configuration, cancellationToken);
 
@@ -886,81 +866,6 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         string PostalCode,
         double Latitude,
         double Longitude);
-
-    private async Task SeedSubscriptionTiersAsync(AppDbContext context, CancellationToken cancellationToken)
-    {
-        if (!context.SubscriptionTiers.Any())
-        {
-            logger.LogInformation("Seeding subscription tiers...");
-
-            // Use raw SQL to insert with explicit IDs (IDENTITY_INSERT)
-            // Note: Escaping curly braces as {{}} because ExecuteSqlRawAsync treats the string as a format string
-            var sql = @"
-                SET IDENTITY_INSERT [SubscriptionTiers] ON;
-                
-                INSERT INTO [SubscriptionTiers] ([Id], [Name], [UserType], [Features])
-                VALUES
-                    (1, N'Free', N'user', N'{{}}'),
-                    (2, N'Pro', N'user', N'{{}}'),
-                    (3, N'Ultimate', N'user', N'{{}}'),
-                    (4, N'Free', N'coach', N'{{}}'),
-                    (5, N'Pro', N'coach', N'{{}}');
-                
-                SET IDENTITY_INSERT [SubscriptionTiers] OFF;
-            ";
-
-            await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
-
-            logger.LogInformation("Subscription tiers seeded successfully");
-        }
-        else
-        {
-            logger.LogInformation("Subscription tiers already exist, skipping seed");
-        }
-    }
-
-    private async Task SeedRolesAsync(AppDbContext context, CancellationToken cancellationToken)
-    {
-        // Seed roles
-        if (!context.Roles.Any())
-        {
-            logger.LogInformation("Seeding roles...");
-
-            var roles = new List<Role>
-            {
-                new()
-                {
-                    Name = AppRoles.User,
-                    Description = "Standard user with access to basic features",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    Name = AppRoles.Coach,
-                    Description = "Coach user with access to coaching features and tools",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    Name = AppRoles.Admin,
-                    Description = "Administrator with full system access and management capabilities",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                }
-            };
-
-            await context.Roles.AddRangeAsync(roles, cancellationToken);
-            await context.SaveChangesAsync(cancellationToken);
-
-            logger.LogInformation("Roles seeded successfully");
-        }
-        else
-        {
-            logger.LogInformation("Roles already exist, skipping seed");
-        }
-    }
 
     private async Task SeedCoachSpecialismOptionsAsync(AppDbContext context, CancellationToken cancellationToken)
     {

@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Database;
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
 
@@ -63,12 +64,21 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             var hostedServicesToRemove = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
-                            d.ImplementationType == typeof(ProjectBrainDbInitializer))
+                            (d.ImplementationType == typeof(ProjectBrainDbInitializer)
+                             || d.ImplementationType == typeof(DatabaseStartupHostedService)))
                 .ToList();
             foreach (var descriptor in hostedServicesToRemove)
             {
                 services.Remove(descriptor);
             }
+
+            services.RemoveAll<IDatabaseStartupState>();
+            services.AddSingleton<IDatabaseStartupState>(_ =>
+            {
+                var state = new DatabaseStartupState();
+                state.MarkReady();
+                return state;
+            });
 
             var healthCheckDescriptors = services
                 .Where(d => d.ServiceType == typeof(IHealthCheck) &&

@@ -5,6 +5,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
+using ProjectBrain.Database;
 using ProjectBrain.Database.Constants;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.Database.Models;
@@ -28,7 +29,13 @@ public class TestUsersSeedingTests : IDisposable
 
         var serviceProvider = new Mock<IServiceProvider>();
         var initializerLogger = new Mock<ILogger<ProjectBrainDbInitializer>>();
-        _initializer = new ProjectBrainDbInitializer(serviceProvider.Object, initializerLogger.Object);
+        var startupState = new Mock<IDatabaseStartupState>();
+        startupState.Setup(s => s.WaitUntilReadyAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _initializer = new ProjectBrainDbInitializer(
+            serviceProvider.Object,
+            startupState.Object,
+            initializerLogger.Object);
     }
 
     [Theory]

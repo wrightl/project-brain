@@ -1,6 +1,6 @@
 using ProjectBrain.Api.Authentication;
 using ProjectBrain.Domain;
-using Microsoft.Extensions.DependencyInjection;
+using ProjectBrain.Database;
 
 namespace ProjectBrain.Api.Middlewares;
 
@@ -22,10 +22,13 @@ public class UserActivityMiddleware
 
     public async Task InvokeAsync(
         HttpContext context,
-        IIdentityService identityService)
+        IIdentityService identityService,
+        IDatabaseStartupState startupState)
     {
-        // Only track activity for authenticated users
-        if (identityService.IsAuthenticated && !string.IsNullOrEmpty(identityService.UserId))
+        // Only track activity for authenticated users once the database is warmed up
+        if (startupState.IsWarmedUp
+            && identityService.IsAuthenticated
+            && !string.IsNullOrEmpty(identityService.UserId))
         {
             // Capture userId before Task.Run to avoid closure issues
             var userId = identityService.UserId!;

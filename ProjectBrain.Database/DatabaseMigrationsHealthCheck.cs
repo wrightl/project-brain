@@ -2,17 +2,21 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using ProjectBrain.Database;
 
 public class DatabaseMigrationsHealthCheck : IHealthCheck
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IDatabaseStartupState _startupState;
     private readonly ILogger<DatabaseMigrationsHealthCheck> _logger;
 
     public DatabaseMigrationsHealthCheck(
         IServiceProvider serviceProvider,
+        IDatabaseStartupState startupState,
         ILogger<DatabaseMigrationsHealthCheck> logger)
     {
         _serviceProvider = serviceProvider;
+        _startupState = startupState;
         _logger = logger;
     }
 
@@ -22,6 +26,11 @@ public class DatabaseMigrationsHealthCheck : IHealthCheck
     {
         try
         {
+            if (!_startupState.IsWarmedUp)
+            {
+                return HealthCheckResult.Unhealthy("Database warmup not complete");
+            }
+
             _logger.LogInformation("Checking database migrations health");
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();

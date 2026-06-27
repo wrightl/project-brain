@@ -249,6 +249,15 @@ if (builder.ExecutionContext.IsPublishMode)
     // sql azure
     var azureSql = builder.AddAzureSqlServer(sqlServerName).ConfigureInfrastructure(infra =>
     {
+        var sqlServerResource = infra.GetProvisionableResources()
+            .OfType<SqlServer>()
+            .Single();
+
+        // Allow SQL authentication for CI migrations (dotnet ef) using projectbrain-password.
+        sqlServerResource.Administrators.IsAzureADOnlyAuthenticationEnabled = false;
+        sqlServerResource.AdministratorLogin = sqlServerName;
+        sqlServerResource.AdministratorLoginPassword = sqlPassword.AsProvisioningParameter(infra);
+
         var database = infra.GetProvisionableResources()
             .OfType<SqlDatabase>()
             .Single();

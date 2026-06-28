@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.3" />
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.6" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -20,16 +20,16 @@
   <ItemGroup>
   <!-- temp measures until aspire dependencies are updated -->
     <PackageReference Include="MessagePack" Version="2.5.302" />
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.Azure.AppConfiguration" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.Azure.AppContainers" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.Azure.CognitiveServices" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.Azure.Search" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.Azure.Sql" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.Azure.Storage" Version="13.4.3" />
-    <PackageReference Include="Aspire.Hosting.DevTunnels" Version="13.4.3" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.AppConfiguration" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.AppContainers" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.CognitiveServices" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.Search" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.Sql" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.DevTunnels" Version="13.4.6" />
     <PackageReference Include="Aspire.Hosting.NodeJs" Version="9.5.2" />
-    <PackageReference Include="Aspire.Hosting.Azure.Redis" Version="13.4.3" />
+    <PackageReference Include="Aspire.Hosting.Azure.Redis" Version="13.4.6" />
   </ItemGroup>
 
 </Project>

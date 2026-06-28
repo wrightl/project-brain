@@ -4,11 +4,12 @@ using Auth0.AuthenticationApi;
 using Auth0.AuthenticationApi.Models;
 using Microsoft.Extensions.Caching.Memory;
 using Polly.Registry;
+using ProjectBrain.Auth;
 using ProjectBrain.Domain;
 
-namespace ProjectBrain.Api.Authentication;
+namespace ProjectBrain.Auth.Auth0;
 
-public class Auth0UserManagementServices(
+internal class Auth0UserManagementServices(
     ILogger<Auth0UserManagementServices> logger,
     IMemoryCache memoryCache,
     IConfiguration configuration,
@@ -22,16 +23,7 @@ public class Auth0UserManagementServices(
     public ResiliencePipelineProvider<string> PipelineProvider { get; } = pipelineProvider;
 }
 
-public interface IAuth0UserManagement
-{
-    Task<string?> CreateUser(string email, string password, string fullName, string connection, bool emailVerified);
-    Task<bool> UpdateUserRoles(string userId, List<string> roles);
-    Task<bool> UpdateUser(string userId, BaseUserDto user);
-    Task<bool> DeleteUserById(string id);
-    Task<string?> GetUserIdByEmail(string email);
-}
-
-public class Auth0UserManagement : IAuth0UserManagement
+internal class Auth0UserManagement : IUserManagement
 {
     private static readonly TimeSpan RolesCacheDuration = TimeSpan.FromHours(1);
     private static readonly JsonSerializerOptions RoleJsonOptions = new()

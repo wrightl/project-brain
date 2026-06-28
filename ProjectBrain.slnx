@@ -8,6 +8,7 @@
   <Project Path="ProjectBrain.Database.IntegrationTests/ProjectBrain.Database.IntegrationTests.csproj" />
   <Project Path="ProjectBrain.MigrationService/ProjectBrain.MigrationService.csproj" />
   <Project Path="ProjectBrain.MigrationService.Tests/ProjectBrain.MigrationService.Tests.csproj" />
+  <Project Path="ProjectBrain.Auth/ProjectBrain.Auth.csproj" />
   <Project Path="ProjectBrain.Domain/ProjectBrain.Domain.csproj" />
   <Project Path="ProjectBrain.ServiceDefaults/ProjectBrain.ServiceDefaults.csproj" />
   <Project Path="ProjectBrain.Shared.Dtos/ProjectBrain.Shared.Dtos.csproj" />

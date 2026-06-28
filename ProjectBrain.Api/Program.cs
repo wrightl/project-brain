@@ -7,6 +7,7 @@ using ProjectBrain.AI;
 using ProjectBrain.Api;
 using ProjectBrain.Api.Webhooks;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth;
 using ProjectBrain.Api.Background;
 using ProjectBrain.Api.Goals;
 using ProjectBrain.Api.Middlewares;
@@ -121,7 +122,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
 builder.Services.AddSingleton<IWebhookIdempotencyService, WebhookIdempotencyService>();
 
-builder.AddAuth0ManagementApi();
+builder.AddAuth();
 
 // Add FluentValidation
 builder.Services.AddValidatorsFromAssemblyContaining<CreateQuizRequestDtoValidator>();

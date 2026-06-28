@@ -76,9 +76,9 @@ public class TestUsersSeedingTests : IDisposable
     public async Task SeedTestUsersAsync_CreatesUserWithExpectedState()
     {
         var identity = new Mock<IIdentitySeedingService>();
-        identity.Setup(s => s.EnsureAuth0UserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+        identity.Setup(s => s.EnsureProviderUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((string email, string _, string _, string _) => $"auth0|{email.Replace("@", "_")}");
-        identity.Setup(s => s.AssignAuth0RolesAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
+        identity.Setup(s => s.AssignUserRolesAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
             .ReturnsAsync(true);
 
         var configuration = BuildConfiguration(enabled: true, password: "TestPass123!");
@@ -121,9 +121,9 @@ public class TestUsersSeedingTests : IDisposable
     public async Task SeedTestUsersAsync_IsIdempotentWhenUsersExist()
     {
         var identity = new Mock<IIdentitySeedingService>();
-        identity.Setup(s => s.EnsureAuth0UserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+        identity.Setup(s => s.EnsureProviderUserAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((string email, string _, string _, string _) => $"auth0|{email.Replace("@", "_")}");
-        identity.Setup(s => s.AssignAuth0RolesAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
+        identity.Setup(s => s.AssignUserRolesAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>()))
             .ReturnsAsync(true);
 
         await _context.Users.AddAsync(new User
@@ -146,7 +146,7 @@ public class TestUsersSeedingTests : IDisposable
             hostEnvironment);
 
         identity.Verify(
-            s => s.EnsureAuth0UserAsync("testuser1@projectbrain.test", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()),
+            s => s.EnsureProviderUserAsync("testuser1@projectbrain.test", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()),
             Times.Never);
         (await _context.Users.CountAsync(u => u.Email == "testuser1@projectbrain.test")).Should().Be(1);
         (await _context.Users.CountAsync()).Should().BeGreaterThan(1);

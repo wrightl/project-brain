@@ -9,14 +9,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.6" />
-    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.4.3" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.4.6" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ProjectBrain.Api\ProjectBrain.Api.csproj" />
+    <ProjectReference Include="..\ProjectBrain.Auth\ProjectBrain.Auth.csproj" />
     <ProjectReference Include="..\ProjectBrain.Database\ProjectBrain.Database.csproj" />
     <ProjectReference Include="..\ProjectBrain.Domain\ProjectBrain.Domain.csproj" />
     <ProjectReference Include="..\ProjectBrain.Shared.Dtos\ProjectBrain.Shared.Dtos.csproj" />

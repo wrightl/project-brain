@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Shared.Dtos.Pagination;
@@ -10,7 +11,7 @@ public class UserManagementServices(
     ILogger<UserManagementServices> logger,
     IUserManagementService userManagementService,
     IUserService userService,
-    IAuth0UserManagement auth0UserManagementService,
+    IUserManagement identityUserManagement,
     IIdentityService identityService,
     IMemoryCache memoryCache,
     IConfiguration configuration)
@@ -18,7 +19,7 @@ public class UserManagementServices(
     public ILogger<UserManagementServices> Logger { get; } = logger;
     public IUserManagementService UserManagementService { get; } = userManagementService;
     public IUserService UserService { get; } = userService;
-    public IAuth0UserManagement Auth0UserManagementService { get; } = auth0UserManagementService;
+    public IUserManagement IdentityUserManagement { get; } = identityUserManagement;
     public IIdentityService IdentityService { get; } = identityService;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
@@ -127,7 +128,7 @@ public static class UserManagement
         var result = await services.UserManagementService.UpdateRoles(id, request.Roles);
 
         // Update roles in Auth0
-        await services.Auth0UserManagementService.UpdateUserRoles(id, request.Roles);
+        await services.IdentityUserManagement.UpdateUserRoles(id, request.Roles);
 
         return Results.Ok(result);
     }
@@ -140,7 +141,7 @@ public static class UserManagement
         }
 
         // Delete the user from auth0 - this will trigger the webhook to delete the user from the database and any associated blobs, etc
-        var result = await services.Auth0UserManagementService.DeleteUserById(id);
+        var result = await services.IdentityUserManagement.DeleteUserById(id);
         // var result = await services.UserService.DeleteById(id);
 
         return result ? Results.NoContent() : Results.NotFound();

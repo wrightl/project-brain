@@ -1,20 +1,23 @@
 using System.Net;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using Polly.Retry;
-using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth.Auth0;
 
-public static class Auth0Extensions
+namespace ProjectBrain.Auth;
+
+public static class AuthServiceCollectionExtensions
 {
-    public static WebApplicationBuilder AddAuth0ManagementApi(this WebApplicationBuilder builder)
+    public static WebApplicationBuilder AddAuth(this WebApplicationBuilder builder)
     {
-        ((IHostApplicationBuilder)builder).AddAuth0ManagementApi();
+        ((IHostApplicationBuilder)builder).AddAuth();
         return builder;
     }
 
-    public static IHostApplicationBuilder AddAuth0ManagementApi(this IHostApplicationBuilder builder)
+    public static IHostApplicationBuilder AddAuth(this IHostApplicationBuilder builder)
     {
         builder.Services.AddMemoryCache();
 
@@ -39,7 +42,7 @@ public static class Auth0Extensions
                 OnRetry = args =>
                 {
                     logger.LogWarning(
-                        "Auth0 rate limit (429) for {RequestUri}, retry {Attempt} after {Delay}ms",
+                        "Identity provider rate limit (429) for {RequestUri}, retry {Attempt} after {Delay}ms",
                         args.Outcome.Result?.RequestMessage?.RequestUri,
                         args.AttemptNumber + 1,
                         args.RetryDelay.TotalMilliseconds);
@@ -48,7 +51,7 @@ public static class Auth0Extensions
             });
         });
 
-        builder.Services.AddScoped<IAuth0UserManagement, Auth0UserManagement>();
+        builder.Services.AddScoped<IUserManagement, Auth0UserManagement>();
         builder.Services.AddScoped<Auth0UserManagementServices>();
 
         return builder;

@@ -714,8 +714,8 @@ public class DatabaseSeeder(
             return existingDbUser.Id;
         }
 
-        var auth0UserId = await identitySeedingService.EnsureAuth0UserAsync(email, password, fullName, connection);
-        var roleAssigned = await identitySeedingService.AssignAuth0RolesAsync(auth0UserId, [role]);
+        var providerUserId = await identitySeedingService.EnsureProviderUserAsync(email, password, fullName, connection);
+        var roleAssigned = await identitySeedingService.AssignUserRolesAsync(providerUserId, [role]);
         if (!roleAssigned)
         {
             logger.LogWarning("Failed to assign {Role} role in Auth0 for {Email}", role, email);
@@ -723,7 +723,7 @@ public class DatabaseSeeder(
 
         var user = new User
         {
-            Id = auth0UserId,
+            Id = providerUserId,
             Email = email,
             FullName = fullName,
             EmailVerified = true,
@@ -742,7 +742,7 @@ public class DatabaseSeeder(
         await context.Users.AddAsync(user, cancellationToken);
         await context.UserRoles.AddAsync(new UserRole
         {
-            UserId = auth0UserId,
+            UserId = providerUserId,
             RoleName = role,
             AssignedAt = DateTime.UtcNow,
         }, cancellationToken);
@@ -754,7 +754,7 @@ public class DatabaseSeeder(
             role,
             isOnboarded);
 
-        return auth0UserId;
+        return providerUserId;
     }
 
     private static async Task EnsureCoachProfileSeededAsync(

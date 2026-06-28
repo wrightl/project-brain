@@ -1,4 +1,4 @@
-namespace ProjectBrain.Api.Authentication;
+namespace ProjectBrain.Auth.Auth0;
 
 internal static class Auth0ManagementHttp
 {

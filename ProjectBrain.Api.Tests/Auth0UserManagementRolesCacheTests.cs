@@ -1,5 +1,5 @@
 using FluentAssertions;
-using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth.Auth0;
 
 namespace ProjectBrain.Api.Tests;
 

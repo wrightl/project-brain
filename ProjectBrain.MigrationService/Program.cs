@@ -1,4 +1,4 @@
-using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth;
 using ProjectBrain.Database;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.MigrationService;
@@ -9,7 +9,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddHostedService<Worker>();
 
-builder.AddAuth0ManagementApi();
+builder.AddAuth();
 builder.Services.AddScoped<IIdentitySeedingService, IdentitySeedingService>();
 builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 

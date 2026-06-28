@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../ProjectBrain.Auth/ProjectBrain.Auth.csproj" />
     <ProjectReference Include="../ProjectBrain.Domain/ProjectBrain.Domain.csproj" />
     <ProjectReference Include="../ProjectBrain.Database/ProjectBrain.Database.csproj" />
     <ProjectReference Include="../ProjectBrain.ServiceDefaults/ProjectBrain.ServiceDefaults.csproj" />
@@ -19,14 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Azure.AI.OpenAI" Version="13.4.3-preview.1.26305.13" />
-    <PackageReference Include="Aspire.Azure.Search.Documents" Version="13.4.3" />
-    <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.4.3" />
-    <PackageReference Include="Aspire.Azure.Storage.Queues" Version="13.4.3" />
-    <PackageReference Include="Aspire.Microsoft.Extensions.Configuration.AzureAppConfiguration" Version="13.4.3" />
-    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.3" />
-    <PackageReference Include="Auth0.AuthenticationApi" Version="7.46.0" />
-    <PackageReference Include="Auth0.ManagementApi" Version="8.5.0" />
+    <PackageReference Include="Aspire.Azure.AI.OpenAI" Version="13.4.6-preview.1.26319.6" />
+    <PackageReference Include="Aspire.Azure.Search.Documents" Version="13.4.6" />
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" Version="13.4.6" />
+    <PackageReference Include="Aspire.Azure.Storage.Queues" Version="13.4.6" />
+    <PackageReference Include="Aspire.Microsoft.Extensions.Configuration.AzureAppConfiguration" Version="13.4.6" />
+    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.6" />
     <PackageReference Include="Azure.Core" Version="1.59.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
@@ -36,7 +35,7 @@
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="1.0.2" />
     <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" Version="1.0.2" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.8">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

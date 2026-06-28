@@ -1,6 +1,7 @@
 
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth;
 using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
@@ -12,7 +13,7 @@ public class UserServices(
     ILogger<UserServices> logger,
     IIdentityService identityService,
     IUserService userService,
-    IAuth0UserManagement auth0UserManagementService,
+    IUserManagement userManagementService,
     IMemoryCache memoryCache,
     IFeatureFlagService featureFlagService,
     IConfiguration configuration,
@@ -29,7 +30,7 @@ public class UserServices(
     public ILogger<UserServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
     public IUserService UserService { get; } = userService;
-    public IAuth0UserManagement Auth0UserManagementService { get; } = auth0UserManagementService;
+    public IUserManagement UserManagementService { get; } = userManagementService;
     public IMemoryCache MemoryCache { get; } = memoryCache;
     public IConfiguration Configuration { get; } = configuration;
     public IFeatureFlagService FeatureFlagService { get; } = featureFlagService;
@@ -118,8 +119,8 @@ public static class UserEndpoints
         }
 
         // Update auth0
-        await services.Auth0UserManagementService.UpdateUserRoles(userId, user.Roles);
-        await services.Auth0UserManagementService.UpdateUser(userId, user);
+        await services.UserManagementService.UpdateUserRoles(userId, user.Roles);
+        await services.UserManagementService.UpdateUser(userId, user);
 
         // Create or update user FIRST (before UserProfile to satisfy foreign key constraint)
         BaseUserDto createdUser;
@@ -475,9 +476,9 @@ public static class UserEndpoints
         // Sync profile to Auth0 without elevating privileges from the client request
         if (user.Roles.Count > 0)
         {
-            await services.Auth0UserManagementService.UpdateUserRoles(userId, user.Roles);
+            await services.UserManagementService.UpdateUserRoles(userId, user.Roles);
         }
-        await services.Auth0UserManagementService.UpdateUser(userId, user);
+        await services.UserManagementService.UpdateUser(userId, user);
 
         // Create or update coach profile
         await services.CoachProfileService.CreateOrUpdate(
@@ -873,12 +874,6 @@ public class UpdateCurrentUserRequest
     public string? PreferredPronoun { get; init; }
     public IEnumerable<string>? NeurodiverseTraits { get; init; }
     public string? Preferences { get; init; }
-}
-
-public class Auth0Role
-{
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
 }
 
 public class UpdateThemeRequest

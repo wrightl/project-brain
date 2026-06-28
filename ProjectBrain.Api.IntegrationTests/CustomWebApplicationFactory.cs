@@ -15,6 +15,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProjectBrain.Database;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth;
 using ProjectBrain.Domain;
 
 namespace ProjectBrain.Api.IntegrationTests;
@@ -49,8 +50,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
-            services.RemoveAll<IAuth0UserManagement>();
-            services.AddSingleton<IAuth0UserManagement, FakeAuth0UserManagement>();
+            services.RemoveAll<IUserManagement>();
+            services.AddSingleton<IUserManagement, FakeUserManagement>();
             services.RemoveAll<IDistributedCache>();
             services.AddDistributedMemoryCache();
             services.RemoveAll<BlobServiceClient>();
@@ -129,7 +130,7 @@ internal sealed class FakeSearchIndexService : ISearchIndexService
         bool removeExistingDocuments = false) => Task.CompletedTask;
 }
 
-internal sealed class FakeAuth0UserManagement : IAuth0UserManagement
+internal sealed class FakeUserManagement : IUserManagement
 {
     public Task<string?> CreateUser(string email, string password, string fullName, string connection, bool emailVerified) =>
         Task.FromResult<string?>("test-user-123");

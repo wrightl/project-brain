@@ -9,6 +9,7 @@ using Moq;
 using OpenAI;
 using ProjectBrain.AI.Embedding;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth;
 using ProjectBrain.Domain;
 
 namespace ProjectBrain.Api.Tests;
@@ -18,7 +19,7 @@ public class UserEndpointsTests
     private readonly Mock<ILogger<UserServices>> _mockLogger;
     private readonly Mock<IIdentityService> _mockIdentityService;
     private readonly Mock<IUserService> _mockUserService;
-    private readonly Mock<IAuth0UserManagement> _mockAuth0UserManagement;
+    private readonly Mock<IUserManagement> _mockUserManagement;
     private readonly Mock<IGeocodingService> _mockGeocodingService;
     private readonly Mock<ICoachProfileService> _mockCoachProfileService;
     private readonly Mock<IUserProfileService> _mockUserProfileService;
@@ -31,7 +32,7 @@ public class UserEndpointsTests
         _mockLogger = new Mock<ILogger<UserServices>>();
         _mockIdentityService = new Mock<IIdentityService>();
         _mockUserService = new Mock<IUserService>();
-        _mockAuth0UserManagement = new Mock<IAuth0UserManagement>();
+        _mockUserManagement = new Mock<IUserManagement>();
         _mockGeocodingService = new Mock<IGeocodingService>();
         _mockCoachProfileService = new Mock<ICoachProfileService>();
         _mockUserProfileService = new Mock<IUserProfileService>();
@@ -56,7 +57,7 @@ public class UserEndpointsTests
             _mockLogger.Object,
             _mockIdentityService.Object,
             _mockUserService.Object,
-            _mockAuth0UserManagement.Object,
+            _mockUserManagement.Object,
             mockMemoryCache.Object,
             mockFeatureFlagService.Object,
             mockConfiguration.Object,

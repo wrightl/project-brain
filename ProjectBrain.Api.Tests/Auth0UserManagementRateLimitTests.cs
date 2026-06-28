@@ -2,7 +2,7 @@ using System.Net;
 using FluentAssertions;
 using Polly;
 using Polly.Retry;
-using ProjectBrain.Api.Authentication;
+using ProjectBrain.Auth.Auth0;
 
 namespace ProjectBrain.Api.Tests;
 

@@ -91,24 +91,29 @@ azure_sql_discover_server() {
   azure_sql_fail "Could not find an Azure SQL server. Checked groups: ${candidate_groups[*]:-(none)}."
 }
 
+azure_sql_is_valid_database_name() {
+  local name="$1"
+  [ -n "$name" ] \
+    && [ "${#name}" -le 128 ] \
+    && [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]]
+}
+
 azure_sql_resolve_database_name() {
   local resource_group="$1"
   local sql_server="$2"
   local database_name=""
 
-  if command -v azd >/dev/null 2>&1; then
-    database_name="$(azd env get-value PROJECTBRAINDB_DATABASENAME --environment "$AZURE_ENV_NAME" 2>/dev/null || true)"
+  database_name="$(az sql db list \
+    --resource-group "$resource_group" \
+    --server "$sql_server" \
+    --query "[?contains(name, 'projectbrain')].name | [0]" \
+    -o tsv 2>/dev/null || true)"
+
+  if ! azure_sql_is_valid_database_name "$database_name"; then
+    database_name=""
   fi
 
   if [ -z "$database_name" ]; then
-    database_name="$(az sql db list \
-      --resource-group "$resource_group" \
-      --server "$sql_server" \
-      --query "[?contains(name, 'projectbrain')].name | [0]" \
-      -o tsv 2>/dev/null || true)"
-  fi
-
-  if [ -z "$database_name" ] || [ "$database_name" = "null" ]; then
     database_name="projectbraindb"
   fi
 
@@ -122,11 +127,12 @@ azure_sql_resolve_admin_password() {
   fi
 
   if command -v azd >/dev/null 2>&1; then
-    local azd_password
-    azd_password="$(azd env get-value projectbrain-password --environment "$AZURE_ENV_NAME" 2>/dev/null || true)"
-    if [ -n "$azd_password" ]; then
-      echo "$azd_password"
-      return 0
+    local azd_password=""
+    if azd_password="$(azd env get-value projectbrain-password --environment "$AZURE_ENV_NAME" 2>/dev/null)"; then
+      if [ -n "$azd_password" ]; then
+        echo "$azd_password"
+        return 0
+      fi
     fi
   fi
 

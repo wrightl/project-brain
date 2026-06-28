@@ -2,7 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 
 namespace ProjectBrain.Database.Tests;
 

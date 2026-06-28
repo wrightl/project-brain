@@ -119,7 +119,6 @@ builder.Services.AddScoped<IGoalSuggestionUserContext, StorageGoalSuggestionUser
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
-builder.Services.AddScoped<IIdentitySeedingService, IdentitySeedingService>();
 builder.Services.AddSingleton<IWebhookIdempotencyService, WebhookIdempotencyService>();
 
 builder.AddAuth0ManagementApi();

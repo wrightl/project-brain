@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 
 public static class ClaimsPrincipalExtension
 {

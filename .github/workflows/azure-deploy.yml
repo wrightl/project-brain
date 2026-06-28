@@ -87,24 +87,5 @@ jobs:
       - name: Provision Infrastructure
         run: azd provision --no-prompt
 
-      - name: Install EF Core tools
-        run: |
-          dotnet tool install --global dotnet-ef --version 10.0.9 || dotnet tool update --global dotnet-ef --version 10.0.9
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-
-      - name: Add GitHub runner IP to SQL firewall
-        shell: bash
-        run: bash .github/scripts/sql-firewall-rule.sh add
-
-      - name: Apply database migrations
-        shell: bash
-        run: bash .github/scripts/apply-database-migrations.sh
-
-      - name: Remove GitHub runner IP from SQL firewall
-        if: always()
-        continue-on-error: true
-        shell: bash
-        run: bash .github/scripts/sql-firewall-rule.sh remove
-
       - name: Deploy Application
         run: azd deploy --no-prompt

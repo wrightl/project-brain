@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain;
 
 public class SubscriptionAnalyticsServices(

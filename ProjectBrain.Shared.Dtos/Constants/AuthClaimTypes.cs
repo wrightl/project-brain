@@ -1,4 +1,4 @@
-namespace ProjectBrain.Database.Constants;
+namespace ProjectBrain.Shared.Constants;
 
 public static class AuthClaimTypes
 {

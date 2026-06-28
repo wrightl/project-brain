@@ -2,9 +2,11 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Database;
+using ProjectBrain.Shared.Constants;
+using ProjectBrain.MigrationService.Seeding;
 
-namespace ProjectBrain.Database.Tests;
+namespace ProjectBrain.MigrationService.Tests;
 
 public class CriticalDatabaseSeederTests : IDisposable
 {

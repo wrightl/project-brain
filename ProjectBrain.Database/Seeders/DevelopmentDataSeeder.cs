@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.Database.Models;
 

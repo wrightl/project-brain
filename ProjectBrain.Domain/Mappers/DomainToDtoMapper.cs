@@ -1,10 +1,10 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-
 using ProjectBrain.Database;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Database.Models;
+using ProjectBrain.Domain;
 
 namespace ProjectBrain.Domain.Mappers;
 

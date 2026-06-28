@@ -64,8 +64,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             var hostedServicesToRemove = services
                 .Where(d => d.ServiceType == typeof(IHostedService) &&
-                            (d.ImplementationType == typeof(ProjectBrainDbInitializer)
-                             || d.ImplementationType == typeof(DatabaseStartupHostedService)))
+                            d.ImplementationType == typeof(DatabaseStartupHostedService))
                 .ToList();
             foreach (var descriptor in hostedServicesToRemove)
             {

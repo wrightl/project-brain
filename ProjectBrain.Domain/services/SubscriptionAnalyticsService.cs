@@ -3,7 +3,7 @@ namespace ProjectBrain.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 
 public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
 {

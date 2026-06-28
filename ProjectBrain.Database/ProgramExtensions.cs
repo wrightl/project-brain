@@ -14,14 +14,9 @@ public static class ProgramExtensions
 
         builder.Services.AddSingleton<IDatabaseStartupState, DatabaseStartupState>();
         builder.Services.AddHostedService<DatabaseStartupHostedService>();
-        builder.Services.AddHostedService<ProjectBrainDbInitializer>();
         builder.Services.AddScoped<IDevelopmentDataSeeder, DevelopmentDataSeeder>();
-        // builder.Services.AddOpenTelemetry()
-        //     .WithTracing(tracing => tracing.AddSource(ProjectBrainDbInitializer.ActivitySourceName));
 
         // sql
         builder.AddSqlServerDbContext<AppDbContext>(connectionName: "projectbraindb");
-        // // Register DbContext base type to resolve to AppDbContext for UnitOfWork
-        // builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<AppDbContext>());
     }
 }

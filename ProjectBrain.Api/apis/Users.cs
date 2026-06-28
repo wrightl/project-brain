@@ -1,7 +1,7 @@
 
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using System.Text;

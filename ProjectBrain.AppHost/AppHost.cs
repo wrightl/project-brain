@@ -185,9 +185,6 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithEnvironment("LaunchDarkly__SdkKey", launchDarklySdkKey)
                         .WithEnvironment("Mailgun__ApiKey", mailgunApiKey)
                         .WithEnvironment("Mailgun__Domain", mailgunDomain)
-                        .WithEnvironment("AdminUser__Password", adminUserPassword)
-                        .WithEnvironment("TestUsers__Password", testUsersPassword)
-                        .WithEnvironment("deploy-env", environmentName)
                         .WithEnvironment("GoogleMaps__GeocodingApiKey", googleMapsGeocodingApiKey)
                         .WithEnvironment("FakeCoachAutoReply__Enabled", fakeCoachAutoReplyEnabled)
 #pragma warning disable ASPIREPROBES001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -258,8 +255,21 @@ if (builder.ExecutionContext.IsPublishMode)
 
     var azureDb = azureSql.AddDatabase(sqlDbName);
 
+    var migrations = builder.AddProject<Projects.ProjectBrain_MigrationService>("migrations")
+        .WithReference(azureDb)
+        .WaitFor(azureDb)
+        .WithMigrationSeedingEnvironment(
+            auth0ManagementApiClientSecret,
+            auth0ManagementApiClientId,
+            auth0Domain,
+            adminUserPassword,
+            testUsersPassword,
+            environmentName)
+        .PublishAsAzureContainerAppJob();
+
     apiService.WithReference(azureDb)
               .WaitFor(azureDb)
+              .WaitForCompletion(migrations)
               .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelOtlpEndpoint)
               .WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otelOtlpHeaders)
               .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
@@ -310,8 +320,20 @@ else
 
     var db = sql.AddDatabase(sqlDbName);
 
+    var migrations = builder.AddProject<Projects.ProjectBrain_MigrationService>("migrations")
+        .WithReference(db)
+        .WaitFor(db)
+        .WithMigrationSeedingEnvironment(
+            auth0ManagementApiClientSecret,
+            auth0ManagementApiClientId,
+            auth0Domain,
+            adminUserPassword,
+            testUsersPassword,
+            environmentName);
+
     apiService.WithReference(db)
-              .WaitFor(db);
+              .WaitFor(db)
+              .WaitForCompletion(migrations);
 
 
     // Use npm for frontend development
@@ -330,3 +352,24 @@ else
 // }
 
 builder.Build().Run();
+
+static class MigrationSeedingEnvironmentExtensions
+{
+    public static IResourceBuilder<ProjectResource> WithMigrationSeedingEnvironment(
+        this IResourceBuilder<ProjectResource> migrations,
+        IResourceBuilder<ParameterResource> auth0ManagementApiClientSecret,
+        IResourceBuilder<ParameterResource> auth0ManagementApiClientId,
+        IResourceBuilder<ParameterResource> auth0Domain,
+        IResourceBuilder<ParameterResource> adminUserPassword,
+        IResourceBuilder<ParameterResource> testUsersPassword,
+        IResourceBuilder<ParameterResource> deployEnv)
+    {
+        return migrations
+            .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
+            .WithEnvironment("Auth0__ManagementApiClientId", auth0ManagementApiClientId)
+            .WithEnvironment("Auth0__Domain", auth0Domain)
+            .WithEnvironment("AdminUser__Password", adminUserPassword)
+            .WithEnvironment("TestUsers__Password", testUsersPassword)
+            .WithEnvironment("deploy-env", deployEnv);
+    }
+}

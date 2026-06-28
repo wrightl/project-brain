@@ -254,7 +254,7 @@ Regenerating overwrites infra files; use `--force` to overwrite without prompt. 
 
 ## Test users and coaches (dev / staging)
 
-On startup, the API can seed **5 test users** and **10 test coaches** in Auth0 and SQL when `TestUsers:Password` is configured and seeding is allowed for the environment.
+On startup, the **migration worker** seeds **5 test users** and **10 test coaches** in Auth0 and SQL when `TestUsers:Password` is configured and seeding is allowed for the environment.
 
 | Type | Emails | Onboarded | Role |
 |------|--------|-----------|------|
@@ -267,7 +267,7 @@ Test coaches are created with real UK postcodes and latitude/longitude (one per 
 - **Staging:** Set `TestUsers:Password` in Azure/App Configuration; seeding runs when `deploy-env` is `staging` (no GitHub workflow mapping for `Enabled`).
 - **Production:** Seeding is blocked when `deploy-env` is `production`.
 - Log in with the **Username-Password-Authentication** connection using the shared test password.
-- Re-run locally without restart: `POST /dev/seed/test-users` (Development only).
+- To re-run seeding locally, restart AppHost so the migrations job runs again (there is no on-demand test-user seed API).
 
 When `FakeCoachAutoReply:Enabled` is `true` (local dev via `appsettings.Development.json`; staging via GitHub var `FAKE_COACH_AUTO_REPLY_ENABLED`), fake coaches (`@projectbrain.test`) also:
 
@@ -281,7 +281,7 @@ Set `FakeCoachAutoReply:Enabled` to `false` in production configuration to disab
 
 - **Backend:** JWT Bearer validation; Auth0 domain/audience and parameters come from configuration (e.g. App Host parameters, `appsettings`, or `azd` env).
 - **Frontend:** `@auth0/nextjs-auth0`; middleware in `projectbrain.frontend/src/middleware.ts`. Use `.env.local` for local Auth0 (and API URL) values.
-- **Roles:** The web app uses an Auth0 Post-Login action that adds roles to the token under `AuthClaimTypes.Roles` (`https://projectbrain.app/roles`). Canonical role string values are defined in `ProjectBrain.Database/Constants/AppRoles.cs` (backend) and `projectbrain.frontend/src/_lib/roles.ts` (frontend)—use these constants instead of hardcoded `"user"`, `"coach"`, or `"admin"`.
+- **Roles:** The web app uses an Auth0 Post-Login action that adds roles to the token under `AuthClaimTypes.Roles` (`https://projectbrain.app/roles`). Canonical role string values are defined in `ProjectBrain.Shared.Dtos/Constants/AppRoles.cs` (namespace `ProjectBrain.Shared.Constants`; backend) and `projectbrain.frontend/src/_lib/roles.ts` (frontend)—use these constants instead of hardcoded `"user"`, `"coach"`, or `"admin"`.
 - **API permissions:** Add permissions in Auth0 under **APIs → [Your API] → Permissions**.
 - **New Auth0 tenant:** Create a Post-Login action that sets the roles namespace and adds roles to ID and access tokens (see [readme-old.md](readme-old.md) for a sample snippet).
 

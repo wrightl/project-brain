@@ -448,13 +448,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasIndex(g => new { g.UserId, g.Date, g.Index })
             .IsUnique();
 
-        // Check constraint for Index (0-2)
+        // Check constraints for Index (0-2) and Message length (max 500)
         modelBuilder.Entity<Goal>()
-            .HasCheckConstraint("CK_Goal_Index", "[Index] >= 0 AND [Index] <= 2");
-
-        // Check constraint for Message length (max 500)
-        modelBuilder.Entity<Goal>()
-            .HasCheckConstraint("CK_Goal_MessageLength", "LEN([Message]) <= 500");
+            .ToTable("Goals", t =>
+            {
+                t.HasCheckConstraint("CK_Goal_Index", "[Index] >= 0 AND [Index] <= 2");
+                t.HasCheckConstraint("CK_Goal_MessageLength", "LEN([Message]) <= 500");
+            });
 
         // Configure OnboardingData relationships
         modelBuilder.Entity<OnboardingData>()

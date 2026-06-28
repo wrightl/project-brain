@@ -1,4 +1,4 @@
-namespace ProjectBrain.Database.Constants;
+namespace ProjectBrain.Shared.Constants;
 
 /// <summary>
 /// Canonical country options seeded into Countries (ISO 3166-1 alpha-2).

@@ -3,7 +3,7 @@ using Moq;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Caching;
 using ProjectBrain.Domain.Repositories;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 
 namespace ProjectBrain.Api.Tests;
 

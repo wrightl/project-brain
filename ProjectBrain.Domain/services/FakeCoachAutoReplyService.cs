@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using ProjectBrain.Database;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain.Repositories;
 
 namespace ProjectBrain.Domain;

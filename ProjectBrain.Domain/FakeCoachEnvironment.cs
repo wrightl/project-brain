@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace ProjectBrain.Database;
+namespace ProjectBrain.Domain;
 
 public static class FakeCoachEnvironment
 {

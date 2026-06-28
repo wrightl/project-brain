@@ -2,44 +2,36 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProjectBrain.Database;
-using ProjectBrain.Database;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.Database.Models;
+using ProjectBrain.Domain;
 
-public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
-    IDatabaseStartupState startupState,
-    ILogger<ProjectBrainDbInitializer> logger)
-    : BackgroundService
+namespace ProjectBrain.MigrationService.Seeding;
+
+public class DatabaseSeeder(
+    AppDbContext context,
+    IIdentitySeedingService identitySeedingService,
+    IConfiguration configuration,
+    IHostEnvironment hostEnvironment,
+    ILogger<DatabaseSeeder> logger) : IDatabaseSeeder
 {
     public const string ActivitySourceName = "Migrations";
-    private readonly ActivitySource _activitySource = new(ActivitySourceName);
+    private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
 
-    protected override async Task ExecuteAsync(CancellationToken cancellationToken)
+    public async Task SeedAllAsync(CancellationToken cancellationToken = default)
     {
-        await startupState.WaitUntilReadyAsync(cancellationToken);
-
-        using var scope = serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var identitySeedingService = scope.ServiceProvider.GetRequiredService<IIdentitySeedingService>();
-        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var hostEnvironment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
-
-        using var activity = _activitySource.StartActivity("Deferred database seeding", ActivityKind.Client);
-        await InitializeAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
-    }
-
-    public async Task InitializeAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, IHostEnvironment hostEnvironment, CancellationToken cancellationToken = default)
-    {
+        using var activity = ActivitySource.StartActivity("Database seeding", ActivityKind.Client);
         var sw = Stopwatch.StartNew();
 
+        await CriticalDatabaseSeeder.SeedRolesAsync(context, logger, cancellationToken);
+        await CriticalDatabaseSeeder.SeedSubscriptionTiersAsync(context, logger, cancellationToken);
         await SeedDeferredAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
 
-        logger.LogInformation("Deferred database seeding completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
+        logger.LogInformation("Database seeding completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
     }
 
     private async Task SeedDeferredAsync(AppDbContext context, IIdentitySeedingService identitySeedingService, IConfiguration configuration, IHostEnvironment hostEnvironment, CancellationToken cancellationToken)
@@ -572,22 +564,6 @@ public class ProjectBrainDbInitializer(IServiceProvider serviceProvider,
         }
 
         return adminUser;
-    }
-
-    public async Task SeedTestUsersFromEndpointAsync(
-        IIdentitySeedingService identitySeedingService,
-        IConfiguration configuration,
-        IHostEnvironment hostEnvironment,
-        CancellationToken cancellationToken = default)
-    {
-        using var scope = serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await SeedTestUsersAsync(
-            context,
-            identitySeedingService,
-            configuration,
-            hostEnvironment,
-            cancellationToken);
     }
 
     public async Task SeedTestUsersAsync(

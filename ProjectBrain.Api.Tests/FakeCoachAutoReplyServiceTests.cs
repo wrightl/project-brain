@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Database;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;

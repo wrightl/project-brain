@@ -1,4 +1,4 @@
-namespace ProjectBrain.Database.Constants;
+namespace ProjectBrain.Shared.Constants;
 
 /// <summary>
 /// Canonical coach specialism options seeded into CoachSpecialismOptions.

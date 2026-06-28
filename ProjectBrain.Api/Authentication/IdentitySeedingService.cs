@@ -1,4 +1,4 @@
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Database.Interfaces;
 
 namespace ProjectBrain.Api.Authentication;

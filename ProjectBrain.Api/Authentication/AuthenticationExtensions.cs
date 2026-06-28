@@ -2,7 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 
 public static class AuthenticationExtensions
 {

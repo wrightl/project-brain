@@ -335,7 +335,7 @@ public static class ApplicationSettingsEndpoints
 
         try
         {
-            // These keys are seeded by ProjectBrainDbInitializer. We intentionally do not create them here.
+            // These keys are seeded by DatabaseSeeder in MigrationService. We intentionally do not create them here.
             await services.ApplicationSettingsService.UpdateSettingAsync(
                 ReferralEnabledKey,
                 request.Enabled.ToString().ToLowerInvariant(),

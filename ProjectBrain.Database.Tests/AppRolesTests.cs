@@ -1,5 +1,5 @@
 using FluentAssertions;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using Xunit;
 
 namespace ProjectBrain.Database.Tests;

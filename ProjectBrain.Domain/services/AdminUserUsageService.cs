@@ -1,7 +1,7 @@
 namespace ProjectBrain.Domain;
 
 using Microsoft.Extensions.Configuration;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain.Repositories;
 
 public interface IAdminUserUsageService

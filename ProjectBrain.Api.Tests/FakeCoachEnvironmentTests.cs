@@ -1,7 +1,8 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using ProjectBrain.Domain;
 
-namespace ProjectBrain.Database.Tests;
+namespace ProjectBrain.Api.Tests;
 
 public class FakeCoachEnvironmentTests
 {

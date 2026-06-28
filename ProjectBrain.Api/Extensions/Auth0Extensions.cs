@@ -1,4 +1,6 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using Polly.Retry;
@@ -7,6 +9,12 @@ using ProjectBrain.Api.Authentication;
 public static class Auth0Extensions
 {
     public static WebApplicationBuilder AddAuth0ManagementApi(this WebApplicationBuilder builder)
+    {
+        ((IHostApplicationBuilder)builder).AddAuth0ManagementApi();
+        return builder;
+    }
+
+    public static IHostApplicationBuilder AddAuth0ManagementApi(this IHostApplicationBuilder builder)
     {
         builder.Services.AddMemoryCache();
 

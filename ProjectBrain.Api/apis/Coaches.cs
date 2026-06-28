@@ -6,7 +6,7 @@ using ProjectBrain.Database;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain.Mappers;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Database.Models;
 using ProjectBrain.Shared.Dtos.CoachRatings;
 using ProjectBrain.Shared.Dtos.Pagination;

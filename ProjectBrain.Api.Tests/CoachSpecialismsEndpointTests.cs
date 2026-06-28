@@ -17,7 +17,7 @@ public class CoachSpecialismsEndpointTests
 
         _mockCoachSpecialismOptionService
             .Setup(s => s.GetActiveNamesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ProjectBrain.Database.Constants.CoachSpecialismCatalog.DefaultOptions.ToList());
+            .ReturnsAsync(ProjectBrain.Shared.Constants.CoachSpecialismCatalog.DefaultOptions.ToList());
 
         _coachServices = new CoachServices(
             new Mock<ILogger<CoachServices>>().Object,

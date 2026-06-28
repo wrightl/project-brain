@@ -6,16 +6,17 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Database;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Database.Interfaces;
 using ProjectBrain.Database.Models;
+using ProjectBrain.MigrationService.Seeding;
 
-namespace ProjectBrain.Database.Tests;
+namespace ProjectBrain.MigrationService.Tests;
 
 public class TestUsersSeedingTests : IDisposable
 {
     private readonly AppDbContext _context;
-    private readonly ProjectBrainDbInitializer _initializer;
+    private readonly DatabaseSeeder _seeder;
 
     public TestUsersSeedingTests()
     {
@@ -27,15 +28,16 @@ public class TestUsersSeedingTests : IDisposable
         _context = new AppDbContext(options, mockContextLogger.Object);
         SeedRoles();
 
-        var serviceProvider = new Mock<IServiceProvider>();
-        var initializerLogger = new Mock<ILogger<ProjectBrainDbInitializer>>();
-        var startupState = new Mock<IDatabaseStartupState>();
-        startupState.Setup(s => s.WaitUntilReadyAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _initializer = new ProjectBrainDbInitializer(
-            serviceProvider.Object,
-            startupState.Object,
-            initializerLogger.Object);
+        var configuration = new ConfigurationBuilder().Build();
+        var hostEnvironment = new TestHostEnvironment("Development");
+        var identitySeedingService = new Mock<IIdentitySeedingService>();
+        var seederLogger = new Mock<ILogger<DatabaseSeeder>>();
+        _seeder = new DatabaseSeeder(
+            _context,
+            identitySeedingService.Object,
+            configuration,
+            hostEnvironment,
+            seederLogger.Object);
     }
 
     [Theory]
@@ -67,7 +69,7 @@ public class TestUsersSeedingTests : IDisposable
             ? new TestHostEnvironment("Development")
             : new TestHostEnvironment("Production");
 
-        ProjectBrainDbInitializer.ShouldSeedTestUsers(configuration, environment).Should().Be(expected);
+        DatabaseSeeder.ShouldSeedTestUsers(configuration, environment).Should().Be(expected);
     }
 
     [Fact]
@@ -82,7 +84,7 @@ public class TestUsersSeedingTests : IDisposable
         var configuration = BuildConfiguration(enabled: true, password: "TestPass123!");
         var hostEnvironment = new TestHostEnvironment("Development");
 
-        await _initializer.SeedTestUsersAsync(
+        await _seeder.SeedTestUsersAsync(
             _context,
             identity.Object,
             configuration,
@@ -137,7 +139,7 @@ public class TestUsersSeedingTests : IDisposable
         var configuration = BuildConfiguration(enabled: true, password: "TestPass123!");
         var hostEnvironment = new TestHostEnvironment("Development");
 
-        await _initializer.SeedTestUsersAsync(
+        await _seeder.SeedTestUsersAsync(
             _context,
             identity.Object,
             configuration,
@@ -157,7 +159,7 @@ public class TestUsersSeedingTests : IDisposable
         var configuration = BuildConfiguration(enabled: true, password: null);
         var hostEnvironment = new TestHostEnvironment("Development");
 
-        await _initializer.SeedTestUsersAsync(
+        await _seeder.SeedTestUsersAsync(
             _context,
             identity.Object,
             configuration,

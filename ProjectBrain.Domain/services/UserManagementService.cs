@@ -1,7 +1,7 @@
 namespace ProjectBrain.Domain;
 
 using Microsoft.EntityFrameworkCore;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;

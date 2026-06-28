@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 using FluentAssertions;
-using ProjectBrain.Database.Constants;
+using ProjectBrain.Shared.Constants;
 
 namespace ProjectBrain.Database.Tests;
 

@@ -33,6 +33,20 @@ public class DatabaseStartupHostedService(
 
             startupState.MarkReady();
             logger.LogInformation("Database warmup completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
+
+            var pending = await context.Database.GetPendingMigrationsAsync(stoppingToken);
+            var pendingList = pending.ToList();
+            if (pendingList.Count > 0)
+            {
+                logger.LogWarning(
+                    "Database has {Count} pending migration(s): {Migrations}",
+                    pendingList.Count,
+                    string.Join(", ", pendingList));
+                return;
+            }
+
+            startupState.MarkMigrationsApplied();
+            logger.LogInformation("Database migrations verified after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {

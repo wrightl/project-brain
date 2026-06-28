@@ -89,3 +89,6 @@ jobs:
 
       - name: Deploy Application
         run: azd deploy --no-prompt
+
+      - name: Run database migrations
+        run: .github/scripts/run-migrations.sh

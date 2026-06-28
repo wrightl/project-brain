@@ -31,29 +31,31 @@ public class DatabaseMigrationsHealthCheck : IHealthCheck
                 return HealthCheckResult.Unhealthy("Database warmup not complete");
             }
 
-            _logger.LogInformation("Checking database migrations health");
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            // Check if database can be accessed
+            if (!_startupState.AreMigrationsApplied)
+            {
+                var pendingMigrationsList = (await dbContext.Database
+                    .GetPendingMigrationsAsync(cancellationToken)).ToList();
+
+                if (pendingMigrationsList.Count > 0)
+                {
+                    _logger.LogWarning(
+                        "Database has {Count} pending migration(s): {Migrations}",
+                        pendingMigrationsList.Count,
+                        string.Join(", ", pendingMigrationsList));
+
+                    return HealthCheckResult.Unhealthy(
+                        $"Database has {pendingMigrationsList.Count} pending migration(s): {string.Join(", ", pendingMigrationsList)}");
+                }
+
+                _startupState.MarkMigrationsApplied();
+            }
+
             if (!await dbContext.Database.CanConnectAsync(cancellationToken))
             {
                 return HealthCheckResult.Unhealthy("Database is not accessible");
-            }
-
-            // Check if there are any pending migrations
-            var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync(cancellationToken);
-            var pendingMigrationsList = pendingMigrations.ToList();
-
-            if (pendingMigrationsList.Count > 0)
-            {
-                _logger.LogWarning(
-                    "Database has {Count} pending migration(s): {Migrations}",
-                    pendingMigrationsList.Count,
-                    string.Join(", ", pendingMigrationsList));
-
-                return HealthCheckResult.Unhealthy(
-                    $"Database has {pendingMigrationsList.Count} pending migration(s): {string.Join(", ", pendingMigrationsList)}");
             }
 
             return HealthCheckResult.Healthy("All migrations have been applied");
@@ -65,4 +67,3 @@ public class DatabaseMigrationsHealthCheck : IHealthCheck
         }
     }
 }
-

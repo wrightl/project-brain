@@ -77,6 +77,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 var state = new DatabaseStartupState();
                 state.MarkReady();
+                state.MarkMigrationsApplied();
                 return state;
             });
 

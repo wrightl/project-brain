@@ -120,6 +120,48 @@ azure_sql_resolve_database_name() {
   echo "$database_name"
 }
 
+azure_sql_wait_for_database_online() {
+  local resource_group="$1"
+  local sql_server="$2"
+  local database_name="$3"
+  local timeout_seconds="${4:-300}"
+  local poll_interval_seconds="${5:-20}"
+  local elapsed=0
+  local status=""
+
+  azure_sql_log "Waiting for database '${database_name}' to become Online (timeout: ${timeout_seconds}s)..."
+
+  while [ "$elapsed" -lt "$timeout_seconds" ]; do
+    status="$(az sql db show \
+      --resource-group "$resource_group" \
+      --server "$sql_server" \
+      --name "$database_name" \
+      --query status \
+      -o tsv 2>/dev/null || true)"
+
+    if [ "$status" = "Online" ]; then
+      azure_sql_log "Database '${database_name}' is Online."
+      return 0
+    fi
+
+    azure_sql_log "Database status: ${status:-unknown}; retrying in ${poll_interval_seconds}s (${elapsed}s elapsed)..."
+    sleep "$poll_interval_seconds"
+    elapsed=$((elapsed + poll_interval_seconds))
+  done
+
+  azure_sql_fail "Database '${database_name}' did not become Online within ${timeout_seconds}s (last status: ${status:-unknown})."
+}
+
+azure_sql_migration_log_is_pause_error() {
+  local log_file="$1"
+  grep -qiE '40613|not currently available|transient failure' "$log_file" 2>/dev/null
+}
+
+azure_sql_migration_log_is_auth_error() {
+  local log_file="$1"
+  grep -qiE 'login failed|authentication failed|not authorized|permission denied|cannot open database.*login|18456|18452|18470' "$log_file" 2>/dev/null
+}
+
 azure_sql_resolve_admin_password() {
   if [ -n "${AZURE_PROJECTBRAIN_PASSWORD:-}" ]; then
     echo "$AZURE_PROJECTBRAIN_PASSWORD"
@@ -217,7 +259,7 @@ azure_sql_build_entra_connection_string() {
 
   azure_sql_log "Migration target (Entra ID): ${fqdn}/${database_name}"
 
-  printf 'Server=tcp:%s,1433;Initial Catalog=%s;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;Authentication=Active Directory Default;' \
+  printf 'Server=tcp:%s,1433;Initial Catalog=%s;Encrypt=True;TrustServerCertificate=False;Connection Timeout=120;Authentication=Active Directory Default;' \
     "$fqdn" "$database_name"
 }
 
@@ -246,7 +288,7 @@ azure_sql_build_sql_auth_connection_string() {
   escaped_password="$(azure_sql_escape_connection_value "$password")"
   azure_sql_log "Migration target (SQL auth): ${fqdn}/${database_name} (user: ${admin_user})"
 
-  printf 'Server=tcp:%s,1433;Initial Catalog=%s;User ID=%s;Password=%s;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;' \
+  printf 'Server=tcp:%s,1433;Initial Catalog=%s;User ID=%s;Password=%s;Encrypt=True;TrustServerCertificate=False;Connection Timeout=120;' \
     "$fqdn" "$database_name" "$admin_user" "$escaped_password"
 }
 

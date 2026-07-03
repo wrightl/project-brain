@@ -32,7 +32,7 @@ public class Auth0UserManagementRolesCacheTests
     }
 
     [Fact]
-    public void BuildRoleUpdatePlan_MatchesRoleNamesCaseInsensitively()
+    public void BuildRoleUpdatePlan_RequiresExactRoleNames()
     {
         var availableRoles = new[]
         {
@@ -45,8 +45,8 @@ public class Auth0UserManagementRolesCacheTests
             [new Auth0Role { Id = "rol_user", Name = AppRoles.User }],
             [AppRoles.Admin]);
 
-        plan.MissingRoles.Should().BeEmpty();
-        plan.RoleIdsToAssign.Should().Equal("rol_admin");
-        plan.RoleIdsToRemove.Should().Equal("rol_user");
+        plan.MissingRoles.Should().Equal(AppRoles.Admin);
+        plan.RoleIdsToAssign.Should().BeEmpty();
+        plan.RoleIdsToRemove.Should().BeEmpty();
     }
 }

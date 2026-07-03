@@ -242,16 +242,16 @@ internal class Auth0UserManagement : IUserManagement
     {
         var requestedRoleNames = requestedRoles
             .Where(role => !string.IsNullOrWhiteSpace(role))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(StringComparer.Ordinal);
 
         var availableRoleNames = availableRoles
             .Where(role => !string.IsNullOrWhiteSpace(role.Name))
             .Select(role => role.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(StringComparer.Ordinal);
 
         var missingRoles = requestedRoleNames
             .Where(role => !availableRoleNames.Contains(role))
-            .Order(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.Ordinal)
             .ToArray();
 
         if (missingRoles.Length > 0)
@@ -262,7 +262,7 @@ internal class Auth0UserManagement : IUserManagement
         var currentRoleNames = currentRoles
             .Where(role => !string.IsNullOrWhiteSpace(role.Name))
             .Select(role => role.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(StringComparer.Ordinal);
 
         var roleIdsToAssign = availableRoles
             .Where(role => requestedRoleNames.Contains(role.Name) && !currentRoleNames.Contains(role.Name))

@@ -251,7 +251,7 @@ internal class Auth0UserManagement : IUserManagement
 
         var missingRoles = requestedRoleNames
             .Where(role => !availableRoleNames.Contains(role))
-            .Order(StringComparer.Ordinal)
+            .OrderBy(role => role, StringComparer.Ordinal)
             .ToArray();
 
         if (missingRoles.Length > 0)

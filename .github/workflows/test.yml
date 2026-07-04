@@ -24,6 +24,15 @@ jobs:
       - name: Test Database
         run: dotnet test ProjectBrain.Database.Tests/ProjectBrain.Database.Tests.csproj --configuration Release --verbosity normal
 
+      - name: Test API Integration
+        run: dotnet test ProjectBrain.Api.IntegrationTests/ProjectBrain.Api.IntegrationTests.csproj --configuration Release --verbosity normal
+
+      - name: Test Database Integration
+        run: dotnet test ProjectBrain.Database.IntegrationTests/ProjectBrain.Database.IntegrationTests.csproj --configuration Release --verbosity normal
+
+      - name: Test Migration Service
+        run: dotnet test ProjectBrain.MigrationService.Tests/ProjectBrain.MigrationService.Tests.csproj --configuration Release --verbosity normal
+
   frontend-tests:
     runs-on: ubuntu-latest
     defaults:

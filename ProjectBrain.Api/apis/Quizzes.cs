@@ -6,6 +6,7 @@ using ProjectBrain.Domain.Exceptions;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
 using ProjectBrain.Shared.Dtos.Pagination;
+using ProjectBrain.Api.Validators;
 using ProjectBrain.Shared.Dtos.Quizzes;
 
 public class QuizServices(
@@ -24,20 +25,47 @@ public static class QuizEndpoints
 {
     public static void MapQuizEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("quizes").RequireAuthorization();
+        MapQuizRoutes(app.MapGroup("quizes").RequireAuthorization(), useNamedEndpoints: true);
+        MapQuizRoutes(app.MapGroup("quizzes").RequireAuthorization(), useNamedEndpoints: false);
+    }
 
-        group.MapGet("/", GetAllQuizzes).WithName("GetAllQuizzes");
-        group.MapGet("/{quizId}", GetQuizById).WithName("GetQuizById");
-        group.MapPost("/", CreateQuiz).WithName("CreateQuiz").RequireAuthorization("AdminOnly");
-        group.MapPut("/{quizId}", UpdateQuiz).WithName("UpdateQuiz").RequireAuthorization("AdminOnly");
-        group.MapDelete("/{quizId}", DeleteQuiz).WithName("DeleteQuiz").RequireAuthorization("AdminOnly");
-        group.MapPost("/{quizId}/responses", SubmitQuizResponse).WithName("SubmitQuizResponse");
-        group.MapGet("/{quizId}/responses", GetQuizResponses).WithName("GetQuizResponses");
-        group.MapGet("/responses", GetAllQuizResponsesForUser).WithName("GetAllQuizResponsesForUser");
-        group.MapGet("/responses/{responseId}", GetQuizResponseById).WithName("GetQuizResponseById");
-        group.MapGet("/responses/count", GetQuizResponsesCount).WithName("GetUserQuizResponsesCount");
-        group.MapDelete("/responses/{responseId}", DeleteQuizResponse).WithName("DeleteQuizResponse");
-        group.MapGet("/insights", GetQuizInsights).WithName("GetQuizInsights");
+    private static void MapQuizRoutes(RouteGroupBuilder group, bool useNamedEndpoints)
+    {
+        var getAll = group.MapGet("/", GetAllQuizzes);
+        if (useNamedEndpoints) getAll.WithName("GetAllQuizzes");
+
+        var getById = group.MapGet("/{quizId}", GetQuizById);
+        if (useNamedEndpoints) getById.WithName("GetQuizById");
+
+        var create = group.MapPost("/", CreateQuiz).RequireAuthorization("AdminOnly").WithRequestValidation<CreateQuizRequestDto>();
+        if (useNamedEndpoints) create.WithName("CreateQuiz");
+
+        var update = group.MapPut("/{quizId}", UpdateQuiz).RequireAuthorization("AdminOnly").WithRequestValidation<CreateQuizRequestDto>();
+        if (useNamedEndpoints) update.WithName("UpdateQuiz");
+
+        var delete = group.MapDelete("/{quizId}", DeleteQuiz).RequireAuthorization("AdminOnly");
+        if (useNamedEndpoints) delete.WithName("DeleteQuiz");
+
+        var submit = group.MapPost("/{quizId}/responses", SubmitQuizResponse).WithRequestValidation<SubmitQuizResponseRequestDto>();
+        if (useNamedEndpoints) submit.WithName("SubmitQuizResponse");
+
+        var getResponses = group.MapGet("/{quizId}/responses", GetQuizResponses);
+        if (useNamedEndpoints) getResponses.WithName("GetQuizResponses");
+
+        var getAllResponses = group.MapGet("/responses", GetAllQuizResponsesForUser);
+        if (useNamedEndpoints) getAllResponses.WithName("GetAllQuizResponsesForUser");
+
+        var getResponseById = group.MapGet("/responses/{responseId}", GetQuizResponseById);
+        if (useNamedEndpoints) getResponseById.WithName("GetQuizResponseById");
+
+        var getCount = group.MapGet("/responses/count", GetQuizResponsesCount);
+        if (useNamedEndpoints) getCount.WithName("GetUserQuizResponsesCount");
+
+        var deleteResponse = group.MapDelete("/responses/{responseId}", DeleteQuizResponse);
+        if (useNamedEndpoints) deleteResponse.WithName("DeleteQuizResponse");
+
+        var insights = group.MapGet("/insights", GetQuizInsights);
+        if (useNamedEndpoints) insights.WithName("GetQuizInsights");
     }
 
     private static async Task<IResult> GetAllQuizzes([AsParameters] QuizServices services, HttpRequest request)

@@ -310,8 +310,7 @@ else
 {
     // Create a devtunnel
     builder.AddDevTunnel("tunnel")
-        .WithReference(apiService)
-        .WithAnonymousAccess();
+        .WithReference(apiService);
 
     // sql server
     var sql = builder.AddSqlServer(sqlServerName, password: sqlPassword, port: 49976)

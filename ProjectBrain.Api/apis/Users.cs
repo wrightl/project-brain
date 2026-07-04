@@ -70,7 +70,9 @@ public static class UserEndpoints
 
         if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
         {
-            group.MapGet("/{email}", GetUserByEmail).WithName("GetUserByEmail");
+            group.MapGet("/{email}", GetUserByEmail)
+                .WithName("GetUserByEmail")
+                .RequireAuthorization("AdminOnly");
         }
     }
 

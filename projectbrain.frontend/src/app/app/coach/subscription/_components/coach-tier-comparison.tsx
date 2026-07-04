@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/_lib/api-client';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
+import { isAllowedCheckoutRedirectUrl } from '@/_lib/url-security';
 
 interface CoachTierComparisonProps {
     onUpgrade?: () => void;
@@ -42,6 +43,9 @@ export default function CoachTierComparison({
                     body: { tier, isAnnual },
                 }
             );
+            if (!isAllowedCheckoutRedirectUrl(url)) {
+                throw new Error('Invalid checkout redirect URL');
+            }
             window.location.href = url;
             if (onUpgrade) {
                 onUpgrade();

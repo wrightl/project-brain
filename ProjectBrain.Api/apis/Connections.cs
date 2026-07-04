@@ -105,29 +105,38 @@ public static class ConnectionEndpoints
 
         // Map to ConnectionWithStatus and enrich with coachProfileId
         var connectionWithStatusList = new List<ConnectionWithStatus>();
+        Dictionary<string, CoachProfile> coachProfileByUserId = new();
+
+        if (!isCoach)
+        {
+            var coachIds = paginatedConnections
+                .Select(c => c.CoachId)
+                .Distinct()
+                .ToList();
+            var coachProfiles = await services.CoachProfileService.GetByUserIdsWithRelatedAsync(coachIds);
+            coachProfileByUserId = coachProfiles.ToDictionary(p => p.UserId);
+        }
+
         foreach (var connection in paginatedConnections)
         {
             var connectionWithStatus = ConnectionWithStatus.FromConnection(connection);
 
-            // Get coachProfileId if this is a user viewing their coaches
-            if (!isCoach && connection.Coach != null)
+            if (!isCoach && coachProfileByUserId.TryGetValue(connection.CoachId, out var coachProfile))
             {
-                var coachProfile = await services.CoachProfileService.GetByUserId(connection.CoachId);
-                if (coachProfile != null)
+                connectionWithStatus = new ConnectionWithStatus
                 {
-                    connectionWithStatus = new ConnectionWithStatus
-                    {
-                        Id = connectionWithStatus.Id,
-                        UserId = connectionWithStatus.UserId,
-                        CoachId = connectionWithStatus.CoachId,
-                        Status = connectionWithStatus.Status,
-                        UserName = connectionWithStatus.UserName,
-                        CoachName = connectionWithStatus.CoachName,
-                        CoachProfileId = coachProfile.Id.ToString(),
-                        RequestedAt = connectionWithStatus.RequestedAt,
-                        RespondedAt = connectionWithStatus.RespondedAt
-                    };
-                }
+                    Id = connectionWithStatus.Id,
+                    UserId = connectionWithStatus.UserId,
+                    CoachId = connectionWithStatus.CoachId,
+                    Status = connectionWithStatus.Status,
+                    UserName = connectionWithStatus.UserName,
+                    CoachName = connectionWithStatus.CoachName,
+                    CoachProfileId = coachProfile.Id.ToString(),
+                    RequestedAt = connectionWithStatus.RequestedAt,
+                    RespondedAt = connectionWithStatus.RespondedAt,
+                    RequestedBy = connectionWithStatus.RequestedBy,
+                    Message = connectionWithStatus.Message,
+                };
             }
 
             connectionWithStatusList.Add(connectionWithStatus);

@@ -1,3 +1,8 @@
+import { fetchWithAuth } from './fetch-with-auth';
+
+// Re-export unified HTTP client helpers.
+export { fetchWithAuth } from './fetch-with-auth';
+
 export class ApiClientError extends Error {
     constructor(
         public status: number,
@@ -36,17 +41,12 @@ export async function apiClient<T>(
         fetchOptions.body = isFormData ? body : JSON.stringify(body);
     }
 
-    const response = await fetch(endpoint, fetchOptions);
+    const response = await fetchWithAuth(endpoint, fetchOptions);
 
     if (!response.ok) {
-        // Handle 401 Unauthorized - session expired
+        // Session expiration is handled by fetchWithAuth
         if (response.status === 401 || response.headers.get('X-Session-Expired') === 'true') {
-            const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/app';
-            if (typeof window !== 'undefined') {
-                window.location.href = `/auth/login?returnTo=${encodeURIComponent(currentPath)}`;
-                // Return a promise that never resolves to prevent further execution
-                return new Promise(() => {}) as Promise<T>;
-            }
+            return new Promise(() => {}) as Promise<T>;
         }
         
         const errorData = await response.json().catch(() => ({}));

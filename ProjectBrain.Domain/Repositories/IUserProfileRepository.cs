@@ -14,5 +14,9 @@ public interface IUserProfileRepository : IRepository<UserProfile, int>
     /// Gets a user profile by user ID with related entities
     /// </summary>
     Task<UserProfile?> GetByUserIdWithRelatedAsync(string userId, CancellationToken cancellationToken = default);
+
+    Task<IEnumerable<UserProfile>> GetByUserIdsWithRelatedAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default);
 }
 

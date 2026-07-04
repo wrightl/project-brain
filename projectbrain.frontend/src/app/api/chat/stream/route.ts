@@ -20,6 +20,14 @@ export const POST = createStreamingApiRoute(async (req: NextRequest) => {
         }
     );
 
+    if (!backendResponse.ok) {
+        const errorText = await backendResponse.text();
+        return new Response(errorText || 'Stream request failed', {
+            status: backendResponse.status,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+
     const stream = backendResponse.body;
     const conversationIdHeader =
         backendResponse.headers.get('X-Conversation-Id');

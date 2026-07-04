@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, ReactNode } from 'react';
+import { useCallback, useEffect, useState, ReactNode } from 'react';
 import { fetchWithAuth } from '@/_lib/fetch-with-auth';
 import Link from 'next/link';
 
@@ -20,32 +20,6 @@ export default function FeatureGate({
     const [allowed, setAllowed] = useState<boolean | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        checkFeature();
-    }, []);
-
-    const checkFeature = async () => {
-        try {
-            const response = await fetchWithAuth('/api/subscriptions/tier');
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch tier information');
-            }
-
-            const data: { tier: string; userType: string } =
-                await response.json();
-
-            // Check if feature is allowed based on tier
-            const featureAllowed = checkFeatureAccess(data.tier, feature);
-            setAllowed(featureAllowed);
-        } catch (error) {
-            console.error('Error checking feature access:', error);
-            setAllowed(false);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const checkFeatureAccess = (tier: string, featureName: string): boolean => {
         switch (featureName) {
             case 'speech_input':
@@ -58,6 +32,31 @@ export default function FeatureGate({
                 return true;
         }
     };
+
+    const checkFeature = useCallback(async () => {
+        try {
+            const response = await fetchWithAuth('/api/subscriptions/tier');
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch tier information');
+            }
+
+            const data: { tier: string; userType: string } =
+                await response.json();
+
+            const featureAllowed = checkFeatureAccess(data.tier, feature);
+            setAllowed(featureAllowed);
+        } catch (error) {
+            console.error('Error checking feature access:', error);
+            setAllowed(false);
+        } finally {
+            setLoading(false);
+        }
+    }, [feature]);
+
+    useEffect(() => {
+        void checkFeature();
+    }, [checkFeature]);
 
     if (loading) {
         return null; // Or a loading spinner

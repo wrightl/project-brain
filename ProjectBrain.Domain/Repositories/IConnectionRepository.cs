@@ -44,5 +44,13 @@ public interface IConnectionRepository : IRepository<Connection, Guid>
     /// Gets paginated connections for a user or coach (efficient database-level pagination)
     /// </summary>
     Task<IEnumerable<Connection>> GetPagedConnectionsAsync(string userId, bool isCoach, int skip, int take, CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, int>> GetConnectedCoachCountsByUserIdsAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, DateTime>> GetEarliestConnectionDatesByUserIdsAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default);
 }
 

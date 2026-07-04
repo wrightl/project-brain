@@ -87,6 +87,12 @@ public class UserService : IUserService
         return user?.ToBaseUserDto();
     }
 
+    public async Task<List<BaseUserDto>> GetByIds(IEnumerable<string> ids)
+    {
+        var users = await _repository.GetByIdsWithRolesAsync(ids);
+        return users.Select(u => u.ToBaseUserDto()).ToList();
+    }
+
     public async Task<BaseUserDto> DeleteById(string Id)
     {
         var user = await _context.Users
@@ -109,6 +115,8 @@ public interface IUserService
     Task<BaseUserDto> Update(BaseUserDto userDto);
 
     Task<BaseUserDto?> GetById(string Id);
+
+    Task<List<BaseUserDto>> GetByIds(IEnumerable<string> ids);
 
     Task<BaseUserDto?> GetByEmail(string email);
     Task<BaseUserDto> DeleteById(string Id);

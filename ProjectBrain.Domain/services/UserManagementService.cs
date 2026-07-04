@@ -21,8 +21,6 @@ public class UserManagementService : IUserManagementService
 
     public async Task<List<BaseUserDto>> GetAll()
     {
-        var users = await _repository.GetAllAsync();
-        // Need to include roles, so we'll use a custom query for now
         var usersWithRoles = await _context.Users
             .AsNoTracking()
             .Include(u => u.UserRoles)

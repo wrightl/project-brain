@@ -7,6 +7,7 @@ using ProjectBrain.Api.Goals;
 using ProjectBrain.AI;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Mappers;
+using ProjectBrain.Api.Validators;
 using ProjectBrain.Shared.Dtos.Goals;
 using TickerQ.Utilities.Entities;
 using TickerQ.Utilities.Interfaces.Managers;
@@ -39,8 +40,8 @@ public static class GoalEndpoints
 
         group.MapGet("/", GetTodaysGoals).WithName("GetTodaysGoals");
         group.MapGet("/stream", StreamGoals).WithName("StreamGoals");
-        group.MapPost("/", CreateOrUpdateGoals).WithName("CreateOrUpdateGoals");
-        group.MapPost("/{index}/complete", CompleteGoal).WithName("CompleteGoal");
+        group.MapPost("/", CreateOrUpdateGoals).WithName("CreateOrUpdateGoals").WithRequestValidation<CreateOrUpdateGoalsRequestDto>();
+        group.MapPost("/{index}/complete", CompleteGoal).WithName("CompleteGoal").WithRequestValidation<CompleteGoalRequestDto>();
         group.MapGet("/streak", GetCompletionStreak).WithName("GetCompletionStreak");
         group.MapGet("/streak-summary", GetStreakSummary).WithName("GetStreakSummary");
         group.MapGet("/has-ever-created", HasEverCreatedGoals).WithName("HasEverCreatedGoals");
@@ -137,7 +138,7 @@ public static class GoalEndpoints
 
             var response = GoalMapper.ToDtoList(goals).ToList();
 
-            NotifyGoalsUpdated(services, currentUserId);
+            await NotifyGoalsUpdated(services, currentUserId);
 
             return Results.Ok(response);
         }
@@ -191,7 +192,7 @@ public static class GoalEndpoints
 
             var response = GoalMapper.ToDtoList(goals).ToList();
 
-            NotifyGoalsUpdated(services, currentUserId);
+            await NotifyGoalsUpdated(services, currentUserId);
 
             return Results.Ok(response);
         }

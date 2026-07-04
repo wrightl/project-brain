@@ -4,11 +4,9 @@ using ProjectBrain.Domain;
 
 public static class TokenEstimatorFactory
 {
+    [Obsolete("Use CreateAsync instead.")]
     public static ITokenEstimator Create(IApplicationSettingsService settingsService)
-    {
-        var promptBudget = settingsService.GetPromptBudgetSettingsAsync().GetAwaiter().GetResult();
-        return Create(promptBudget.TokenEstimator);
-    }
+        => CreateAsync(settingsService).GetAwaiter().GetResult();
 
     public static async Task<ITokenEstimator> CreateAsync(IApplicationSettingsService settingsService)
     {

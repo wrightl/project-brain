@@ -94,42 +94,30 @@ public static class CoachEndpoints
                 return Results.Ok(new List<CoachWithConnectionStatusDto>());
             }
 
-            // Create a dictionary to map coach IDs to connection status
-            var connectionStatusMap = connectedCoaches.ToDictionary(c => c.Id, c => c.Status);
+            var coachIds = connectedCoaches.Select(c => c.CoachId).Distinct().ToList();
+            var connectionByCoachId = connectedCoaches
+                .GroupBy(c => c.CoachId)
+                .ToDictionary(g => g.Key, g => g.First());
 
-            // Fetch coach profiles for all connected coaches
-            var coachProfiles = new List<CoachProfile>();
-            foreach (var connection in connectedCoaches)
-            {
-                var coachProfile = await services.CoachProfileService.GetByUserId(connection.Id);
-                if (coachProfile != null && coachProfile.User != null)
-                {
-                    coachProfiles.Add(coachProfile);
-                }
-            }
+            var coachProfiles = await services.CoachProfileService.GetByUserIdsWithRelatedAsync(coachIds);
 
-            // Convert to DTOs
             var coachDtos = coachProfiles
+                .Where(cp => cp.User != null)
                 .Select(cp => cp.ToCoachDto())
                 .ToList();
 
-            // Set online status for all coaches (30-minute window for coaches)
             await coachDtos.SetOnlineStatusAsync(
                 services.UserActivityService,
                 services.CoachMessageService,
                 activityWindowMinutes: 30,
                 configuration: services.Configuration);
 
-            // Create CoachWithConnectionStatusDto list with connection details
-            var coachesWithStatus = new List<CoachWithConnectionStatusDto>();
-            foreach (var coachDto in coachDtos)
+            var coachesWithStatus = coachDtos.Select(coachDto =>
             {
-                // Get full connection details to access RequestedAt, RequestedBy, and Message
-                var fullConnection = await services.ConnectionService.GetConnectionAsync(userId, coachDto.Id);
+                connectionByCoachId.TryGetValue(coachDto.Id, out var connection);
 
-                coachesWithStatus.Add(new CoachWithConnectionStatusDto
+                return new CoachWithConnectionStatusDto
                 {
-                    // BaseUserDto properties
                     Id = coachDto.Id,
                     Email = coachDto.Email,
                     FullName = coachDto.FullName,
@@ -142,21 +130,17 @@ public static class CoachEndpoints
                     StateProvince = coachDto.StateProvince,
                     PostalCode = coachDto.PostalCode,
                     Country = coachDto.Country,
-
-                    // CoachDto specific properties
                     Qualifications = coachDto.Qualifications,
                     Specialisms = coachDto.Specialisms,
                     AgeGroups = coachDto.AgeGroups,
                     AvailabilityStatus = coachDto.AvailabilityStatus,
                     IsOnline = coachDto.AvailabilityStatus == AvailabilityStatus.Available,
-
-                    // Connection status properties
-                    ConnectionStatus = connectionStatusMap.GetValueOrDefault(coachDto.Id, "pending"), // "pending" or "accepted"
-                    RequestedAt = fullConnection?.RequestedAt ?? DateTime.UtcNow,
-                    RequestedBy = fullConnection?.RequestedBy ?? AppRoles.User,
-                    Message = fullConnection?.Message,
-                });
-            }
+                    ConnectionStatus = connection?.Status ?? "pending",
+                    RequestedAt = connection?.RequestedAt ?? DateTime.UtcNow,
+                    RequestedBy = connection?.RequestedBy ?? AppRoles.User,
+                    Message = connection?.Message,
+                };
+            }).ToList();
 
             // Sort: online coaches first, then alphabetically by full name
             var sortedCoaches = coachesWithStatus
@@ -190,65 +174,77 @@ public static class CoachEndpoints
                 return Results.Ok(new List<ClientWithConnectionStatusDto>());
             }
 
-            // Fetch user profiles for all connected users
+            var userIds = connections.Select(c => c.UserId).Distinct().ToList();
+            var users = await services.UserService.GetByIds(userIds);
+            var usersById = users.ToDictionary(u => u.Id);
+            var profilesByUserId = await services.UserProfileService.GetByUserIds(userIds);
+            var coachCountsByUserId = await services.ConnectionService.GetConnectedCoachCountsByUserIdsAsync(userIds);
+            var earliestDatesByUserId = await services.ConnectionService.GetEarliestConnectionDatesByUserIdsAsync(userIds);
+
             var clientDtos = new List<ClientWithConnectionStatusDto>();
             foreach (var connectionWithStatus in connections)
             {
-                var user = await services.UserService.GetById(connectionWithStatus.Id) as UserDto;
-                if (user != null)
+                if (!usersById.TryGetValue(connectionWithStatus.UserId, out var baseUser))
                 {
-                    // Get full connection details to access RequestedAt, RequestedBy, and Message
-                    var fullConnection = await services.ConnectionService.GetConnectionAsync(connectionWithStatus.Id, coachId);
-
-                    // Load user profile for additional information
-                    var userProfile = await services.UserProfileService.GetByUserId(connectionWithStatus.Id);
-
-                    // Populate user profile data into UserDto
-                    if (userProfile != null)
-                    {
-                        user.DoB = userProfile.DoB;
-                        user.PreferredPronoun = userProfile.PreferredPronoun;
-                        user.NeurodiverseTraits = userProfile.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>();
-                    }
-
-                    // Get coach connection count
-                    var connectedCoaches = await services.ConnectionService.GetConnectedCoachIdsAsync(connectionWithStatus.Id);
-                    var coachesCount = connectedCoaches.Count;
-
-                    // Get earliest connection date for time on platform calculation
-                    var earliestConnectionDate = await services.ConnectionService.GetEarliestConnectionDateAsync(connectionWithStatus.Id);
-                    TimeSpan? timeOnPlatform = null;
-                    if (earliestConnectionDate.HasValue)
-                    {
-                        timeOnPlatform = DateTime.UtcNow - earliestConnectionDate.Value;
-                    }
-
-                    // Calculate age from DoB
-                    int? age = null;
-                    if (user.DoB.HasValue)
-                    {
-                        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                        age = today.Year - user.DoB.Value.Year;
-                        if (user.DoB.Value > today.AddYears(-age.Value))
-                        {
-                            age--;
-                        }
-                    }
-
-                    clientDtos.Add(new ClientWithConnectionStatusDto
-                    {
-                        User = user,
-                        ConnectionStatus = connectionWithStatus.Status, // "pending" or "accepted"
-                        RequestedAt = fullConnection?.RequestedAt ?? DateTime.UtcNow,
-                        RequestedBy = fullConnection?.RequestedBy ?? AppRoles.User,
-                        Message = fullConnection?.Message,
-                        NeurodiverseTraits = user.NeurodiverseTraits ?? new List<string>(),
-                        PreferredPronoun = user.PreferredPronoun,
-                        Age = age,
-                        ConnectedCoachesCount = coachesCount,
-                        TimeOnPlatform = timeOnPlatform,
-                    });
+                    continue;
                 }
+
+                profilesByUserId.TryGetValue(connectionWithStatus.UserId, out var userProfile);
+
+                var user = new UserDto
+                {
+                    Id = baseUser.Id,
+                    Email = baseUser.Email,
+                    FullName = baseUser.FullName,
+                    Roles = baseUser.Roles,
+                    IsOnboarded = baseUser.IsOnboarded,
+                    LastActivityAt = baseUser.LastActivityAt,
+                    StreetAddress = baseUser.StreetAddress,
+                    AddressLine2 = baseUser.AddressLine2,
+                    City = baseUser.City,
+                    StateProvince = baseUser.StateProvince,
+                    PostalCode = baseUser.PostalCode,
+                    Country = baseUser.Country,
+                    Latitude = baseUser.Latitude,
+                    Longitude = baseUser.Longitude,
+                    Connection = baseUser.Connection,
+                    EmailVerified = baseUser.EmailVerified,
+                    DoB = userProfile?.DoB,
+                    PreferredPronoun = userProfile?.PreferredPronoun,
+                    NeurodiverseTraits = userProfile?.NeurodiverseTraits?.Select(t => t.Trait).ToList() ?? new List<string>(),
+                };
+
+                coachCountsByUserId.TryGetValue(connectionWithStatus.UserId, out var coachesCount);
+                earliestDatesByUserId.TryGetValue(connectionWithStatus.UserId, out var earliestConnectionDate);
+
+                TimeSpan? timeOnPlatform = earliestConnectionDate != default
+                    ? DateTime.UtcNow - earliestConnectionDate
+                    : null;
+
+                int? age = null;
+                if (user.DoB.HasValue)
+                {
+                    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                    age = today.Year - user.DoB.Value.Year;
+                    if (user.DoB.Value > today.AddYears(-age.Value))
+                    {
+                        age--;
+                    }
+                }
+
+                clientDtos.Add(new ClientWithConnectionStatusDto
+                {
+                    User = user,
+                    ConnectionStatus = connectionWithStatus.Status,
+                    RequestedAt = connectionWithStatus.RequestedAt,
+                    RequestedBy = connectionWithStatus.RequestedBy ?? AppRoles.User,
+                    Message = connectionWithStatus.Message,
+                    NeurodiverseTraits = user.NeurodiverseTraits ?? new List<string>(),
+                    PreferredPronoun = user.PreferredPronoun,
+                    Age = age,
+                    ConnectedCoachesCount = coachesCount,
+                    TimeOnPlatform = timeOnPlatform,
+                });
             }
 
             // Sort: accepted first, then pending; within each group, online users first, then alphabetically
@@ -900,26 +896,47 @@ public static class CoachEndpoints
     {
         var userId = services.IdentityService.UserId!;
 
-        // Get connection
-        var connectionId = Guid.Parse(id);
-        var connection = await services.ConnectionService.GetByIdAsync(connectionId);
+        Connection? connection = null;
+
+        if (Guid.TryParse(id, out var connectionId))
+        {
+            connection = await services.ConnectionService.GetByIdAsync(connectionId);
+        }
+        else
+        {
+            CoachProfile? coachProfile = null;
+            if (int.TryParse(id, out var profileId))
+            {
+                coachProfile = await services.CoachProfileService.GetByIdWithRelated(profileId);
+            }
+
+            if (coachProfile == null)
+            {
+                coachProfile = await services.CoachProfileService.GetByUserId(id);
+            }
+
+            if (coachProfile != null)
+            {
+                connection = await services.ConnectionService.GetConnectionAsync(userId, coachProfile.UserId);
+            }
+        }
 
         if (connection == null)
         {
-            // Return success for idempotency - connection doesn't exist, so it's already "deleted"
             return Results.Ok(new { message = "Connection request cancelled or removed" });
         }
 
-        // Authorization: Only the user who created the request can cancel it
-        // OR if connected, either party can disconnect
-        if (connection.Status == "pending" && !connection.RequestedBy.Equals(UserType.User.ToString(), StringComparison.OrdinalIgnoreCase))
+        if (userId != connection.UserId && userId != connection.CoachId)
         {
-            // If pending and requested by coach, user cannot cancel
             return Results.Forbid();
         }
 
-        // Cancel or delete connection
-        var success = await services.ConnectionService.CancelOrDeleteConnectionAsync(connectionId);
+        if (connection.Status == "pending" && !connection.RequestedBy.Equals(UserType.User.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.Forbid();
+        }
+
+        var success = await services.ConnectionService.CancelOrDeleteConnectionAsync(connection.Id);
 
         if (!success)
         {

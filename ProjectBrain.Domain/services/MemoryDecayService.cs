@@ -41,8 +41,9 @@ public class MemoryDecayService : IMemoryDecayService
             return 0;
         }
 
+        var expiredFacts = new List<UserFact>();
+        var expiredEpisodes = new List<UserEpisode>();
         var now = DateTime.UtcNow;
-        var expiredCount = 0;
 
         var facts = await _factRepository.GetDecayCandidatesAsync(userId, cancellationToken);
         foreach (var fact in facts)
@@ -52,8 +53,8 @@ public class MemoryDecayService : IMemoryDecayService
                 continue;
             }
 
-            await SupersedeFactAsync(fact, cancellationToken);
-            expiredCount++;
+            MarkFactSuperseded(fact);
+            expiredFacts.Add(fact);
         }
 
         var episodes = await _episodeRepository.GetDecayCandidatesAsync(userId, cancellationToken);
@@ -64,13 +65,25 @@ public class MemoryDecayService : IMemoryDecayService
                 continue;
             }
 
-            await SupersedeEpisodeAsync(episode, cancellationToken);
-            expiredCount++;
+            MarkEpisodeSuperseded(episode);
+            expiredEpisodes.Add(episode);
         }
 
+        var expiredCount = expiredFacts.Count + expiredEpisodes.Count;
         if (expiredCount > 0)
         {
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            foreach (var fact in expiredFacts)
+            {
+                await _memoryIndexService.DeleteFactAsync(fact.Id, cancellationToken);
+            }
+
+            foreach (var episode in expiredEpisodes)
+            {
+                await _memoryIndexService.DeleteEpisodeAsync(episode.Id, cancellationToken);
+            }
+
             _logger.LogInformation(
                 "[MemoryDecay] Superseded {Count} memories for user scope {UserId}",
                 expiredCount,
@@ -126,21 +139,19 @@ public class MemoryDecayService : IMemoryDecayService
         return inactive && tooOld;
     }
 
-    private async Task SupersedeFactAsync(UserFact fact, CancellationToken cancellationToken)
+    private void MarkFactSuperseded(UserFact fact)
     {
         fact.Status = MemoryStatuses.Superseded;
         fact.UpdatedAt = DateTime.UtcNow;
         _factRepository.Update(fact);
-        await _memoryIndexService.DeleteFactAsync(fact.Id, cancellationToken);
         _auditRepository.Add(CreateAudit(fact.UserId, "fact", fact.Content, fact.SourceConversationId));
     }
 
-    private async Task SupersedeEpisodeAsync(UserEpisode episode, CancellationToken cancellationToken)
+    private void MarkEpisodeSuperseded(UserEpisode episode)
     {
         episode.Status = MemoryStatuses.Superseded;
         episode.UpdatedAt = DateTime.UtcNow;
         _episodeRepository.Update(episode);
-        await _memoryIndexService.DeleteEpisodeAsync(episode.Id, cancellationToken);
         _auditRepository.Add(CreateAudit(episode.UserId, "episode", episode.Summary, episode.SourceConversationId));
     }
 

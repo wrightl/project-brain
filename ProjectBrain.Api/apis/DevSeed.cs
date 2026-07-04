@@ -8,7 +8,9 @@ public static class DevSeedEndpoints
         if (!app.Environment.IsDevelopment())
             return;
 
-        var group = app.MapGroup("dev/seed").WithTags("Dev Seed");
+        var group = app.MapGroup("dev/seed")
+            .WithTags("Dev Seed")
+            .RequireAuthorization("AdminOnly");
 
         group.MapPost("user", SeedUser)
             .WithName("SeedUserData")

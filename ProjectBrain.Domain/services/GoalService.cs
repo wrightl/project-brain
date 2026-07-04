@@ -94,6 +94,7 @@ public class GoalService : IGoalService
 
         var results = new List<MultidayGoalsResult>();
 
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
         foreach (var plan in dayPlans.OrderBy(p => p.Date))
         {
             ValidateGoalsList(plan.Goals);
@@ -112,6 +113,7 @@ public class GoalService : IGoalService
             });
         }
 
+        await _unitOfWork.CommitTransactionAsync(cancellationToken);
         return results;
     }
 

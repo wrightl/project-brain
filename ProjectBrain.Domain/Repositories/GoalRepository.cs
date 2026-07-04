@@ -71,32 +71,26 @@ public class GoalRepository : Repository<Goal, Guid>, IGoalRepository
     public async Task<int> GetCompletionStreakAsync(string userId, CancellationToken cancellationToken = default)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var goals = await _dbSet
+            .AsNoTracking()
+            .Where(g => g.UserId == userId && !string.IsNullOrWhiteSpace(g.Message))
+            .Select(g => new { g.Date, g.Completed })
+            .ToListAsync(cancellationToken);
+
+        var completedDays = goals
+            .GroupBy(g => g.Date)
+            .Where(g => g.All(x => x.Completed))
+            .Select(g => g.Key)
+            .ToHashSet();
+
         var streak = 0;
         var currentDate = today;
 
-        while (true)
+        while (completedDays.Contains(currentDate))
         {
-            // Get goals for this date
-            var goals = await _dbSet
-                .AsNoTracking()
-                .Where(g => g.UserId == userId && g.Date == currentDate)
-                .ToListAsync(cancellationToken);
-
-            // Filter to only goals with non-empty messages
-            var nonEmptyGoals = goals.Where(g => !string.IsNullOrWhiteSpace(g.Message)).ToList();
-
-            // Check if we have at least one goal and all non-empty goals are completed
-            if (nonEmptyGoals.Count > 0 && nonEmptyGoals.All(g => g.Completed))
-            {
-                streak++;
-                // Move to previous day
-                currentDate = currentDate.AddDays(-1);
-            }
-            else
-            {
-                // Streak broken - no goals for this day or not all completed
-                break;
-            }
+            streak++;
+            currentDate = currentDate.AddDays(-1);
         }
 
         return streak;

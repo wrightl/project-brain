@@ -54,6 +54,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserFactRepository, UserFactRepository>();
         builder.Services.AddScoped<IUserEpisodeRepository, UserEpisodeRepository>();
         builder.Services.AddScoped<IMemoryPromotionAuditRepository, MemoryPromotionAuditRepository>();
+        builder.Services.AddScoped<IUserErasureRepository, UserErasureRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();

@@ -87,5 +87,41 @@ public class ConnectionRepository : Repository<Connection, Guid>, IConnectionRep
             .Take(take)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<Dictionary<string, int>> GetConnectedCoachCountsByUserIdsAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = userIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<string, int>();
+        }
+
+        return await _dbSet
+            .AsNoTracking()
+            .Where(c => idList.Contains(c.UserId) && (c.Status == "accepted" || c.Status == "pending"))
+            .GroupBy(c => c.UserId)
+            .Select(g => new { UserId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.UserId, x => x.Count, cancellationToken);
+    }
+
+    public async Task<Dictionary<string, DateTime>> GetEarliestConnectionDatesByUserIdsAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = userIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<string, DateTime>();
+        }
+
+        return await _dbSet
+            .AsNoTracking()
+            .Where(c => idList.Contains(c.UserId))
+            .GroupBy(c => c.UserId)
+            .Select(g => new { UserId = g.Key, Date = g.Min(c => c.CreatedAt) })
+            .ToDictionaryAsync(x => x.UserId, x => x.Date, cancellationToken);
+    }
 }
 

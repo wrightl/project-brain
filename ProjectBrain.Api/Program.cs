@@ -57,6 +57,7 @@ builder.Services.AddScoped<IGoalMutationSideEffects, GoalMutationSideEffectsServ
 builder.Services.AddScoped<ICopingStrategySideEffects, CopingStrategySideEffectsService>();
 builder.Services.AddScoped<IStrategySuggestionService, StrategySuggestionService>();
 builder.Services.AddScoped<IUserKnowledgeUploadService, UserKnowledgeUploadService>();
+builder.Services.AddScoped<IGoalSuggestionUserContext, StorageGoalSuggestionUserContext>();
 builder.Services.AddScoped<IGoalSuggestionService, GoalSuggestionService>();
 builder.Services.AddScoped<IJournalAgentService, JournalAgentService>();
 builder.Services.AddScoped<IAgentMemoryWriteService, AgentMemoryWriteService>();
@@ -116,11 +117,13 @@ builder.Services.AddSignalR();
 
 builder.AddAzureOpenAI();
 
-builder.Services.AddScoped<IGoalSuggestionUserContext, StorageGoalSuggestionUserContext>();
+builder.Services.AddSingleton<UserActivityBackgroundService>();
+builder.Services.AddSingleton<IUserActivityQueue>(sp => sp.GetRequiredService<UserActivityBackgroundService>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<UserActivityBackgroundService>());
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IIdentityService, IdentityService>();
-builder.Services.AddSingleton<IWebhookIdempotencyService, WebhookIdempotencyService>();
+builder.Services.AddSingleton<IWebhookIdempotencyService, DistributedWebhookIdempotencyService>();
 
 builder.AddAuth();
 
@@ -174,10 +177,22 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// app.UseSecureHeaders();
-
-// TODO: Decide if this should befixed for .net10 and restored
 // app.UseRobotMiddleware();
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+
+    if (!app.Environment.IsDevelopment())
+    {
+        context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+    }
+
+    await next();
+});
 
 app.UseCors();
 

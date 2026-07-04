@@ -283,6 +283,14 @@ public class CoachProfileService : ICoachProfileService
         var results = await _repository.GetByIdsWithUserAsync(ids, cancellationToken);
         return results.ToList();
     }
+
+    public async Task<List<CoachProfile>> GetByUserIdsWithRelatedAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await _repository.GetByUserIdsWithRelatedAsync(userIds, cancellationToken);
+        return results.ToList();
+    }
 }
 
 public interface ICoachProfileService
@@ -317,6 +325,10 @@ public interface ICoachProfileService
 
     Task<List<CoachProfile>> GetByIdsWithUserAsync(
         IEnumerable<int> ids,
+        CancellationToken cancellationToken = default);
+
+    Task<List<CoachProfile>> GetByUserIdsWithRelatedAsync(
+        IEnumerable<string> userIds,
         CancellationToken cancellationToken = default);
 }
 

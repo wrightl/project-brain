@@ -5,7 +5,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 /**
- * @deprecated Prefer /api/signalr/hub-token for SignalR hub connections.
+ * Returns an access token for authenticated SignalR hub connections only.
+ * Clients must not use this token for general API calls.
  */
 export const GET = createApiRoute(async () => {
     const accessToken = await getAccessToken();

@@ -1,25 +1,16 @@
-import { getAccessToken } from '@/_lib/auth';
-import { NextRequest, NextResponse } from 'next/server';
+import { createApiRoute } from '@/_lib/api-route-handler';
+import { callBackendApi } from '@/_lib/backend-api';
+import { NextResponse } from 'next/server';
 
-export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ messageId: string }> }
-) {
-    try {
-        const { messageId } = await params;
-        const accessToken = await getAccessToken();
-        const apiUrl = process.env.API_SERVER_URL || 'https://localhost:7585';
-
-        const response = await fetch(`${apiUrl}/coach-messages/${messageId}/audio`, {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-            },
-        });
+export const GET = createApiRoute(
+    async (_req, context?: { params: Promise<{ messageId: string }> }) => {
+        const { messageId } = await context!.params;
+        const response = await callBackendApi(`/coach-messages/${messageId}/audio`);
 
         if (!response.ok) {
             return NextResponse.json(
                 { error: 'Failed to fetch audio' },
-                { status: response.status }
+                { status: response.status },
             );
         }
 
@@ -31,12 +22,5 @@ export async function GET(
                 'Content-Type': contentType,
             },
         });
-    } catch (error) {
-        console.error('Error fetching audio:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch audio' },
-            { status: 500 }
-        );
-    }
-}
-
+    },
+);

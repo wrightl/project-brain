@@ -149,13 +149,85 @@ export default function MessageInterface({
         onMessageRead: handleMessageRead,
     });
 
+    const loadMessagesRequestRef = useRef(0);
+
+    const loadMessages = useCallback(async (beforeDate?: Date) => {
+        const requestId = ++loadMessagesRequestRef.current;
+
+        try {
+            setIsLoading(true);
+            const params = new URLSearchParams();
+            params.append("pageSize", "20");
+            if (beforeDate) {
+                params.append("beforeDate", beforeDate.toISOString());
+            }
+
+            const response = await fetchWithAuth(
+                `/api/coach-messages/conversation/${connectionId}?${params.toString()}`,
+            );
+
+            if (requestId !== loadMessagesRequestRef.current) {
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error("Failed to load messages");
+            }
+
+            const newMessages: CoachMessage[] = await response.json();
+
+            if (requestId !== loadMessagesRequestRef.current) {
+                return;
+            }
+
+            if (otherUserName === "User" || otherUserName === "Loading...") {
+                const otherUserMessage = newMessages.find(
+                    (m) => !m.isFromCurrentUser && m.sender?.fullName,
+                );
+                if (otherUserMessage?.sender?.fullName) {
+                    setOtherUserName(otherUserMessage.sender.fullName);
+                }
+            }
+
+            if (beforeDate) {
+                setMessages((prev) => {
+                    const combined = [...prev, ...newMessages];
+                    return combined.sort(
+                        (a, b) =>
+                            new Date(a.createdAt).getTime() -
+                            new Date(b.createdAt).getTime(),
+                    );
+                });
+            } else {
+                setMessages(
+                    newMessages.sort(
+                        (a, b) =>
+                            new Date(a.createdAt).getTime() -
+                            new Date(b.createdAt).getTime(),
+                    ),
+                );
+            }
+
+            setHasMore(newMessages.length === 20);
+        } catch (error) {
+            if (requestId !== loadMessagesRequestRef.current) {
+                return;
+            }
+            console.error("Error loading messages:", error);
+            toast.error("Failed to load messages");
+        } finally {
+            if (requestId === loadMessagesRequestRef.current) {
+                setIsLoading(false);
+            }
+        }
+    }, [connectionId, otherUserName]);
+
     // Load initial messages - only after connection details are loaded
     useEffect(() => {
         if (!isLoadingConnection && connectionId) {
-            loadMessages();
+            void loadMessages();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [connectionId, isLoadingConnection]);
+    }, [connectionId, isLoadingConnection, loadMessages]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -191,63 +263,6 @@ export default function MessageInterface({
         };
     }, [sendTypingIndicator]);
 
-    const loadMessages = async (beforeDate?: Date) => {
-        try {
-            setIsLoading(true);
-            const params = new URLSearchParams();
-            params.append("pageSize", "20");
-            if (beforeDate) {
-                params.append("beforeDate", beforeDate.toISOString());
-            }
-
-            const response = await fetchWithAuth(
-                `/api/coach-messages/conversation/${connectionId}?${params.toString()}`,
-            );
-
-            if (!response.ok) {
-                throw new Error("Failed to load messages");
-            }
-
-            const newMessages: CoachMessage[] = await response.json();
-
-            // Try to get other user's name from messages if we don't have it yet
-            if (otherUserName === "User" || otherUserName === "Loading...") {
-                const otherUserMessage = newMessages.find(
-                    (m) => !m.isFromCurrentUser && m.sender?.fullName,
-                );
-                if (otherUserMessage?.sender?.fullName) {
-                    setOtherUserName(otherUserMessage.sender.fullName);
-                }
-            }
-
-            if (beforeDate) {
-                setMessages((prev) => {
-                    const combined = [...prev, ...newMessages];
-                    return combined.sort(
-                        (a, b) =>
-                            new Date(a.createdAt).getTime() -
-                            new Date(b.createdAt).getTime(),
-                    );
-                });
-            } else {
-                setMessages(
-                    newMessages.sort(
-                        (a, b) =>
-                            new Date(a.createdAt).getTime() -
-                            new Date(b.createdAt).getTime(),
-                    ),
-                );
-            }
-
-            setHasMore(newMessages.length === 20);
-        } catch (error) {
-            console.error("Error loading messages:", error);
-            toast.error("Failed to load messages");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const handleScroll = useCallback(() => {
         if (!messagesContainerRef.current) return;
 
@@ -260,7 +275,7 @@ export default function MessageInterface({
                 loadMessages(new Date(oldestMessage.createdAt));
             }
         }
-    }, [messages, hasMore, isLoading, connectionId]);
+    }, [messages, hasMore, isLoading, loadMessages]);
 
     useEffect(() => {
         const container = messagesContainerRef.current;

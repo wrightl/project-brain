@@ -6,5 +6,5 @@ public class UserRole
     public User User { get; set; } = null!;
     public string RoleName { get; set; } = string.Empty;
     public Role Role { get; set; } = null!;
-    public DateTime AssignedAt { get; set; } = DateTime.Now;
+    public DateTime AssignedAt { get; set; } = DateTime.UtcNow;
 }

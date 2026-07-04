@@ -15,6 +15,8 @@ public class ConnectionWithStatus
     public string? CoachProfileId { get; init; }
     public DateTime RequestedAt { get; init; }
     public DateTime? RespondedAt { get; init; }
+    public string? RequestedBy { get; init; }
+    public string? Message { get; init; }
 
     public static ConnectionWithStatus FromConnection(Connection connection)
     {
@@ -27,7 +29,9 @@ public class ConnectionWithStatus
             UserName = connection.User?.FullName,
             CoachName = connection.Coach?.FullName,
             RequestedAt = connection.RequestedAt,
-            RespondedAt = connection.RespondedAt
+            RespondedAt = connection.RespondedAt,
+            RequestedBy = connection.RequestedBy,
+            Message = connection.Message,
         };
     }
 }
@@ -96,8 +100,29 @@ public class ConnectionService : IConnectionService
         };
 
         _context.Connections.Add(connection);
-        await _unitOfWork.SaveChangesAsync();
-        return connection;
+        try
+        {
+            await _unitOfWork.SaveChangesAsync();
+            return connection;
+        }
+        catch (DbUpdateException ex) when (IsUniqueConnectionViolation(ex))
+        {
+            var raced = await _context.Connections
+                .FirstOrDefaultAsync(c => c.UserId == userId && c.CoachId == coachId);
+            if (raced is not null)
+            {
+                return raced;
+            }
+
+            throw;
+        }
+    }
+
+    private static bool IsUniqueConnectionViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("IX_Connections_UserId_CoachId", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<bool> AcceptConnectionAsync(string userId, string coachId)
@@ -248,6 +273,20 @@ public class ConnectionService : IConnectionService
         var items = await _repository.GetPagedConnectionsAsync(userId, isCoach, skip, take, cancellationToken);
         return (items, totalCount);
     }
+
+    public async Task<Dictionary<string, int>> GetConnectedCoachCountsByUserIdsAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        return await _repository.GetConnectedCoachCountsByUserIdsAsync(userIds, cancellationToken);
+    }
+
+    public async Task<Dictionary<string, DateTime>> GetEarliestConnectionDatesByUserIdsAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        return await _repository.GetEarliestConnectionDatesByUserIdsAsync(userIds, cancellationToken);
+    }
 }
 
 public interface IConnectionService
@@ -272,6 +311,14 @@ public interface IConnectionService
         bool isCoach,
         int skip,
         int take,
+        CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, int>> GetConnectedCoachCountsByUserIdsAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default);
+
+    Task<Dictionary<string, DateTime>> GetEarliestConnectionDatesByUserIdsAsync(
+        IEnumerable<string> userIds,
         CancellationToken cancellationToken = default);
 }
 

@@ -50,6 +50,27 @@ public class CoachProfileRepository : Repository<CoachProfile, int>, ICoachProfi
             .FirstOrDefaultAsync(cp => cp.UserId == userId, cancellationToken);
     }
 
+    public async Task<IEnumerable<CoachProfile>> GetByUserIdsWithRelatedAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = userIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return Array.Empty<CoachProfile>();
+        }
+
+        return await _dbSet
+            .AsNoTracking()
+            .Include(cp => cp.Qualifications)
+            .Include(cp => cp.Specialisms)
+            .Include(cp => cp.AgeGroups)
+            .Include(cp => cp.User!)
+                .ThenInclude(u => u!.UserRoles)
+            .Where(cp => idList.Contains(cp.UserId))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IEnumerable<CoachProfile>> SearchAsync(
         string? city = null,
         string? stateProvince = null,

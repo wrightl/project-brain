@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { apiClient } from '@/_lib/api-client';
+import { isAllowedCheckoutRedirectUrl } from '@/_lib/url-security';
 
 interface TierComparisonProps {
     currentTier: string;
@@ -23,6 +24,9 @@ export default function TierComparison({ currentTier, onUpgrade }: TierCompariso
                 method: 'POST',
                 body: { tier, isAnnual },
             });
+            if (!isAllowedCheckoutRedirectUrl(url)) {
+                throw new Error('Invalid checkout redirect URL');
+            }
             onUpgrade();
             window.location.href = url;
         } catch (err) {

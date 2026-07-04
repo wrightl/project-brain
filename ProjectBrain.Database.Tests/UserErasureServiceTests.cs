@@ -1,10 +1,12 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Caching;
 using ProjectBrain.Domain.Dtos;
 using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 namespace ProjectBrain.Database.Tests;
 
@@ -30,11 +32,10 @@ public class UserErasureServiceTests
         var quizRepo = new Mock<IQuizResponseRepository>();
         quizRepo.Setup(r => r.DeleteByUserIdAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(1);
 
-        var tagRepo = new Mock<ITagRepository>();
-        tagRepo.Setup(r => r.DeleteByUserIdAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(4);
-
-        var coachMessages = new Mock<ICoachMessageService>();
-        coachMessages.Setup(s => s.DeleteAllForUserAsync(userId, It.IsAny<CancellationToken>())).ReturnsAsync(5);
+        var userErasureRepo = new Mock<IUserErasureRepository>();
+        userErasureRepo
+            .Setup(r => r.DeleteRelationalDataAsync(userId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var factRepo = new Mock<IUserFactRepository>();
         factRepo
@@ -63,18 +64,27 @@ public class UserErasureServiceTests
             .Setup(s => s.GetUserSubscriptionAsync(userId, UserType.Coach))
             .ReturnsAsync((UserSubscription?)null);
 
+        var transaction = new Mock<IDbContextTransaction>();
+        var unitOfWork = new Mock<IUnitOfWork>();
+        unitOfWork
+            .Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(transaction.Object);
+        unitOfWork
+            .Setup(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
         var service = new UserErasureService(
             subscription.Object,
             searchErasure.Object,
             blobErasure.Object,
             auditRepo.Object,
             quizRepo.Object,
-            tagRepo.Object,
-            coachMessages.Object,
+            userErasureRepo.Object,
             factRepo.Object,
             episodeRepo.Object,
             memoryIndex.Object,
             userService.Object,
+            unitOfWork.Object,
             cache.Object,
             new Mock<ILogger<UserErasureService>>().Object);
 
@@ -84,6 +94,7 @@ public class UserErasureServiceTests
         result.BlobFilesDeleted.Should().Be(3);
         result.UserRowDeleted.Should().BeTrue();
         userService.Verify(u => u.DeleteById(userId), Times.Once);
+        userErasureRepo.Verify(r => r.DeleteRelationalDataAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
         searchErasure.Verify(s => s.DeleteAllDocumentsForUserAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

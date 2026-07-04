@@ -1,5 +1,5 @@
 using ProjectBrain.Api.Authentication;
-using ProjectBrain.Domain;
+using ProjectBrain.Api.Background;
 using ProjectBrain.Database;
 
 namespace ProjectBrain.Api.Middlewares;
@@ -8,60 +8,35 @@ public class UserActivityMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<UserActivityMiddleware> _logger;
-    private readonly IServiceScopeFactory _serviceScopeFactory;
 
     public UserActivityMiddleware(
         RequestDelegate next,
-        ILogger<UserActivityMiddleware> logger,
-        IServiceScopeFactory serviceScopeFactory)
+        ILogger<UserActivityMiddleware> logger)
     {
         _next = next;
         _logger = logger;
-        _serviceScopeFactory = serviceScopeFactory;
     }
 
     public async Task InvokeAsync(
         HttpContext context,
         IIdentityService identityService,
-        IDatabaseStartupState startupState)
+        IDatabaseStartupState startupState,
+        IUserActivityQueue userActivityQueue)
     {
-        // Only track activity for authenticated users once the database is warmed up
         if (startupState.IsWarmedUp
             && identityService.IsAuthenticated
             && !string.IsNullOrEmpty(identityService.UserId))
         {
-            // Capture userId before Task.Run to avoid closure issues
-            var userId = identityService.UserId!;
-
             try
             {
-                // Record activity - use background task queue pattern to avoid blocking
-                // Create a new scope for the background task to avoid DbContext threading issues
-                _ = Task.Run(async () =>
-                {
-                    // Create a new scope for this background task
-                    using var scope = _serviceScopeFactory.CreateScope();
-                    var userActivityService = scope.ServiceProvider.GetRequiredService<IUserActivityService>();
-
-                    try
-                    {
-                        await userActivityService.RecordUserActivityAsync(userId);
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log but don't throw - activity tracking shouldn't break requests
-                        _logger.LogWarning(ex, "Failed to record user activity for user {UserId}", userId);
-                    }
-                }, cancellationToken: context.RequestAborted);
+                userActivityQueue.Enqueue(identityService.UserId!);
             }
             catch (Exception ex)
             {
-                // Log but don't throw - activity tracking shouldn't break requests
-                _logger.LogWarning(ex, "Failed to initiate user activity tracking for user {UserId}", userId);
+                _logger.LogWarning(ex, "Failed to enqueue user activity for user {UserId}", identityService.UserId);
             }
         }
 
-        // Continue to next middleware
         await _next(context);
     }
 }
@@ -73,4 +48,3 @@ public static class UserActivityMiddlewareExtensions
         return builder.UseMiddleware<UserActivityMiddleware>();
     }
 }
-

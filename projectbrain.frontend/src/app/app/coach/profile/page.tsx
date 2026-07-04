@@ -27,14 +27,11 @@ export default async function CoachProfilePage() {
             if (!isCoach) {
                 error = 'User is not a coach';
             } else {
-                console.log('user', user);
-                // Fetch coach profile data
                 const coachResponse = await callBackendApi(
                     `/coaches/${(user as Coach).id}/profile`
                 );
                 if (coachResponse.ok) {
                     coach = await coachResponse.json();
-                    console.log('coach', coach);
                 } else {
                     error = 'Failed to load coach profile';
                 }

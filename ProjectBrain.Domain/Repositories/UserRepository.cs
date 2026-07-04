@@ -26,6 +26,23 @@ public class UserRepository : Repository<User, string>, IUserRepository
             .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
 
+    public async Task<IEnumerable<User>> GetByIdsWithRolesAsync(
+        IEnumerable<string> ids,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = ids.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return Array.Empty<User>();
+        }
+
+        return await _dbSet
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+            .Where(u => idList.Contains(u.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<User?> GetByEmailWithRolesAsync(string email, CancellationToken cancellationToken = default)
     {
         return await _dbSet

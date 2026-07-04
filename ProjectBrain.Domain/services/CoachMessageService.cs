@@ -146,6 +146,11 @@ public class CoachMessageService : ICoachMessageService
             return false;
         }
 
+        if (recipientId != message.UserId && recipientId != message.CoachId)
+        {
+            return false;
+        }
+
         if (message.Status == "sent")
         {
             message.Status = "delivered";
@@ -214,8 +219,8 @@ public class CoachMessageService : ICoachMessageService
     /// </summary>
     public async Task<List<ConversationSummary>> GetConversationsAsync(string userId, bool isCoach)
     {
-        // Get all accepted connections where user is either UserId or CoachId
         var connections = await _context.Connections
+            .AsNoTracking()
             .Include(c => c.User)
             .Include(c => c.Coach)
             .Where(c =>
@@ -223,36 +228,44 @@ public class CoachMessageService : ICoachMessageService
                 c.Status == "accepted")
             .ToListAsync();
 
+        if (connections.Count == 0)
+        {
+            return [];
+        }
+
+        var connectionIds = connections.Select(c => c.Id).ToList();
+        var messages = await _context.CoachMessages
+            .AsNoTracking()
+            .Include(cm => cm.Sender)
+            .Where(cm => connectionIds.Contains(cm.ConnectionId))
+            .OrderByDescending(cm => cm.CreatedAt)
+            .ToListAsync();
+
+        var lastMessageByConnection = messages
+            .GroupBy(cm => cm.ConnectionId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var unreadCountByConnection = messages
+            .GroupBy(cm => cm.ConnectionId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Count(cm => cm.SenderId != userId && cm.ReadAt == null));
+
         var conversationSummaries = new List<ConversationSummary>();
 
         foreach (var connection in connections)
         {
-            // Get last message for this connection
-            var lastMessage = await _context.CoachMessages
-                .Include(cm => cm.Sender)
-                .Where(cm => cm.ConnectionId == connection.Id)
-                .OrderByDescending(cm => cm.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            // Get unread count (messages where SenderId != userId and ReadAt is null)
-            var unreadCount = await _context.CoachMessages
-                .CountAsync(cm =>
-                    cm.ConnectionId == connection.Id &&
-                    cm.SenderId != userId &&
-                    cm.ReadAt == null);
-
-            // Determine other person's info
+            lastMessageByConnection.TryGetValue(connection.Id, out var lastMessage);
+            unreadCountByConnection.TryGetValue(connection.Id, out var unreadCount);
             string otherPersonName;
             string otherPersonId;
             if (connection.UserId == userId)
             {
-                // User viewing coach
                 otherPersonName = connection.Coach?.FullName ?? "Unknown";
                 otherPersonId = connection.CoachId;
             }
             else
             {
-                // Coach viewing user
                 otherPersonName = connection.User?.FullName ?? "Unknown";
                 otherPersonId = connection.UserId;
             }

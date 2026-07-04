@@ -29,28 +29,25 @@ public class JournalEntryService : IJournalEntryService
         IEnumerable<Guid>? tagIds = null,
         IEnumerable<SystemTagAssignment>? systemTagAssignments = null)
     {
-        _repository.Add(journalEntry);
-        await _unitOfWork.SaveChangesAsync();
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
 
-        // Add tags if provided
+        _repository.Add(journalEntry);
+
         if (tagIds != null && tagIds.Any())
         {
             var tags = await _tagRepository.GetByIdsForUserAsync(tagIds, journalEntry.UserId);
             foreach (var tag in tags)
             {
-                var journalEntryTag = new JournalEntryTag
+                _context.JournalEntryTags.Add(new JournalEntryTag
                 {
                     Id = Guid.NewGuid(),
                     JournalEntryId = journalEntry.Id,
                     TagId = tag.Id,
                     CreatedAt = DateTime.UtcNow
-                };
-                _context.JournalEntryTags.Add(journalEntryTag);
+                });
             }
-            await _unitOfWork.SaveChangesAsync();
         }
 
-        // Add system tags (global) if provided
         if (systemTagAssignments != null)
         {
             var assignments = systemTagAssignments
@@ -76,7 +73,7 @@ public class JournalEntryService : IJournalEntryService
 
                 foreach (var assignment in assignments)
                 {
-                    var jest = new JournalEntrySystemTag
+                    _context.JournalEntrySystemTags.Add(new JournalEntrySystemTag
                     {
                         Id = Guid.NewGuid(),
                         JournalEntryId = journalEntry.Id,
@@ -84,14 +81,12 @@ public class JournalEntryService : IJournalEntryService
                         ResponsesJson = assignment.ResponsesJson,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
-                    };
-                    _context.JournalEntrySystemTags.Add(jest);
+                    });
                 }
-
-                await _unitOfWork.SaveChangesAsync();
             }
         }
 
+        await _unitOfWork.CommitTransactionAsync();
         return journalEntry;
     }
 
@@ -130,6 +125,8 @@ public class JournalEntryService : IJournalEntryService
         IEnumerable<Guid>? tagIds = null,
         IEnumerable<SystemTagAssignment>? systemTagAssignments = null)
     {
+        await using var transaction = await _unitOfWork.BeginTransactionAsync();
+
         // Remove existing tags
         var existingTags = _context.JournalEntryTags
             .Where(jet => jet.JournalEntryId == journalEntry.Id)

@@ -44,6 +44,12 @@ public class UserProfileService : IUserProfileService
         return profile;
     }
 
+    public async Task<Dictionary<string, UserProfile>> GetByUserIds(IEnumerable<string> userIds)
+    {
+        var profiles = await _repository.GetByUserIdsWithRelatedAsync(userIds);
+        return profiles.ToDictionary(p => p.UserId);
+    }
+
     public async Task<UserProfile> CreateOrUpdate(
         string userId,
         DateOnly? doB = null,
@@ -186,6 +192,7 @@ public class UserProfileService : IUserProfileService
 public interface IUserProfileService
 {
     Task<UserProfile?> GetByUserId(string userId);
+    Task<Dictionary<string, UserProfile>> GetByUserIds(IEnumerable<string> userIds);
     Task<UserProfile> CreateOrUpdate(
         string userId,
         DateOnly? doB = null,

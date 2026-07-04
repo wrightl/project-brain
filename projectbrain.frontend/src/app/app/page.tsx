@@ -1,7 +1,8 @@
 import { auth0 } from '@/_lib/auth';
+import { SessionExpiredError } from '@/_lib/backend-api';
 import { UserService } from '@/_services/user-service';
 import { redirect } from 'next/navigation';
-import { SessionExpiredError } from '@/_lib/backend-api';
+import { getPrimaryRole } from '@/_lib/roles';
 
 // Force dynamic rendering to allow access to request-time APIs
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,7 @@ export default async function DashboardPage() {
         const user = await UserService.getCurrentUser();
         const session = await auth0.getSession();
 
-        const role = user?.roles?.[0];
+        const role = getPrimaryRole(user?.roles);
 
         if (!session) {
             redirect('/auth/login?returnTo=/app');

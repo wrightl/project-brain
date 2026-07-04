@@ -64,7 +64,7 @@ public static class ChatEndpoints
 
         if (app.Environment.IsDevelopment())
         {
-            group.MapGet("/test", GetChatStatus);
+            group.MapGet("/test", GetChatStatus).RequireAuthorization("AdminOnly");
         }
 
         // group.MapPost("/knowledge/upload", UploadKnowledge).WithName("KnowledgeUpload");
@@ -75,31 +75,12 @@ public static class ChatEndpoints
         group.MapPost("/stream", StreamChatEventStream);
     }
 
-    private static async Task<object> GetChatStatus([AsParameters] ChatServices services)
+    private static Task<object> GetChatStatus([AsParameters] ChatServices services)
     {
-        var summary = await services.AzureOpenAI.GetConversationSummary("Hello, how are you?", services.IdentityService.UserId!);
-        var endpoint = services.Config["ai:azureOpenAIEndpoint"];
-        var deployment = services.Config["ai:azureOpenAIChatDeployment"];
-        var searchEndpoint = services.Config["ai:azureSearchEndpoint"];
-        var searchIndexName = services.Config["ai:azureSearchIndexName"] ?? "azureblob-index-chunks";
-        var userId = services.IdentityService.UserId;
-        var user = await services.IdentityService.GetUserAsync();
-        var userName = user?.FullName;
-        var email = services.IdentityService.UserEmail;
-        return new
+        return Task.FromResult<object>(new
         {
-            status = "ProjectBrain Chat API is running.",
-            summary,
-            endpoint,
-            deployment,
-            searchEndpoint,
-            searchIndexName,
-            hasOpenAiKey = !string.IsNullOrWhiteSpace(services.Config["ai:azureOpenAIKey"]),
-            hasSearchKey = !string.IsNullOrWhiteSpace(services.Config["ai:azureSearchApiKey"]),
-            userId,
-            userName,
-            email
-        };
+            status = "ProjectBrain Chat API is running."
+        });
     }
 
     // private static async Task<IResult> UploadKnowledge([AsParameters] ChatServices services, HttpRequest request)

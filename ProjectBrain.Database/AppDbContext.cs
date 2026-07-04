@@ -193,7 +193,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
 
         // Index for UsageTracking (composite for efficient queries)
         modelBuilder.Entity<UsageTracking>()
-            .HasIndex(ut => new { ut.UserId, ut.UsageType, ut.PeriodType, ut.PeriodStart });
+            .HasIndex(ut => new { ut.UserId, ut.UsageType, ut.PeriodType, ut.PeriodStart })
+            .IsUnique();
 
         // Configure FileStorageUsage relationships
         modelBuilder.Entity<FileStorageUsage>()

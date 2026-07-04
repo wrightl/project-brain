@@ -1,5 +1,6 @@
 namespace ProjectBrain.Domain;
 
+using Microsoft.EntityFrameworkCore;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;
 
@@ -24,8 +25,28 @@ public class TagService : ITagService
         }
 
         _repository.Add(tag);
-        await _unitOfWork.SaveChangesAsync();
-        return tag;
+        try
+        {
+            await _unitOfWork.SaveChangesAsync();
+            return tag;
+        }
+        catch (DbUpdateException ex) when (IsUniqueTagViolation(ex))
+        {
+            var existing = await _repository.GetByNameForUserAsync(tag.Name, tag.UserId);
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            throw;
+        }
+    }
+
+    private static bool IsUniqueTagViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("IX_Tags_UserId_Name", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<Tag?> GetById(Guid id, string userId)

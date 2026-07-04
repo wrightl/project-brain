@@ -44,4 +44,10 @@ public static class WebhookSecurity
         return providedBytes.Length == expectedBytes.Length &&
                CryptographicOperations.FixedTimeEquals(providedBytes, expectedBytes);
     }
+
+    public static string ComputeSha256Hex(string value)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash);
+    }
 }

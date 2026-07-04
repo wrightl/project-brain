@@ -6,7 +6,19 @@ const nextConfig: NextConfig = {
         remotePatterns: [
             {
                 protocol: 'https',
-                hostname: '*',
+                hostname: '**.blob.core.windows.net',
+            },
+            {
+                protocol: 'https',
+                hostname: 's.gravatar.com',
+            },
+            {
+                protocol: 'https',
+                hostname: 'lh3.googleusercontent.com',
+            },
+            {
+                protocol: 'https',
+                hostname: 'assets.skool.com',
             },
         ],
     },

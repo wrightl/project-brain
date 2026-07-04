@@ -15,6 +15,10 @@ public interface IUserRepository : IRepository<User, string>
     /// </summary>
     Task<User?> GetByIdWithRolesAsync(string id, CancellationToken cancellationToken = default);
 
+    Task<IEnumerable<User>> GetByIdsWithRolesAsync(
+        IEnumerable<string> ids,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Gets a user by email with roles
     /// </summary>

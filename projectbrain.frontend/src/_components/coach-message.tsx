@@ -76,7 +76,7 @@ export default function CoachMessageComponent({
                 URL.revokeObjectURL(blobUrlRef.current);
             }
         };
-    }, [message.voiceNoteUrl, message.messageType]);
+    }, [message.id, message.voiceNoteUrl, message.messageType]);
 
     useEffect(() => {
         const audio = audioRef.current;

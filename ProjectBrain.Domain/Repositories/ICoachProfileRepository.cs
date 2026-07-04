@@ -28,6 +28,13 @@ public interface ICoachProfileRepository : IRepository<CoachProfile, int>
     Task<CoachProfile?> GetByUserIdWithRelatedAsync(string userId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets coach profiles for multiple user IDs with related entities.
+    /// </summary>
+    Task<IEnumerable<CoachProfile>> GetByUserIdsWithRelatedAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Searches for coach profiles with filters
     /// </summary>
     Task<IEnumerable<CoachProfile>> SearchAsync(

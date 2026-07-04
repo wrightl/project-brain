@@ -122,7 +122,6 @@ export default function CoachOnboardingWizard({
                 ageGroups: formData.ageGroups,
             };
 
-            console.log(`Onboarding data ${JSON.stringify(data)}`);
 
             const response = await fetchWithAuth('/api/coach/onboard', {
                 method: 'POST',

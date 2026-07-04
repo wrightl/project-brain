@@ -100,7 +100,10 @@ public static class Auth0WebhookEndpoints
             var eventId = root.TryGetProperty("id", out var eventIdElement)
                 ? eventIdElement.GetString()
                 : null;
-            if (!idempotencyService.TryMarkProcessed("auth0", eventId ?? $"{eventType}:{requestBody.GetHashCode()}", TimeSpan.FromDays(7)))
+            if (!idempotencyService.TryMarkProcessed(
+                    "auth0",
+                    eventId ?? $"{eventType}:{WebhookSecurity.ComputeSha256Hex(requestBody)}",
+                    TimeSpan.FromDays(7)))
             {
                 services.Logger.LogInformation("Skipping duplicate Auth0 webhook {EventId}", eventId);
                 return Results.Ok();

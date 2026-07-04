@@ -41,8 +41,8 @@ public static class ConversationEndpoints
             Id = Guid.NewGuid(),
             UserId = userId,
             Title = request.Title,
-            CreatedAt = DateTime.Now,
-            UpdatedAt = DateTime.Now
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         var createdConversation = await services.ConversationService.Add(conversation);
@@ -172,7 +172,7 @@ public static class ConversationEndpoints
         }
 
         conversation.Title = request.Title;
-        conversation.UpdatedAt = DateTime.Now;
+        conversation.UpdatedAt = DateTime.UtcNow;
 
         var updatedConversation = await services.ConversationService.Update(conversation);
         return Results.Ok(updatedConversation);

@@ -9,6 +9,11 @@ public static class AuthenticationExtensions
     public static void AddCustomAuthentication(this WebApplicationBuilder builder)
     {
         var audience = builder.Configuration["Auth0:Audience"];
+        if (string.IsNullOrWhiteSpace(audience))
+        {
+            throw new InvalidOperationException(
+                "Auth0:Audience must be configured for JWT validation.");
+        }
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -17,7 +22,7 @@ public static class AuthenticationExtensions
                 options.Audience = audience;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidateAudience = !string.IsNullOrWhiteSpace(audience),
+                    ValidateAudience = true,
                     ValidateIssuerSigningKey = true,
                     ValidateIssuer = true,
                     ValidIssuer = $"https://{builder.Configuration["Auth0:Domain"]}",

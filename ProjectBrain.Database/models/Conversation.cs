@@ -16,6 +16,6 @@ public class Conversation
     public int SummaryMessageCount { get; set; }
 
     public ICollection<ChatMessage> Messages { get; set; } = new List<ChatMessage>();
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

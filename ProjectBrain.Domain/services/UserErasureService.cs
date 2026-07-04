@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ProjectBrain.Domain.Caching;
 using ProjectBrain.Domain.Dtos;
 using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 
 public class UserErasureService : IUserErasureService
 {
@@ -14,12 +15,12 @@ public class UserErasureService : IUserErasureService
     private readonly IUserBlobErasureService _blobErasure;
     private readonly IMemoryPromotionAuditRepository _memoryPromotionAuditRepository;
     private readonly IQuizResponseRepository _quizResponseRepository;
-    private readonly ITagRepository _tagRepository;
-    private readonly ICoachMessageService _coachMessageService;
+    private readonly IUserErasureRepository _userErasureRepository;
     private readonly IUserFactRepository _userFactRepository;
     private readonly IUserEpisodeRepository _userEpisodeRepository;
     private readonly IUserMemoryIndexService _userMemoryIndexService;
     private readonly IUserService _userService;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ICacheService _cache;
     private readonly ILogger<UserErasureService> _logger;
 
@@ -37,12 +38,12 @@ public class UserErasureService : IUserErasureService
         IUserBlobErasureService blobErasure,
         IMemoryPromotionAuditRepository memoryPromotionAuditRepository,
         IQuizResponseRepository quizResponseRepository,
-        ITagRepository tagRepository,
-        ICoachMessageService coachMessageService,
+        IUserErasureRepository userErasureRepository,
         IUserFactRepository userFactRepository,
         IUserEpisodeRepository userEpisodeRepository,
         IUserMemoryIndexService userMemoryIndexService,
         IUserService userService,
+        IUnitOfWork unitOfWork,
         ICacheService cache,
         ILogger<UserErasureService> logger)
     {
@@ -51,12 +52,12 @@ public class UserErasureService : IUserErasureService
         _blobErasure = blobErasure;
         _memoryPromotionAuditRepository = memoryPromotionAuditRepository;
         _quizResponseRepository = quizResponseRepository;
-        _tagRepository = tagRepository;
-        _coachMessageService = coachMessageService;
+        _userErasureRepository = userErasureRepository;
         _userFactRepository = userFactRepository;
         _userEpisodeRepository = userEpisodeRepository;
         _userMemoryIndexService = userMemoryIndexService;
         _userService = userService;
+        _unitOfWork = unitOfWork;
         _cache = cache;
         _logger = logger;
     }
@@ -88,19 +89,29 @@ public class UserErasureService : IUserErasureService
             result.Warnings.Add($"Blob erasure failed: {ex.Message}");
         }
 
-        result.MemoryPromotionAuditsDeleted =
-            await _memoryPromotionAuditRepository.DeleteByUserIdAsync(userId, cancellationToken);
-        result.QuizResponsesDeleted =
-            await _quizResponseRepository.DeleteByUserIdAsync(userId, cancellationToken);
-        result.TagsDeleted =
-            await _tagRepository.DeleteByUserIdAsync(userId, cancellationToken);
-        result.CoachMessagesDeleted =
-            await _coachMessageService.DeleteAllForUserAsync(userId, cancellationToken);
+        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            result.MemoryPromotionAuditsDeleted =
+                await _memoryPromotionAuditRepository.DeleteByUserIdAsync(userId, cancellationToken);
+            result.QuizResponsesDeleted =
+                await _quizResponseRepository.DeleteByUserIdAsync(userId, cancellationToken);
 
-        result.MemoryIndexEntriesDeleted = await DeleteUserMemoryIndexEntriesAsync(userId, cancellationToken);
+            await _userErasureRepository.DeleteRelationalDataAsync(userId, cancellationToken);
 
-        await _userService.DeleteById(userId);
-        result.UserRowDeleted = true;
+            result.MemoryIndexEntriesDeleted = await DeleteUserMemoryIndexEntriesAsync(userId, cancellationToken);
+
+            await _userService.DeleteById(userId);
+            result.UserRowDeleted = true;
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            _logger.LogError(ex, "Database erasure failed for user {UserId}", userId);
+            throw;
+        }
 
         await _cache.RemoveAsync($"{ProfileCacheKeyPrefix}{userId}");
 

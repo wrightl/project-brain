@@ -90,14 +90,40 @@ public class UsageTrackingService : IUsageTrackingService
                 UpdatedAt = DateTime.UtcNow
             };
             _context.UsageTrackings.Add(tracking);
-        }
-        else
-        {
-            tracking.Count++;
-            tracking.UpdatedAt = DateTime.UtcNow;
+
+            try
+            {
+                await _unitOfWork.SaveChangesAsync();
+                return;
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                _context.Entry(tracking).State = EntityState.Detached;
+                tracking = await _context.UsageTrackings
+                    .FirstOrDefaultAsync(ut =>
+                        ut.UserId == userId &&
+                        ut.UsageType == usageType &&
+                        ut.PeriodType == periodType &&
+                        ut.PeriodStart == periodStart);
+
+                if (tracking == null)
+                {
+                    throw;
+                }
+            }
         }
 
+        tracking.Count++;
+        tracking.UpdatedAt = DateTime.UtcNow;
         await _unitOfWork.SaveChangesAsync();
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UNIQUE constraint", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("IX_UsageTrackings_UserId_UsageType_PeriodType_PeriodStart", StringComparison.OrdinalIgnoreCase);
     }
 
     private static DateTime GetPeriodStart(string periodType)

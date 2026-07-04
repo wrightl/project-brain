@@ -677,7 +677,7 @@ public class DatabaseSeeder(
             return false;
 
         if (string.Equals(deployEnv, "staging", StringComparison.OrdinalIgnoreCase))
-            return true;
+            return section.GetValue<bool>("Enabled");
 
         if (environment?.IsDevelopment() == true)
             return section.GetValue<bool>("Enabled");

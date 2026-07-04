@@ -89,8 +89,13 @@ public static class ResourceEndpoints
     {
         var userId = services.IdentityService.UserId;
 
+        if (!TryParseResourceId(id, out var resourceId, out var parseError))
+        {
+            return parseError!;
+        }
+
         var resource = await services.ResourceService.GetForUserById(
-            Guid.Parse(id), userId!);
+            resourceId, userId!);
         return resource is not null ? Results.Ok(resource) : Results.NotFound();
     }
 
@@ -98,8 +103,12 @@ public static class ResourceEndpoints
         [AsParameters] ResourceServices services,
         string id)
     {
-        var resource = await services.ResourceService.GetSharedById(
-            Guid.Parse(id));
+        if (!TryParseResourceId(id, out var resourceId, out var parseError))
+        {
+            return parseError!;
+        }
+
+        var resource = await services.ResourceService.GetSharedById(resourceId);
         return resource is not null ? Results.Ok(resource) : Results.NotFound();
     }
 
@@ -109,8 +118,13 @@ public static class ResourceEndpoints
     {
         var user = await services.IdentityService.GetUserAsync();
 
+        if (!TryParseResourceId(id, out var resourceId, out var parseError))
+        {
+            return parseError!;
+        }
+
         var resource = await services.ResourceService.GetForUserById(
-            Guid.Parse(id), user!.Id);
+            resourceId, user!.Id);
         if (resource is null)
             return Results.NotFound();
 
@@ -131,8 +145,12 @@ public static class ResourceEndpoints
         [AsParameters] ResourceServices services,
         string id)
     {
-        var resource = await services.ResourceService.GetSharedById(
-            Guid.Parse(id));
+        if (!TryParseResourceId(id, out var resourceId, out var parseError))
+        {
+            return parseError!;
+        }
+
+        var resource = await services.ResourceService.GetSharedById(resourceId);
         if (resource is null)
             return Results.NotFound();
 
@@ -257,8 +275,8 @@ public static class ResourceEndpoints
                 Location = location,
                 SizeInBytes = Convert.ToInt32(file.Length),
                 UserId = userId ?? string.Empty,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 IsShared = userId is null ? true : false
             });
 
@@ -275,8 +293,12 @@ public static class ResourceEndpoints
     private static async Task<IResult> DeleteUserResource([AsParameters] ResourceServices services, string id)
     {
         var userId = services.IdentityService.UserId!;
-        var resource = await services.ResourceService.GetForUserById(
-            Guid.Parse(id), userId);
+        if (!TryParseResourceId(id, out var resourceId, out var parseError))
+        {
+            return parseError!;
+        }
+
+        var resource = await services.ResourceService.GetForUserById(resourceId, userId);
 
         if (resource is null)
             return Results.NotFound();
@@ -286,8 +308,12 @@ public static class ResourceEndpoints
 
     private static async Task<IResult> DeleteSharedResource([AsParameters] ResourceServices services, string id)
     {
-        var resource = await services.ResourceService.GetSharedById(
-            Guid.Parse(id));
+        if (!TryParseResourceId(id, out var resourceId, out var parseError))
+        {
+            return parseError!;
+        }
+
+        var resource = await services.ResourceService.GetSharedById(resourceId);
 
         if (resource is null)
             return Results.NotFound();
@@ -325,5 +351,24 @@ public static class ResourceEndpoints
             services.Logger.LogError(ex, "Error reindexing files for user {UserId}", userId);
             return Results.Problem($"Error reindexing files: {ex.Message}");
         }
+    }
+
+    private static bool TryParseResourceId(string id, out Guid resourceId, out IResult? errorResult)
+    {
+        if (Guid.TryParse(id, out resourceId))
+        {
+            errorResult = null;
+            return true;
+        }
+
+        errorResult = Results.BadRequest(new
+        {
+            error = new
+            {
+                code = "INVALID_RESOURCE_ID",
+                message = "Resource id must be a valid GUID."
+            }
+        });
+        return false;
     }
 }

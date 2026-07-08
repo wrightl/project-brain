@@ -206,41 +206,77 @@ internal class Auth0UserManagement : IUserManagement
 
         _services.Logger.LogInformation("Roles for user {userId}: {roleList}", userId, JsonSerializer.Serialize(listOfUsersRoles));
 
-        List<string> roleIdsToAssign = [];
-        List<string> roleIdsToRemove = [];
-
-        foreach (var role in listOfRoles)
+        var updatePlan = BuildRoleUpdatePlan(listOfRoles, listOfUsersRoles, roles);
+        if (updatePlan.MissingRoles.Count > 0)
         {
-            var isInUsersCurrentList = listOfUsersRoles.FirstOrDefault(r => r.Name == role.Name) != null;
-            var isInNewList = roles.Contains(role.Name);
-
-            if (!isInUsersCurrentList && isInNewList)
-            {
-                roleIdsToAssign.Add(role.Id);
-            }
-            else if (isInUsersCurrentList && !isInNewList)
-            {
-                roleIdsToRemove.Add(role.Id);
-            }
+            _services.Logger.LogError(
+                "Cannot update roles for user {userId}. Requested role(s) were not found in Auth0: {MissingRoles}",
+                userId,
+                string.Join(", ", updatePlan.MissingRoles));
+            return false;
         }
 
-        if (roleIdsToRemove.Count > 0)
+        if (updatePlan.RoleIdsToRemove.Count > 0)
         {
-            var roleIdsStringToRemove = JsonSerializer.Serialize(roleIdsToRemove);
+            var roleIdsStringToRemove = JsonSerializer.Serialize(updatePlan.RoleIdsToRemove);
             _services.Logger.LogInformation("Removing roles from user {roleIdsStringToRemove}", roleIdsStringToRemove);
 
             await getResponse($"/users/{userId}/roles", token, HttpMethod.Delete, new StringContent("{\"roles\":" + roleIdsStringToRemove + "}", null, "application/json"));
         }
 
-        if (roleIdsToAssign.Count > 0)
+        if (updatePlan.RoleIdsToAssign.Count > 0)
         {
-            var roleIdsStringToAssign = JsonSerializer.Serialize(roleIdsToAssign);
+            var roleIdsStringToAssign = JsonSerializer.Serialize(updatePlan.RoleIdsToAssign);
             _services.Logger.LogInformation("Assigning roles to user {roleIdsStringToAssign}", roleIdsStringToAssign);
 
             await getResponse($"/users/{userId}/roles", token, HttpMethod.Post, new StringContent("{\"roles\":" + roleIdsStringToAssign + "}", null, "application/json"));
         }
 
         return true;
+    }
+
+    internal static Auth0RoleUpdatePlan BuildRoleUpdatePlan(
+        IReadOnlyCollection<Auth0Role> availableRoles,
+        IReadOnlyCollection<Auth0Role> currentRoles,
+        IReadOnlyCollection<string> requestedRoles)
+    {
+        var requestedRoleNames = requestedRoles
+            .Where(role => !string.IsNullOrWhiteSpace(role))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var availableRoleNames = availableRoles
+            .Where(role => !string.IsNullOrWhiteSpace(role.Name))
+            .Select(role => role.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var missingRoles = requestedRoleNames
+            .Where(role => !availableRoleNames.Contains(role))
+            .OrderBy(role => role, StringComparer.Ordinal)
+            .ToArray();
+
+        if (missingRoles.Length > 0)
+        {
+            return new Auth0RoleUpdatePlan([], [], missingRoles);
+        }
+
+        var currentRoleNames = currentRoles
+            .Where(role => !string.IsNullOrWhiteSpace(role.Name))
+            .Select(role => role.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var roleIdsToAssign = availableRoles
+            .Where(role => requestedRoleNames.Contains(role.Name) && !currentRoleNames.Contains(role.Name))
+            .Select(role => role.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToArray();
+
+        var roleIdsToRemove = availableRoles
+            .Where(role => currentRoleNames.Contains(role.Name) && !requestedRoleNames.Contains(role.Name))
+            .Select(role => role.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToArray();
+
+        return new Auth0RoleUpdatePlan(roleIdsToAssign, roleIdsToRemove, missingRoles);
     }
 
     public async Task<bool> DeleteUserById(string id)
@@ -392,3 +428,8 @@ internal class Auth0UserManagement : IUserManagement
         string? MediaType,
         string? Charset);
 }
+
+internal sealed record Auth0RoleUpdatePlan(
+    IReadOnlyList<string> RoleIdsToAssign,
+    IReadOnlyList<string> RoleIdsToRemove,
+    IReadOnlyList<string> MissingRoles);

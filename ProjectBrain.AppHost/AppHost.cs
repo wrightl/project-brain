@@ -231,6 +231,7 @@ if (builder.ExecutionContext.IsPublishMode)
     var auth0Audience = builder.AddParameter("auth0-audience");
     // var auth0Scope = builder.AddParameter("auth0-scope", value: "", publishValueAsDefault: true);
     var apiServerUrl = builder.AddParameter("api-server-url");
+    var nextPublicApiServerUrl = builder.AddParameter("next-public-api-server-url");
 
     // secrets
     var auth0Secret = builder.AddParameter("auth0-secret", secret: true);
@@ -280,6 +281,7 @@ if (builder.ExecutionContext.IsPublishMode)
     // Pass DEPLOY_ENV as build argument to select the correct .env file
     var frontend = builder.AddDockerfile(frontendName, $"../{appName}.{frontendName}")
         .WithBuildArg("DEPLOY_ENV", environmentName)
+        .WithBuildArg("NEXT_PUBLIC_API_SERVER_URL", nextPublicApiServerUrl)
         .WithEnvironment("APP_BASE_URL", appBaseUrl)
         .WithEnvironment("AUTH0_SECRET", auth0Secret)
         .WithEnvironment("AUTH0_DOMAIN", auth0Domain)

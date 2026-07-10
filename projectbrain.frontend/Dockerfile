@@ -24,6 +24,7 @@ RUN \
 # Rebuild the source code only when needed
 FROM base AS builder
 ARG DEPLOY_ENV=production
+ARG NEXT_PUBLIC_API_SERVER_URL
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -43,6 +44,7 @@ RUN if [ "$DEPLOY_ENV" = "staging" ] && [ -f .env.staging ]; then \
 RUN rm -f .env.development .env.local
 
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_API_SERVER_URL=$NEXT_PUBLIC_API_SERVER_URL
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry

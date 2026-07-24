@@ -791,10 +791,11 @@ public static class CoachMessageEndpoints
             // var extension = Path.GetExtension(message.VoiceNoteFileName ?? ".m4a");
             // blobPath += extension;
 
-            // Get the audio file from storage
+            // Voice blobs are stored under the sender's user folder at upload time.
+            // Always resolve from SenderId so recipients can play back the same path.
             var options = new StorageOptions
             {
-                UserId = currentUserId,
+                UserId = message.SenderId,
                 StorageType = StorageType.CoachMessages,
                 FileOwnership = FileOwnership.User,
                 ParentFolder = message.SenderId.ToString()

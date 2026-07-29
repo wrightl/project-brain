@@ -192,7 +192,8 @@ public static class VoiceNoteEndpoints
 
         // Get file stream from storage
         var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.VoiceNotes };
-        var fileStream = await services.Storage.GetFile(voiceNote.FileName, options);
+        var storedBlobFileName = ResolveStoredBlobFileName(voiceNote);
+        var fileStream = await services.Storage.GetFile(storedBlobFileName, options);
         if (fileStream == null)
         {
             throw new NotFoundException("Audio file");
@@ -258,7 +259,8 @@ public static class VoiceNoteEndpoints
         try
         {
             var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.VoiceNotes };
-            await services.Storage.DeleteFile(voiceNote.FileName, options);
+            var storedBlobFileName = ResolveStoredBlobFileName(voiceNote);
+            await services.Storage.DeleteFile(storedBlobFileName, options);
             await services.Storage.DeleteFile($"{id}-transcript.md", options);
         }
         catch (Exception ex)
@@ -332,6 +334,20 @@ public static class VoiceNoteEndpoints
             ".webm" => "audio/webm",
             _ => "audio/m4a"
         };
+    }
+
+    private static string ResolveStoredBlobFileName(VoiceNote voiceNote)
+    {
+        if (!string.IsNullOrWhiteSpace(voiceNote.FilePath))
+        {
+            var fileNameFromPath = Path.GetFileName(voiceNote.FilePath);
+            if (!string.IsNullOrWhiteSpace(fileNameFromPath))
+            {
+                return fileNameFromPath;
+            }
+        }
+
+        return voiceNote.FileName;
     }
 
     private static (long Start, long End)? ParseRangeHeader(string rangeHeader, long fileSize)

@@ -50,6 +50,15 @@ public class AzureSearchDocumentIdsTests
     }
 
     [Fact]
+    public void BuildSearchDocumentId_differs_by_user_scoped_blob_path()
+    {
+        var userA = AzureSearchDocumentIds.BuildSearchDocumentId("auth0|user-a/onboarding/onboarding.md", 1);
+        var userB = AzureSearchDocumentIds.BuildSearchDocumentId("auth0|user-b/onboarding/onboarding.md", 1);
+
+        userA.Should().NotBe(userB);
+    }
+
+    [Fact]
     public void BuildSearchDocumentId_trims_whitespace_for_guid_parse()
     {
         var guid = "3fa85f64-5717-4562-b3fc-2c963f66afa6";

@@ -105,10 +105,10 @@ public class AzureSearchClient(AzureSearchClientServices services) : ISearchInde
                     embedding.Add(f);
                 }
 
-                // Azure Search document keys: letters, digits, underscore, dash, equal sign only.
+                // Use the storage path so user-scoped files with shared names do not overwrite each other.
                 var searchDocument = new SearchDocument
                 {
-                    ["id"] = AzureSearchDocumentIds.BuildSearchDocumentId(resourceId, page.PageNumber),
+                    ["id"] = AzureSearchDocumentIds.BuildSearchDocumentId(blobPath, page.PageNumber),
                     ["content"] = page.Content,
                     ["category"] = Path.GetExtension(filename).TrimStart('.').ToLowerInvariant(),
                     ["sourcepage"] = page.PageNumber.ToString(),

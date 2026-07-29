@@ -408,7 +408,11 @@ export default function FindCoachesClient({
                 data.status === "connected" ? "connected" : "pending";
             setConnectionStatuses((prev) => ({
                 ...prev,
-                [coach.coachProfileId]: { status },
+                [coach.coachProfileId]: {
+                    status,
+                    connectionId: data.id,
+                    requestedAt: data.requestedAt,
+                },
             }));
         } catch (err) {
             setError(

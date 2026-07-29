@@ -192,7 +192,8 @@ public static class VoiceNoteEndpoints
 
         // Get file stream from storage
         var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.VoiceNotes };
-        var fileStream = await services.Storage.GetFile(voiceNote.FileName, options);
+        var storageFileName = ResolveStorageFileName(voiceNote);
+        var fileStream = await services.Storage.GetFile(storageFileName, options);
         if (fileStream == null)
         {
             throw new NotFoundException("Audio file");
@@ -258,7 +259,8 @@ public static class VoiceNoteEndpoints
         try
         {
             var options = new StorageOptions { UserId = userId, FileOwnership = FileOwnership.User, StorageType = StorageType.VoiceNotes };
-            await services.Storage.DeleteFile(voiceNote.FileName, options);
+            var storageFileName = ResolveStorageFileName(voiceNote);
+            await services.Storage.DeleteFile(storageFileName, options);
             await services.Storage.DeleteFile($"{id}-transcript.md", options);
         }
         catch (Exception ex)
@@ -332,6 +334,20 @@ public static class VoiceNoteEndpoints
             ".webm" => "audio/webm",
             _ => "audio/m4a"
         };
+    }
+
+    private static string ResolveStorageFileName(VoiceNote voiceNote)
+    {
+        if (!string.IsNullOrWhiteSpace(voiceNote.FilePath))
+        {
+            var fromPath = Path.GetFileName(voiceNote.FilePath);
+            if (!string.IsNullOrWhiteSpace(fromPath))
+            {
+                return fromPath;
+            }
+        }
+
+        return voiceNote.FileName;
     }
 
     private static (long Start, long End)? ParseRangeHeader(string rangeHeader, long fileSize)

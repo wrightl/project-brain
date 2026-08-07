@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ProjectBrain.Api.Tests" />
+    <InternalsVisibleTo Include="ProjectBrain.Database.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../ProjectBrain.Database/ProjectBrain.Database.csproj" />
     <ProjectReference Include="../ProjectBrain.Shared.Dtos/ProjectBrain.Shared.Dtos.csproj" />
   </ItemGroup>

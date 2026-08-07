@@ -406,6 +406,24 @@ public static class AgentEndpoints
             return false;
         }
 
+        // Match Chat.CheckUsageLimits: monthly caps must apply to agent turns too.
+        var monthlyLimit = int.Parse(services.Config["TierLimits:User:Free:MonthlyAIQueries"] ?? "200");
+        var monthlyUsage = await services.UsageTrackingService.GetUsageCountAsync(userId, "ai_query", "monthly");
+        var tierMonthlyLimit = int.Parse(services.Config[$"TierLimits:User:{tier}:MonthlyAIQueries"] ?? "-1");
+        var effectiveMonthlyLimit = tierMonthlyLimit >= 0 ? tierMonthlyLimit : monthlyLimit;
+
+        if (effectiveMonthlyLimit >= 0 && monthlyUsage >= effectiveMonthlyLimit)
+        {
+            services.Logger.LogWarning("Monthly AI query limit reached for user {UserId}: {Usage}/{Limit}", userId, monthlyUsage, effectiveMonthlyLimit);
+            http.Response.StatusCode = 429;
+            http.Response.ContentType = "application/json";
+            await http.Response.WriteAsync(JsonSerializer.Serialize(new
+            {
+                error = $"You have reached your monthly limit of {effectiveMonthlyLimit} AI queries. Please upgrade for unlimited queries."
+            }));
+            return false;
+        }
+
         return true;
     }
 }

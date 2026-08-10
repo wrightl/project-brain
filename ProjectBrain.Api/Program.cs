@@ -166,6 +166,7 @@ var app = builder.Build();
 // GlobalExceptionHandlerMiddleware handles all unhandled exceptions.
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 app.UseRequestLogging();
+app.UseDatabaseStartupGate();
 
 // TODO - restore this?
 if (app.Environment.IsDevelopment())

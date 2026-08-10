@@ -376,6 +376,12 @@ public class AgentOpenAIService : IAgentOpenAIService
         prompt.AppendLine();
         prompt.AppendLine("When offering 2-6 discrete choices, you MUST call ask_user with structured options instead of listing choices as bullets or numbered text in your message. You may still write a brief friendly question in your reply, but the clickable options must be passed to ask_user.");
         prompt.AppendLine();
+        prompt.AppendLine("After search_coaches or get_connected_coaches, when offering follow-up choices:");
+        prompt.AppendLine("- Use ask_user with an action object on each option so the app can navigate directly.");
+        prompt.AppendLine("- For view profile: action { type: \"view_coach_profile\", coachProfileId } from the tool result.");
+        prompt.AppendLine("- For message coach: only offer when connectionStatus is \"connected\"; use action { type: \"message_coach\", coachProfileId, connectionId }.");
+        prompt.AppendLine("- Do not offer message_coach for coaches who are not connected; offer view_coach_profile instead and explain they must connect first.");
+        prompt.AppendLine();
         prompt.AppendLine("When appropriate, proactively offer to:");
         prompt.AppendLine("- Call get_todays_goals or get_incomplete_goal_backlog before overwriting goals");
         prompt.AppendLine("- Create daily goals from user's mentioned tasks");

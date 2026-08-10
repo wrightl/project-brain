@@ -52,6 +52,31 @@ public sealed class AskUserToolHandler : IAgentToolHandler
                 {
                   ["type"] = "string",
                   ["description"] = "Short label shown on the clickable option"
+                },
+                ["action"] = new Dictionary<string, object>
+                {
+                  ["type"] = "object",
+                  ["description"] = "Optional client action to run when the user selects this option",
+                  ["properties"] = new Dictionary<string, object>
+                  {
+                    ["type"] = new Dictionary<string, object>
+                    {
+                      ["type"] = "string",
+                      ["enum"] = new[] { "view_coach_profile", "message_coach" },
+                      ["description"] = "Action type"
+                    },
+                    ["coachProfileId"] = new Dictionary<string, object>
+                    {
+                      ["type"] = "string",
+                      ["description"] = "Coach profile ID (required for coach actions)"
+                    },
+                    ["connectionId"] = new Dictionary<string, object>
+                    {
+                      ["type"] = "string",
+                      ["description"] = "Connection GUID (required for message_coach when connected)"
+                    }
+                  },
+                  ["required"] = new[] { "type", "coachProfileId" }
                 }
               },
               ["required"] = new[] { "id", "label" }
@@ -156,7 +181,8 @@ public sealed class AskUserToolHandler : IAgentToolHandler
     var label = labelElement.GetString() ?? string.Empty;
     ValidateOption(id, label);
 
-    return new { id, label };
+    var action = TryParseAction(item);
+    return action is null ? new { id, label } : new { id, label, action };
   }
 
   private static object ParseOption(Dictionary<string, object> item)
@@ -170,7 +196,100 @@ public sealed class AskUserToolHandler : IAgentToolHandler
     var label = AgentToolParameterParser.ParseString(labelValue, "label");
     ValidateOption(id, label);
 
-    return new { id, label };
+    var action = TryParseAction(item);
+    return action is null ? new { id, label } : new { id, label, action };
+  }
+
+  private static object? TryParseAction(JsonElement optionElement)
+  {
+    if (!optionElement.TryGetProperty("action", out var actionElement) || actionElement.ValueKind != JsonValueKind.Object)
+    {
+      return null;
+    }
+
+    return TryParseActionObject(actionElement);
+  }
+
+  private static object? TryParseActionObject(JsonElement actionElement)
+  {
+    if (actionElement.ValueKind != JsonValueKind.Object)
+    {
+      return null;
+    }
+
+    if (!actionElement.TryGetProperty("type", out var typeElement) || typeElement.ValueKind != JsonValueKind.String)
+    {
+      return null;
+    }
+
+    if (!actionElement.TryGetProperty("coachProfileId", out var coachIdElement) || coachIdElement.ValueKind != JsonValueKind.String)
+    {
+      return null;
+    }
+
+    var type = typeElement.GetString() ?? string.Empty;
+    var coachProfileId = coachIdElement.GetString() ?? string.Empty;
+    if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(coachProfileId))
+    {
+      return null;
+    }
+
+    string? connectionId = null;
+    if (actionElement.TryGetProperty("connectionId", out var connectionIdElement)
+        && connectionIdElement.ValueKind == JsonValueKind.String)
+    {
+      connectionId = connectionIdElement.GetString();
+    }
+
+    return new
+    {
+      type,
+      coachProfileId,
+      connectionId = string.IsNullOrWhiteSpace(connectionId) ? null : connectionId
+    };
+  }
+
+  private static object? TryParseAction(Dictionary<string, object> item)
+  {
+    if (!item.TryGetValue("action", out var actionValue) || actionValue is null)
+    {
+      return null;
+    }
+
+    if (actionValue is JsonElement actionElement)
+    {
+      return TryParseActionObject(actionElement);
+    }
+
+    if (actionValue is Dictionary<string, object> actionDict)
+    {
+      if (!actionDict.TryGetValue("type", out var typeValue) || !actionDict.TryGetValue("coachProfileId", out var coachIdValue))
+      {
+        return null;
+      }
+
+      var type = typeValue?.ToString() ?? string.Empty;
+      var coachProfileId = coachIdValue?.ToString() ?? string.Empty;
+      if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(coachProfileId))
+      {
+        return null;
+      }
+
+      string? connectionId = null;
+      if (actionDict.TryGetValue("connectionId", out var connectionIdValue))
+      {
+        connectionId = connectionIdValue?.ToString();
+      }
+
+      return new
+      {
+        type,
+        coachProfileId,
+        connectionId = string.IsNullOrWhiteSpace(connectionId) ? null : connectionId
+      };
+    }
+
+    return null;
   }
 
   private static void ValidateOption(string id, string label)

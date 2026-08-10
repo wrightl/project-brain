@@ -566,12 +566,42 @@ public class AgentService : IAgentService
         }
 
         var parsedOptions = options.EnumerateArray()
-            .Select(option => new
+            .Select(option =>
             {
-                id = option.TryGetProperty("id", out var id) ? id.GetString() : null,
-                label = option.TryGetProperty("label", out var label) ? label.GetString() : null
+                var id = option.TryGetProperty("id", out var idEl) ? idEl.GetString() : null;
+                var label = option.TryGetProperty("label", out var labelEl) ? labelEl.GetString() : null;
+                if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(label))
+                {
+                    return null;
+                }
+
+                object? action = null;
+                if (option.TryGetProperty("action", out var actionEl) && actionEl.ValueKind == JsonValueKind.Object)
+                {
+                    var type = actionEl.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                    var coachProfileId = actionEl.TryGetProperty("coachProfileId", out var coachIdEl)
+                        ? coachIdEl.GetString()
+                        : null;
+                    if (!string.IsNullOrWhiteSpace(type) && !string.IsNullOrWhiteSpace(coachProfileId))
+                    {
+                        var connectionId = actionEl.TryGetProperty("connectionId", out var connEl)
+                            ? connEl.GetString()
+                            : null;
+                        action = new
+                        {
+                            type,
+                            coachProfileId,
+                            connectionId = string.IsNullOrWhiteSpace(connectionId) ? null : connectionId
+                        };
+                    }
+                }
+
+                return action is null
+                    ? (object?)new { id, label }
+                    : new { id, label, action };
             })
-            .Where(option => !string.IsNullOrWhiteSpace(option.id) && !string.IsNullOrWhiteSpace(option.label))
+            .Where(option => option is not null)
+            .Cast<object>()
             .ToList();
 
         if (parsedOptions.Count == 0)

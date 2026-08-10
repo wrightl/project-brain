@@ -88,6 +88,7 @@ public static class AgentActionCardMapper
                 break;
 
             case "search_coaches":
+            case "get_connected_coaches":
                 if (root.TryGetProperty("coaches", out var coaches) && coaches.ValueKind == JsonValueKind.Array)
                 {
                     yield return new
@@ -98,7 +99,8 @@ public static class AgentActionCardMapper
                             coachProfileId = c.TryGetProperty("coachProfileId", out var id) ? GetJsonString(id) : null,
                             name = c.TryGetProperty("name", out var name) ? GetJsonString(name) : null,
                             bio = c.TryGetProperty("bio", out var bio) ? GetJsonString(bio) : null,
-                            profileUrl = c.TryGetProperty("profileUrl", out var url) ? GetJsonString(url) : null
+                            connectionStatus = c.TryGetProperty("connectionStatus", out var status) ? GetJsonString(status) : null,
+                            connectionId = c.TryGetProperty("connectionId", out var connId) ? GetJsonString(connId) : null
                         }),
                         href = "/app/user/find-coaches",
                         label = "Browse coaches"

@@ -1,24 +1,21 @@
-name: Scale staging container apps
+name: Sleep staging
 
-# Nightly sleep keeps apps at 0. Deploy and manual dispatch also force 0.
-# Use wake-staging.yml to temporarily set minReplicas=1 for demos.
+# Scales staging API + frontend to minReplicas=0 so Azure SQL can auto-pause.
 on:
-  schedule:
-    - cron: "0 2 * * *"
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  scale:
+  sleep:
     runs-on: ubuntu-latest
     environment: staging
     env:
       RESOURCE_GROUP: rg-projectbrain-staging
       CONTAINER_APPS: api frontend
+      TARGET: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.3
@@ -30,11 +27,5 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Compute target min replicas
-        id: replicas
-        run: .github/scripts/compute-min-replicas.sh
-
-      - name: Apply min replicas to container apps
-        env:
-          TARGET: ${{ steps.replicas.outputs.target_min_replicas }}
+      - name: Scale staging apps to minReplicas=0
         run: .github/scripts/set-min-replicas.sh

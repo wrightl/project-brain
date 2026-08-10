@@ -250,4 +250,167 @@ public class AgentToolHandlerTests
 
         await act.Should().ThrowAsync<ArgumentException>();
     }
+
+    [Fact]
+    public async Task SearchCoachesToolHandler_IncludesConnectionMetadata()
+    {
+        var coachUserId = "coach-user-1";
+        var connectionId = Guid.NewGuid();
+        var coachProfile = new CoachProfile
+        {
+            Id = 42,
+            UserId = coachUserId,
+            Bio = "Experienced coach",
+            User = new User
+            {
+                Id = coachUserId,
+                Email = "coach@example.com",
+                FullName = "Sarah Coach"
+            }
+        };
+
+        var coachProfileService = new Mock<ICoachProfileService>();
+        coachProfileService
+            .Setup(s => s.Search(null, null, null, null, null))
+            .ReturnsAsync(new List<CoachProfile> { coachProfile });
+
+        var connectionService = new Mock<IConnectionService>();
+        connectionService
+            .Setup(s => s.GetConnectionAsync("user-1", coachUserId))
+            .ReturnsAsync(new Connection
+            {
+                Id = connectionId,
+                UserId = "user-1",
+                CoachId = coachUserId,
+                Status = "accepted",
+                RequestedBy = "user"
+            });
+
+        var handler = new SearchCoachesToolHandler();
+        var context = new AgentToolContext
+        {
+            UserId = "user-1",
+            GoalService = Mock.Of<IGoalService>(),
+            GoalMutationSideEffects = Mock.Of<IGoalMutationSideEffects>(),
+            CoachProfileService = coachProfileService.Object,
+            ConnectionService = connectionService.Object,
+            FeatureFlagService = Mock.Of<IFeatureFlagService>()
+        };
+
+        var result = await handler.ExecuteAsync(context, new Dictionary<string, object>());
+        var json = JsonSerializer.Serialize(result);
+        using var doc = JsonDocument.Parse(json);
+
+        var coach = doc.RootElement.GetProperty("coaches")[0];
+        coach.GetProperty("coachProfileId").GetInt32().Should().Be(42);
+        coach.GetProperty("connectionStatus").GetString().Should().Be("connected");
+        coach.GetProperty("connectionId").GetString().Should().Be(connectionId.ToString());
+    }
+
+    [Fact]
+    public async Task GetConnectedCoachesToolHandler_UsesCoachUserIdAndIncludesConnectionId()
+    {
+        var coachUserId = "coach-user-2";
+        var connectionId = Guid.NewGuid().ToString();
+        var coachProfile = new CoachProfile
+        {
+            Id = 7,
+            UserId = coachUserId,
+            User = new User
+            {
+                Id = coachUserId,
+                Email = "coach2@example.com",
+                FullName = "Alex Coach"
+            }
+        };
+
+        var connectionService = new Mock<IConnectionService>();
+        connectionService
+            .Setup(s => s.GetConnectedCoachIdsAsync("user-1"))
+            .ReturnsAsync(new List<ConnectionWithStatus>
+            {
+                new()
+                {
+                    Id = connectionId,
+                    UserId = "user-1",
+                    CoachId = coachUserId,
+                    Status = "accepted"
+                }
+            });
+
+        var coachProfileService = new Mock<ICoachProfileService>();
+        coachProfileService
+            .Setup(s => s.GetByUserId(coachUserId))
+            .ReturnsAsync(coachProfile);
+
+        var handler = new GetConnectedCoachesToolHandler();
+        var context = new AgentToolContext
+        {
+            UserId = "user-1",
+            GoalService = Mock.Of<IGoalService>(),
+            GoalMutationSideEffects = Mock.Of<IGoalMutationSideEffects>(),
+            ConnectionService = connectionService.Object,
+            CoachProfileService = coachProfileService.Object,
+            FeatureFlagService = Mock.Of<IFeatureFlagService>()
+        };
+
+        var result = await handler.ExecuteAsync(context, new Dictionary<string, object>());
+        var json = JsonSerializer.Serialize(result);
+        using var doc = JsonDocument.Parse(json);
+
+        var coach = doc.RootElement.GetProperty("coaches")[0];
+        coach.GetProperty("coachProfileId").GetInt32().Should().Be(7);
+        coach.GetProperty("connectionStatus").GetString().Should().Be("connected");
+        coach.GetProperty("connectionId").GetString().Should().Be(connectionId);
+
+        coachProfileService.Verify(s => s.GetByUserId(coachUserId), Times.Once);
+    }
+
+    [Fact]
+    public async Task AskUserToolHandler_PreservesCoachActionOnOptions()
+    {
+        var handler = new AskUserToolHandler();
+        var context = new AgentToolContext
+        {
+            UserId = "user-1",
+            GoalService = Mock.Of<IGoalService>(),
+            GoalMutationSideEffects = Mock.Of<IGoalMutationSideEffects>()
+        };
+
+        var connectionId = Guid.NewGuid().ToString();
+        var result = await handler.ExecuteAsync(context, new Dictionary<string, object>
+        {
+            ["options"] = new[]
+            {
+                new Dictionary<string, object>
+                {
+                    ["id"] = "view-profile",
+                    ["label"] = "View profile",
+                    ["action"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "view_coach_profile",
+                        ["coachProfileId"] = "42"
+                    }
+                },
+                new Dictionary<string, object>
+                {
+                    ["id"] = "message-coach",
+                    ["label"] = "Message coach",
+                    ["action"] = new Dictionary<string, object>
+                    {
+                        ["type"] = "message_coach",
+                        ["coachProfileId"] = "42",
+                        ["connectionId"] = connectionId
+                    }
+                }
+            }
+        });
+
+        var json = JsonSerializer.Serialize(result);
+        using var doc = JsonDocument.Parse(json);
+        var options = doc.RootElement.GetProperty("options");
+
+        options[0].GetProperty("action").GetProperty("type").GetString().Should().Be("view_coach_profile");
+        options[1].GetProperty("action").GetProperty("connectionId").GetString().Should().Be(connectionId);
+    }
 }

@@ -26,6 +26,14 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/_lib/api-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { copingStrategyKeys } from "@/_hooks/queries/use-coping-strategies";
+import {
+    executeCoachAgentAction,
+    resolveCoachAgentAction,
+} from "@/_lib/coach-agent-actions";
+import {
+    CoachAgentActionType,
+    UserChoiceOption,
+} from "@/_lib/types";
 
 interface ChatInterfaceProps {
     conversation?: Conversation;
@@ -249,11 +257,31 @@ export default function ChatInterface({
                     return null;
                 }
 
-                return { id, label };
+                let action: UserChoiceOption["action"];
+                const rawAction = option.action;
+                if (
+                    typeof rawAction === "object" &&
+                    rawAction !== null &&
+                    typeof (rawAction as Record<string, unknown>).type ===
+                        "string" &&
+                    typeof (rawAction as Record<string, unknown>)
+                        .coachProfileId === "string"
+                ) {
+                    const actionObj = rawAction as Record<string, unknown>;
+                    action = {
+                        type: actionObj.type as CoachAgentActionType,
+                        coachProfileId: String(actionObj.coachProfileId),
+                        connectionId:
+                            typeof actionObj.connectionId === "string"
+                                ? actionObj.connectionId
+                                : undefined,
+                    };
+                }
+
+                return { id, label, action };
             })
             .filter(
-                (option): option is { id: string; label: string } =>
-                    option !== null,
+                (option): option is UserChoiceOption => option !== null,
             );
 
         if (options.length === 0) {
@@ -270,10 +298,19 @@ export default function ChatInterface({
         };
     };
 
-    const handleUserChoiceSelect = (messageIndex: number, label: string) => {
+    const handleUserChoiceSelect = (
+        messageIndex: number,
+        option: UserChoiceOption,
+    ) => {
         if (isStreaming) return;
         setAnsweredChoiceIndexes((prev) => new Set(prev).add(messageIndex));
-        void sendMessage(label);
+
+        const coachAction = resolveCoachAgentAction(option);
+        if (coachAction && executeCoachAgentAction(router, coachAction)) {
+            return;
+        }
+
+        void sendMessage(option.label);
     };
 
     const toggleStrategySelected = (index: number) => {
@@ -1142,10 +1179,10 @@ export default function ChatInterface({
                                         <UserChoiceChips
                                             choices={message.userChoices}
                                             disabled={isStreaming}
-                                            onSelect={(label) =>
+                                            onSelect={(option) =>
                                                 handleUserChoiceSelect(
                                                     index,
-                                                    label,
+                                                    option,
                                                 )
                                             }
                                         />

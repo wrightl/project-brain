@@ -26,6 +26,22 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // UseSetting is required for WebApplicationFactory + top-level Program so
+        // builder.Configuration is populated before AddCustomAuthentication runs.
+        builder.UseSetting("Auth0:Audience", "https://test-api");
+        builder.UseSetting("Auth0:Domain", "test.auth0.com");
+        builder.UseSetting("Auth0:ClientId", "test-client");
+        builder.UseSetting("Auth0:ClientSecret", "test-secret");
+        builder.UseSetting("ConnectionStrings:projectbraindb", "Server=(localdb)\\mssqllocaldb;Database=TestDb;Trusted_Connection=True;");
+        builder.UseSetting("ConnectionStrings:azurecache", "localhost:6379");
+        builder.UseSetting("ConnectionStrings:blobs", "UseDevelopmentStorage=true");
+        builder.UseSetting("ConnectionStrings:openai", "Endpoint=https://example.openai.azure.com/;Key=fake");
+        builder.UseSetting("ConnectionStrings:ai-search", "Endpoint=https://example.search.windows.net;Key=fake");
+        builder.UseSetting("Aspire:Microsoft:EntityFrameworkCore:SqlServer:DisableHealthChecks", "true");
+        builder.UseSetting("Aspire:StackExchange:Redis:DisableHealthChecks", "true");
+        builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
+        builder.UseSetting("PushNotifications:Enabled", "false");
+
         builder.ConfigureAppConfiguration((context, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -36,6 +52,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["ConnectionStrings:openai"] = "Endpoint=https://example.openai.azure.com/;Key=fake",
                 ["ConnectionStrings:ai-search"] = "Endpoint=https://example.search.windows.net;Key=fake",
                 ["Aspire:Microsoft:EntityFrameworkCore:SqlServer:DisableHealthChecks"] = "true",
+                ["Aspire:StackExchange:Redis:DisableHealthChecks"] = "true",
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "",
                 ["OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY"] = "none",
                 ["PushNotifications:Enabled"] = "false",
@@ -89,6 +106,19 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 services.Remove(descriptor);
             }
+
+            // Avoid Redis connection timeouts on /health in tests (no Redis container).
+            services.PostConfigure<HealthCheckServiceOptions>(options =>
+            {
+                var redisChecks = options.Registrations
+                    .Where(r => r.Name.Contains("redis", StringComparison.OrdinalIgnoreCase)
+                                || r.Tags.Contains("redis"))
+                    .ToList();
+                foreach (var registration in redisChecks)
+                {
+                    options.Registrations.Remove(registration);
+                }
+            });
 
             services.AddDbContext<AppDbContext>((sp, options) =>
             {

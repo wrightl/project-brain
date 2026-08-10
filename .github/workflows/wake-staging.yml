@@ -1,0 +1,48 @@
+name: Wake staging
+
+# Scales staging API + frontend to minReplicas=1 and waits until /alive is healthy
+# so Azure SQL serverless can resume via API startup warmup.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      RESOURCE_GROUP: rg-projectbrain-staging
+      CONTAINER_APPS: api frontend
+      TARGET: "1"
+      API_ALIVE_URL: https://${{ vars.CUSTOMDOMAIN_API }}/alive
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
+      - name: Log in with Azure (Federated Credentials)
+        uses: azure/login@v3.0.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Scale staging apps to minReplicas=1
+        run: .github/scripts/set-min-replicas.sh
+
+      - name: Wait for API /alive
+        run: |
+          set -euo pipefail
+          echo "Polling $API_ALIVE_URL"
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 10 "$API_ALIVE_URL" >/dev/null; then
+              echo "API is alive (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i: not ready yet"
+            sleep 5
+          done
+          echo "API did not become healthy within timeout" >&2
+          exit 1

@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ActionCard } from '@/_lib/types';
+import { executeCoachAgentAction } from '@/_lib/coach-agent-actions';
 
 interface ActionCardWidgetProps {
     card: ActionCard;
@@ -15,6 +17,7 @@ export default function ActionCardWidget({
     onConfirmPendingAction,
     onCancelPendingAction,
 }: ActionCardWidgetProps) {
+    const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const title = getCardTitle(card);
 
@@ -89,13 +92,58 @@ export default function ActionCardWidget({
             )}
 
             {card.cardType === 'coaches_found' && card.coaches && (
-                <ul className="mt-2 space-y-2">
-                    {card.coaches.slice(0, 3).map((coach) => (
-                        <li key={coach.coachProfileId ?? coach.name} className="text-xs text-indigo-800">
-                            <span className="font-medium">{coach.name}</span>
-                            {coach.bio ? ` — ${coach.bio}` : ''}
-                        </li>
-                    ))}
+                <ul className="mt-2 space-y-3">
+                    {card.coaches.slice(0, 3).map((coach) => {
+                        const coachProfileId = coach.coachProfileId;
+                        const canMessage =
+                            coach.connectionStatus === 'connected' &&
+                            !!coach.connectionId;
+
+                        return (
+                            <li
+                                key={coachProfileId ?? coach.name}
+                                className="text-xs text-indigo-800"
+                            >
+                                <span className="font-medium">{coach.name}</span>
+                                {coach.bio ? ` — ${coach.bio}` : ''}
+                                {coachProfileId && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {canMessage && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    executeCoachAgentAction(
+                                                        router,
+                                                        {
+                                                            type: 'message_coach',
+                                                            coachProfileId,
+                                                            connectionId:
+                                                                coach.connectionId,
+                                                        },
+                                                    )
+                                                }
+                                                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+                                            >
+                                                Message
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                executeCoachAgentAction(router, {
+                                                    type: 'view_coach_profile',
+                                                    coachProfileId,
+                                                })
+                                            }
+                                            className="rounded-md border border-indigo-300 bg-white px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                                        >
+                                            View profile
+                                        </button>
+                                    </div>
+                                )}
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
 

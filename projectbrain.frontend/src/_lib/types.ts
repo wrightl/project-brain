@@ -241,7 +241,17 @@ export interface ActionCard {
         name?: string;
         bio?: string;
         profileUrl?: string;
+        connectionStatus?: string;
+        connectionId?: string;
     }>;
+}
+
+export type CoachAgentActionType = 'view_coach_profile' | 'message_coach';
+
+export interface UserChoiceAction {
+    type: CoachAgentActionType;
+    coachProfileId: string;
+    connectionId?: string;
 }
 
 export interface PendingActionConfirmResponse {
@@ -254,6 +264,7 @@ export interface PendingActionConfirmResponse {
 export interface UserChoiceOption {
     id: string;
     label: string;
+    action?: UserChoiceAction;
 }
 
 export interface UserChoicePrompt {

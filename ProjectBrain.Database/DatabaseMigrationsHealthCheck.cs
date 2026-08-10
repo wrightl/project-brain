@@ -31,33 +31,31 @@ public class DatabaseMigrationsHealthCheck : IHealthCheck
                 return HealthCheckResult.Unhealthy("Database warmup not complete");
             }
 
+            if (_startupState.AreMigrationsApplied)
+            {
+                // Status-only after warmup: avoid CanConnectAsync so ops hits do not
+                // keep serverless SQL awake.
+                return HealthCheckResult.Healthy("All migrations have been applied");
+            }
+
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            if (!_startupState.AreMigrationsApplied)
+            var pendingMigrationsList = (await dbContext.Database
+                .GetPendingMigrationsAsync(cancellationToken)).ToList();
+
+            if (pendingMigrationsList.Count > 0)
             {
-                var pendingMigrationsList = (await dbContext.Database
-                    .GetPendingMigrationsAsync(cancellationToken)).ToList();
+                _logger.LogWarning(
+                    "Database has {Count} pending migration(s): {Migrations}",
+                    pendingMigrationsList.Count,
+                    string.Join(", ", pendingMigrationsList));
 
-                if (pendingMigrationsList.Count > 0)
-                {
-                    _logger.LogWarning(
-                        "Database has {Count} pending migration(s): {Migrations}",
-                        pendingMigrationsList.Count,
-                        string.Join(", ", pendingMigrationsList));
-
-                    return HealthCheckResult.Unhealthy(
-                        $"Database has {pendingMigrationsList.Count} pending migration(s): {string.Join(", ", pendingMigrationsList)}");
-                }
-
-                _startupState.MarkMigrationsApplied();
+                return HealthCheckResult.Unhealthy(
+                    $"Database has {pendingMigrationsList.Count} pending migration(s): {string.Join(", ", pendingMigrationsList)}");
             }
 
-            if (!await dbContext.Database.CanConnectAsync(cancellationToken))
-            {
-                return HealthCheckResult.Unhealthy("Database is not accessible");
-            }
-
+            _startupState.MarkMigrationsApplied();
             return HealthCheckResult.Healthy("All migrations have been applied");
         }
         catch (Exception ex)

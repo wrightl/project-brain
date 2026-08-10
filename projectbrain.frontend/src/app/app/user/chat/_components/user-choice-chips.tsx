@@ -1,11 +1,11 @@
 'use client';
 
-import { UserChoicePrompt } from '@/_lib/types';
+import { UserChoiceOption, UserChoicePrompt } from '@/_lib/types';
 
 interface UserChoiceChipsProps {
     choices: UserChoicePrompt;
     disabled?: boolean;
-    onSelect: (label: string) => void;
+    onSelect: (option: UserChoiceOption) => void;
 }
 
 export default function UserChoiceChips({
@@ -36,7 +36,7 @@ export default function UserChoiceChips({
                         key={option.id}
                         type="button"
                         disabled={disabled}
-                        onClick={() => onSelect(option.label)}
+                        onClick={() => onSelect(option)}
                         className="inline-flex max-w-full items-center rounded-full border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {option.label}

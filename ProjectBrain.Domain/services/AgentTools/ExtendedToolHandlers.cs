@@ -422,14 +422,25 @@ public sealed class SearchCoachesToolHandler : IAgentToolHandler
                 specialisms);
         }
 
-        var results = coaches.Take(10).Select(c => new
+        var results = new List<object>();
+        foreach (var coach in coaches.Take(10))
         {
-            coachProfileId = c.Id,
-            name = c.User?.FullName ?? "Coach",
-            bio = Truncate(c.Bio, 200),
-            specialisms = c.Specialisms?.Select(s => s.Specialism).ToList() ?? new List<string>(),
-            profileUrl = $"/app/user/coaches/{c.Id}"
-        }).ToList();
+            var coachUserId = coach.UserId;
+            var (connectionStatus, connectionId) = await CoachAgentConnectionHelper.GetConnectionMetadataAsync(
+                context,
+                coachUserId,
+                cancellationToken);
+
+            results.Add(new
+            {
+                coachProfileId = coach.Id,
+                name = coach.User?.FullName ?? "Coach",
+                bio = Truncate(coach.Bio, 200),
+                specialisms = coach.Specialisms?.Select(s => s.Specialism).ToList() ?? new List<string>(),
+                connectionStatus,
+                connectionId
+            });
+        }
 
         return new { success = true, coaches = results, count = results.Count };
     }
@@ -483,21 +494,52 @@ public sealed class GetConnectedCoachesToolHandler : IAgentToolHandler
 
         foreach (var connection in connected)
         {
-            var profile = await context.CoachProfileService.GetByUserId(connection.Id);
+            var profile = await context.CoachProfileService.GetByUserId(connection.CoachId);
             if (profile?.User is null)
             {
                 continue;
             }
 
+            var connectionStatus = CoachAgentConnectionHelper.MapConnectionStatus(connection.Status);
             coaches.Add(new
             {
                 coachProfileId = profile.Id,
                 name = profile.User.FullName,
-                status = connection.Status,
-                profileUrl = $"/app/user/coaches/{profile.Id}"
+                connectionStatus,
+                connectionId = connection.Id
             });
         }
 
         return new { success = true, coaches };
     }
+}
+
+internal static class CoachAgentConnectionHelper
+{
+    public static async Task<(string ConnectionStatus, string? ConnectionId)> GetConnectionMetadataAsync(
+        AgentToolContext context,
+        string coachUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (context.ConnectionService is null || string.IsNullOrWhiteSpace(coachUserId))
+        {
+            return ("none", null);
+        }
+
+        var connection = await context.ConnectionService.GetConnectionAsync(context.UserId, coachUserId);
+        if (connection is null || connection.Status is "cancelled" or "rejected")
+        {
+            return ("none", null);
+        }
+
+        return (MapConnectionStatus(connection.Status), connection.Id.ToString());
+    }
+
+    public static string MapConnectionStatus(string status) =>
+        status switch
+        {
+            "pending" => "pending",
+            "accepted" => "connected",
+            _ => "none"
+        };
 }

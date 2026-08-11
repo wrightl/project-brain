@@ -1,4 +1,3 @@
-using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using ProjectBrain.Api.Webhooks;
 using ProjectBrain.Domain;
@@ -127,20 +126,10 @@ public static class StripeWebhookEndpoints
             return;
         }
 
-        // Get subscription ID using reflection (property name may vary by Stripe.NET version)
-        string? subscriptionId = null;
-        var subscriptionProp = typeof(Stripe.Invoice).GetProperty("Subscription") 
-            ?? typeof(Stripe.Invoice).GetProperty("SubscriptionId");
-        
-        if (subscriptionProp != null)
-        {
-            var value = subscriptionProp.GetValue(invoice);
-            subscriptionId = value?.ToString();
-        }
-
+        var subscriptionId = ResolveInvoiceSubscriptionId(invoice);
         if (subscriptionId == null)
         {
-            services.Logger.LogWarning("Could not find subscription ID in invoice");
+            services.Logger.LogWarning("Could not find subscription ID in invoice {InvoiceId}", invoice.Id);
             return;
         }
 
@@ -168,25 +157,37 @@ public static class StripeWebhookEndpoints
             return;
         }
 
-        // Get subscription ID using reflection (property name may vary by Stripe.NET version)
-        string? subscriptionId = null;
-        var subscriptionProp = typeof(Stripe.Invoice).GetProperty("Subscription") 
-            ?? typeof(Stripe.Invoice).GetProperty("SubscriptionId");
-        
-        if (subscriptionProp != null)
-        {
-            var value = subscriptionProp.GetValue(invoice);
-            subscriptionId = value?.ToString();
-        }
-
+        var subscriptionId = ResolveInvoiceSubscriptionId(invoice);
         if (subscriptionId == null)
         {
-            services.Logger.LogWarning("Could not find subscription ID in invoice");
+            services.Logger.LogWarning("Could not find subscription ID in invoice {InvoiceId}", invoice.Id);
             return;
         }
 
         await services.SubscriptionService.UpdateSubscriptionFromStripeAsync(subscriptionId);
         services.Logger.LogWarning("Payment failed for subscription {SubscriptionId}", subscriptionId);
+    }
+
+    /// <summary>
+    /// Stripe API 2025-03-31.basil+ / Stripe.net 48+: Invoice.Subscription was removed.
+    /// Subscription id is under Parent.SubscriptionDetails.SubscriptionId.
+    /// </summary>
+    internal static string? ResolveInvoiceSubscriptionId(Invoice invoice)
+    {
+        var fromParent = invoice.Parent?.SubscriptionDetails?.SubscriptionId;
+        if (!string.IsNullOrEmpty(fromParent))
+        {
+            return fromParent;
+        }
+
+        // Expanded parent subscription object (rare on webhooks, but safe).
+        var expandedId = invoice.Parent?.SubscriptionDetails?.Subscription?.Id;
+        if (!string.IsNullOrEmpty(expandedId))
+        {
+            return expandedId;
+        }
+
+        return null;
     }
 }
 

@@ -60,10 +60,16 @@ export default function MessageInterface({
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Handle new message from SignalR
-    const handleNewMessage = useCallback((message: CoachMessage) => {
-        setMessages((prev) => mergeMessages(prev, [message]));
-    }, []);
+    // Handle new message from SignalR (ignore other conversations on the shared hub)
+    const handleNewMessage = useCallback(
+        (message: CoachMessage) => {
+            if (message.connectionId && message.connectionId !== connectionId) {
+                return;
+            }
+            setMessages((prev) => mergeMessages(prev, [message]));
+        },
+        [connectionId],
+    );
 
     // Handle message delivered status update from SignalR
     const handleMessageDelivered = useCallback((message: CoachMessage) => {

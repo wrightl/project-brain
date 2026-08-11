@@ -198,7 +198,7 @@ public class JournalEntryService : IJournalEntryService
 
         journalEntry.UpdatedAt = DateTime.UtcNow;
         _repository.Update(journalEntry);
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.CommitTransactionAsync();
         return journalEntry;
     }
 

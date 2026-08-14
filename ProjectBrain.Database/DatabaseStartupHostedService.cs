@@ -10,32 +10,80 @@ public class DatabaseStartupHostedService(
     IDatabaseStartupState startupState,
     ILogger<DatabaseStartupHostedService> logger) : BackgroundService
 {
-    private static readonly TimeSpan MaxWarmupDuration = TimeSpan.FromSeconds(90);
-    private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(8);
+    internal TimeSpan InitialRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
+    internal TimeSpan MaxRetryDelay { get; init; } = TimeSpan.FromSeconds(8);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        var delay = InitialRetryDelay;
+        var attempt = 0;
 
-        try
+        while (!stoppingToken.IsCancellationRequested)
         {
-            using var scope = serviceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-            if (!await TryConnectWithRetriesAsync(context, stoppingToken))
+            attempt++;
+            try
             {
-                logger.LogError(
-                    "Database is not accessible during startup warmup after {ElapsedMilliseconds}ms",
+                // New scope per attempt: a failed CanConnect can leave the same
+                // DbContext/connection unusable even after SQL has resumed.
+                using var scope = serviceProvider.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                if (!await TryOpenConnectionAsync(context, stoppingToken))
+                {
+                    logger.LogWarning(
+                        "Database CanConnect returned false on warmup attempt {Attempt}",
+                        attempt);
+                }
+                else
+                {
+                    startupState.MarkReady();
+                    logger.LogInformation(
+                        "Database warmup completed after {ElapsedMilliseconds}ms on attempt {Attempt}",
+                        sw.ElapsedMilliseconds,
+                        attempt);
+
+                    await VerifyMigrationsAsync(context, stoppingToken);
+                    return;
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // Azure SQL serverless often returns transient errors (e.g. 40613) while resuming.
+                // Keep retrying for the life of the process: giving up leaves the startup gate
+                // returning 503 forever while /health still succeeds, so ACA never recycles the replica.
+                logger.LogWarning(
+                    ex,
+                    "Database warmup attempt {Attempt} failed after {ElapsedMilliseconds}ms; will keep retrying",
+                    attempt,
                     sw.ElapsedMilliseconds);
+            }
+
+            try
+            {
+                await Task.Delay(delay, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
                 return;
             }
 
-            startupState.MarkReady();
-            logger.LogInformation("Database warmup completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
+            delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, MaxRetryDelay.TotalMilliseconds));
+        }
+    }
 
-            var pending = await context.Database.GetPendingMigrationsAsync(stoppingToken);
-            var pendingList = pending.ToList();
+    private static Task<bool> TryOpenConnectionAsync(AppDbContext context, CancellationToken stoppingToken)
+        => context.Database.CanConnectAsync(stoppingToken);
+
+    private async Task VerifyMigrationsAsync(AppDbContext context, CancellationToken stoppingToken)
+    {
+        try
+        {
+            var pendingList = (await context.Database.GetPendingMigrationsAsync(stoppingToken)).ToList();
             if (pendingList.Count > 0)
             {
                 logger.LogWarning(
@@ -46,65 +94,11 @@ public class DatabaseStartupHostedService(
             }
 
             startupState.MarkMigrationsApplied();
-            logger.LogInformation("Database migrations verified after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
+            logger.LogInformation("Database migrations verified");
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
         {
-            // Host is shutting down.
+            logger.LogWarning(ex, "Database migrations verification failed after warmup");
         }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Database startup warmup failed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
-        }
-    }
-
-    private async Task<bool> TryConnectWithRetriesAsync(AppDbContext context, CancellationToken stoppingToken)
-    {
-        var deadline = DateTime.UtcNow + MaxWarmupDuration;
-        var delay = InitialRetryDelay;
-        var attempt = 0;
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            attempt++;
-            try
-            {
-                if (await context.Database.CanConnectAsync(stoppingToken))
-                {
-                    var connection = context.Database.GetDbConnection();
-                    if (connection.State != System.Data.ConnectionState.Open)
-                    {
-                        await connection.OpenAsync(stoppingToken);
-                    }
-
-                    return true;
-                }
-
-                logger.LogWarning(
-                    "Database CanConnect returned false on warmup attempt {Attempt}",
-                    attempt);
-            }
-            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
-            {
-                // Azure SQL serverless often returns transient errors (e.g. 40613) while resuming.
-                logger.LogWarning(
-                    ex,
-                    "Database warmup attempt {Attempt} failed; will retry if within {MaxWarmupSeconds}s budget",
-                    attempt,
-                    MaxWarmupDuration.TotalSeconds);
-            }
-
-            var remaining = deadline - DateTime.UtcNow;
-            if (remaining <= TimeSpan.Zero)
-            {
-                break;
-            }
-
-            var wait = delay < remaining ? delay : remaining;
-            await Task.Delay(wait, stoppingToken);
-            delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, MaxRetryDelay.TotalMilliseconds));
-        }
-
-        return false;
     }
 }

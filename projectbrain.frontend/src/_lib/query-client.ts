@@ -3,12 +3,13 @@
 import { QueryClient } from '@tanstack/react-query';
 import { ApiClientError } from './api-client';
 
-function shouldRetry(failureCount: number, error: unknown): boolean {
-    // Budget for Azure SQL serverless resume + Container Apps scale-from-0 (~60–90s)
-    if (failureCount >= 6) {
-        return false;
-    }
+export const QUERY_RETRY_MAX = 6;
 
+function isStartupUnavailable(error: unknown): boolean {
+    return error instanceof ApiClientError && error.status === 503;
+}
+
+function isRetryableQueryError(error: unknown): boolean {
     if (error instanceof ApiClientError) {
         return error.status === 503 || error.status >= 500;
     }
@@ -16,12 +17,34 @@ function shouldRetry(failureCount: number, error: unknown): boolean {
     return true;
 }
 
-function retryDelay(attemptIndex: number, error: unknown): number {
+/**
+ * Queries may retry transient 5xx/network failures. Mutations must not:
+ * a 500 or dropped connection can happen after the server already committed,
+ * and retrying would duplicate journal entries, goals, connections, etc.
+ * The startup gate returns 503 before handlers run, so that status is safe.
+ */
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+    if (failureCount >= QUERY_RETRY_MAX) {
+        return false;
+    }
+
+    return isRetryableQueryError(error);
+}
+
+export function shouldRetryMutation(failureCount: number, error: unknown): boolean {
+    if (failureCount >= QUERY_RETRY_MAX) {
+        return false;
+    }
+
+    return isStartupUnavailable(error);
+}
+
+export function retryDelay(attemptIndex: number, error: unknown): number {
     const baseMs = 2000;
     const maxMs = 15000;
     const exponential = Math.min(baseMs * 2 ** attemptIndex, maxMs);
 
-    if (error instanceof ApiClientError && error.status === 503) {
+    if (isStartupUnavailable(error)) {
         // Align with API Retry-After default (5s) on startup gate
         return Math.max(exponential, 5000);
     }
@@ -39,8 +62,8 @@ function makeQueryClient() {
                 staleTime: 60 * 1000, // 1 minute
                 // Cache time: how long unused data stays in cache
                 gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
-                // Retry failed requests (cold start / SQL resume)
-                retry: shouldRetry,
+                // Retry failed reads (cold start / SQL resume)
+                retry: shouldRetryQuery,
                 retryDelay,
                 // Refetch on window focus
                 refetchOnWindowFocus: false,
@@ -48,8 +71,8 @@ function makeQueryClient() {
                 refetchOnReconnect: true,
             },
             mutations: {
-                // Retry failed mutations for transient cold-start errors
-                retry: shouldRetry,
+                // Only retry startup-gate 503s; never retry 5xx/network after a possible commit
+                retry: shouldRetryMutation,
                 retryDelay,
             },
         },

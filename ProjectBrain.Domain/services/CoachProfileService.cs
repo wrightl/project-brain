@@ -122,53 +122,6 @@ public class CoachProfileService : ICoachProfileService
         }
         else
         {
-            // Update existing profile
-            // Add new related entities
-            if (qualifications != null)
-            {
-                existingProfile.Qualifications = qualifications
-                    .Select(q => new CoachQualification
-                    {
-                        CoachProfileId = existingProfile.Id,
-                        Qualification = q
-                    })
-                    .ToList();
-            }
-            else
-            {
-                existingProfile.Qualifications = new List<CoachQualification>();
-            }
-
-            if (specialisms != null)
-            {
-                existingProfile.Specialisms = specialisms
-                    .Select(s => new CoachSpecialism
-                    {
-                        CoachProfileId = existingProfile.Id,
-                        Specialism = s
-                    })
-                    .ToList();
-            }
-            else
-            {
-                existingProfile.Specialisms = new List<CoachSpecialism>();
-            }
-
-            if (ageGroups != null)
-            {
-                existingProfile.AgeGroups = ageGroups
-                    .Select(ag => new CoachAgeGroup
-                    {
-                        CoachProfileId = existingProfile.Id,
-                        AgeGroup = ag
-                    })
-                    .ToList();
-            }
-            else
-            {
-                existingProfile.AgeGroups = new List<CoachAgeGroup>();
-            }
-
             // Get tracked entity for update
             var trackedProfile = await _context.CoachProfiles
                 .Include(cp => cp.Qualifications)
@@ -178,7 +131,6 @@ public class CoachProfileService : ICoachProfileService
 
             if (trackedProfile != null)
             {
-                // Update optional profile fields
                 if (bio != null)
                 {
                     trackedProfile.Bio = bio;
@@ -188,15 +140,44 @@ public class CoachProfileService : ICoachProfileService
                     trackedProfile.ImageUrl = imageUrl;
                 }
 
-                // Remove existing related entities (tracked graph only - avoids duplicate User tracking)
-                _context.CoachQualifications.RemoveRange(trackedProfile.Qualifications);
-                _context.CoachSpecialisms.RemoveRange(trackedProfile.Specialisms);
-                _context.CoachAgeGroups.RemoveRange(trackedProfile.AgeGroups);
+                // Null collections mean leave existing rows unchanged. The coach
+                // profile PUT omits empty arrays, so treating null as "clear"
+                // deleted qualifications/specialisms/age groups on partial edits.
+                if (qualifications != null)
+                {
+                    _context.CoachQualifications.RemoveRange(trackedProfile.Qualifications);
+                    trackedProfile.Qualifications = qualifications
+                        .Select(q => new CoachQualification
+                        {
+                            CoachProfileId = trackedProfile.Id,
+                            Qualification = q
+                        })
+                        .ToList();
+                }
 
-                // Set new related entities
-                trackedProfile.Qualifications = existingProfile.Qualifications;
-                trackedProfile.Specialisms = existingProfile.Specialisms;
-                trackedProfile.AgeGroups = existingProfile.AgeGroups;
+                if (specialisms != null)
+                {
+                    _context.CoachSpecialisms.RemoveRange(trackedProfile.Specialisms);
+                    trackedProfile.Specialisms = specialisms
+                        .Select(s => new CoachSpecialism
+                        {
+                            CoachProfileId = trackedProfile.Id,
+                            Specialism = s
+                        })
+                        .ToList();
+                }
+
+                if (ageGroups != null)
+                {
+                    _context.CoachAgeGroups.RemoveRange(trackedProfile.AgeGroups);
+                    trackedProfile.AgeGroups = ageGroups
+                        .Select(ag => new CoachAgeGroup
+                        {
+                            CoachProfileId = trackedProfile.Id,
+                            AgeGroup = ag
+                        })
+                        .ToList();
+                }
 
                 _repository.Update(trackedProfile);
             }

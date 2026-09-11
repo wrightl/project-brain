@@ -116,12 +116,14 @@ export default function ChatInterface({
                 syncedConversationIdRef.current = conversation.id;
                 setMessages(conversation.messages || []);
                 setAnsweredChoiceIndexes(new Set());
+                setWorkflowId(undefined);
             }
         } else {
             syncedConversationIdRef.current = undefined;
             setConversationId(undefined);
             setMessages([]);
             setAnsweredChoiceIndexes(new Set());
+            setWorkflowId(undefined);
         }
     }, [conversation]);
 
@@ -593,6 +595,16 @@ export default function ChatInterface({
         setIsStreaming(true);
         setStreamingMessage("");
 
+        const startedViewingId = syncedConversationIdRef.current;
+        let streamConversationId = conversationId;
+        const isStale = () => {
+            const viewing = syncedConversationIdRef.current;
+            if (startedViewingId === undefined) {
+                return viewing !== undefined && viewing !== streamConversationId;
+            }
+            return viewing !== startedViewingId;
+        };
+
         try {
             streamingMessageRef.current = "";
 
@@ -626,20 +638,23 @@ export default function ChatInterface({
                 const newConversationId =
                     response.headers.get("X-Conversation-Id");
                 if (newConversationId) {
-                    setConversationId(newConversationId);
-                    if (
-                        isStrategiesMode &&
-                        newConversationId !== conversationId
-                    ) {
-                        router.push(
-                            `/app/user/chat/strategies/${newConversationId}`,
-                        );
+                    streamConversationId = newConversationId;
+                    if (!isStale()) {
+                        setConversationId(newConversationId);
+                        if (
+                            isStrategiesMode &&
+                            newConversationId !== conversationId
+                        ) {
+                            router.push(
+                                `/app/user/chat/strategies/${newConversationId}`,
+                            );
+                        }
                     }
                 }
 
                 const newWorkflowIdHeader =
                     response.headers.get("X-Workflow-Id");
-                if (newWorkflowIdHeader) {
+                if (newWorkflowIdHeader && !isStale()) {
                     setWorkflowId(newWorkflowIdHeader);
                 }
 
@@ -742,8 +757,9 @@ export default function ChatInterface({
                                         parsed.type === "workflow" &&
                                         parsed.value?.id
                                     ) {
-                                        // Handle workflow ID
-                                        setWorkflowId(parsed.value.id);
+                                        if (!isStale()) {
+                                            setWorkflowId(parsed.value.id);
+                                        }
                                     } else if (
                                         parsed.type === "error" &&
                                         parsed.value
@@ -767,10 +783,11 @@ export default function ChatInterface({
 
                 // Add complete assistant message with tool executions
                 if (
-                    streamingMessageRef.current ||
-                    toolExecutions.length > 0 ||
-                    actionCards.length > 0 ||
-                    userChoices
+                    !isStale() &&
+                    (streamingMessageRef.current ||
+                        toolExecutions.length > 0 ||
+                        actionCards.length > 0 ||
+                        userChoices)
                 ) {
                     const assistantMessage: ChatMessage = {
                         role: "assistant",
@@ -815,7 +832,10 @@ export default function ChatInterface({
                 const newConversationId =
                     response.headers.get("X-Conversation-Id");
                 if (newConversationId) {
-                    setConversationId(newConversationId);
+                    streamConversationId = newConversationId;
+                    if (!isStale()) {
+                        setConversationId(newConversationId);
+                    }
                 }
 
                 // Stream response using ReadableStream
@@ -864,7 +884,7 @@ export default function ChatInterface({
                 flushSseBuffer(sseBuffer, handleChatSseEvent);
 
                 // Add complete assistant message
-                if (streamingMessageRef.current) {
+                if (!isStale() && streamingMessageRef.current) {
                     const assistantMessage: ChatMessage = {
                         role: "assistant",
                         content: streamingMessageRef.current,
@@ -875,12 +895,13 @@ export default function ChatInterface({
             }
         } catch (error) {
             console.error("Chat error:", error);
-            // Show error message
-            const errorMessage: ChatMessage = {
-                role: "assistant",
-                content: "Sorry, I encountered an error. Please try again.",
-            };
-            setMessages((prev) => [...prev, errorMessage]);
+            if (!isStale()) {
+                const errorMessage: ChatMessage = {
+                    role: "assistant",
+                    content: "Sorry, I encountered an error. Please try again.",
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+            }
         } finally {
             setIsStreaming(false);
             setStreamingMessage("");

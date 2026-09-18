@@ -220,6 +220,30 @@ public class StripeService : IStripeService
         }
     }
 
+    public async Task ScheduleCancellationAtPeriodEndAsync(string stripeSubscriptionId)
+    {
+        try
+        {
+            var service = new Stripe.SubscriptionService();
+            await service.UpdateAsync(stripeSubscriptionId, new Stripe.SubscriptionUpdateOptions
+            {
+                CancelAtPeriodEnd = true
+            });
+
+            _logger.LogInformation(
+                "Scheduled Stripe subscription {SubscriptionId} to cancel at period end",
+                stripeSubscriptionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error scheduling cancellation for Stripe subscription {SubscriptionId}",
+                stripeSubscriptionId);
+            throw;
+        }
+    }
+
     public async Task<StripeCheckoutSessionInfo> GetCheckoutSessionAsync(string sessionId)
     {
         try
@@ -300,6 +324,7 @@ public interface IStripeService
     Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string? customerId = null, string? baseUrl = null);
     Task<StripeSubscriptionInfo> GetSubscriptionAsync(string stripeSubscriptionId);
     Task CancelSubscriptionAsync(string stripeSubscriptionId);
+    Task ScheduleCancellationAtPeriodEndAsync(string stripeSubscriptionId);
     Task<StripeCheckoutSessionInfo> GetCheckoutSessionAsync(string sessionId);
     Task<DateTime> ExtendSubscriptionByMonthsAsync(string stripeSubscriptionId, int months);
 }

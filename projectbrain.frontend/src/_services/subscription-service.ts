@@ -98,6 +98,20 @@ export class SubscriptionService {
     }
 
     /**
+     * Verify a Stripe Checkout session after redirect from success_url.
+     * Stripe appends session_id; the backend query name is sessionId.
+     */
+    static async verifySession(sessionId: string): Promise<unknown> {
+        const response = await callBackendApi(
+            `/subscriptions/verify-session?sessionId=${encodeURIComponent(sessionId)}`,
+        );
+        if (!response.ok) {
+            throw new Error('Failed to verify checkout session');
+        }
+        return await response.json();
+    }
+
+    /**
      * Start free trial for Pro tier
      */
     static async startTrial(tier: string): Promise<{ message: string }> {

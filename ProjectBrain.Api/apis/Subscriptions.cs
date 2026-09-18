@@ -143,7 +143,7 @@ public static class SubscriptionEndpoints
 
         try
         {
-            await services.SubscriptionService.CancelSubscriptionAsync(userId, userType);
+            await services.SubscriptionService.CancelSubscriptionAtPeriodEndAsync(userId, userType);
             return Results.Ok(new { message = "Subscription canceled successfully" });
         }
         catch (Exception ex)
@@ -258,8 +258,10 @@ public static class SubscriptionEndpoints
 
     private static async Task<IResult> VerifySession(
         [AsParameters] SubscriptionServices services,
-        [FromQuery] string sessionId)
+        [FromQuery] string? sessionId,
+        [FromQuery(Name = "session_id")] string? sessionIdFromStripe)
     {
+        sessionId = string.IsNullOrWhiteSpace(sessionId) ? sessionIdFromStripe : sessionId;
         if (string.IsNullOrEmpty(sessionId))
         {
             return Results.BadRequest("Session ID is required");

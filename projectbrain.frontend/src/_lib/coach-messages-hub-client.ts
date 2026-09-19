@@ -12,6 +12,7 @@ let startPromise: Promise<void> | null = null;
 let subscriberCount = 0;
 
 const eventHandlers = new Map<string, Set<HubEventHandler>>();
+const reconnectHandlers = new Set<() => void | Promise<void>>();
 
 async function getSignalR(): Promise<SignalRModule> {
     if (!signalRModule) {
@@ -62,6 +63,13 @@ export async function acquireCoachMessagesHub(): Promise<HubConnection> {
             .build();
 
         attachHubListeners(hubConnection);
+        hubConnection.onreconnected(() => {
+            for (const handler of reconnectHandlers) {
+                void Promise.resolve(handler()).catch((error) => {
+                    console.error('Error handling SignalR reconnect:', error);
+                });
+            }
+        });
 
         startPromise = hubConnection.start().catch((error) => {
             hubConnection = null;
@@ -105,6 +113,16 @@ export function subscribeCoachMessagesHubEvent(
     return () => {
         handlers.delete(handler);
         hubConnection?.off(eventName, handler);
+    };
+}
+
+export function onCoachMessagesHubReconnected(
+    handler: () => void | Promise<void>,
+): () => void {
+    reconnectHandlers.add(handler);
+
+    return () => {
+        reconnectHandlers.delete(handler);
     };
 }
 

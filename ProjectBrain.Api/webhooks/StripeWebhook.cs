@@ -50,7 +50,7 @@ public static class StripeWebhookEndpoints
             services.Logger.LogInformation("Received Stripe webhook: {EventType}, ID: {EventId}", 
                 stripeEvent.Type, stripeEvent.Id);
 
-            if (!idempotencyService.TryMarkProcessed("stripe", stripeEvent.Id, TimeSpan.FromDays(7)))
+            if (idempotencyService.HasProcessed("stripe", stripeEvent.Id))
             {
                 services.Logger.LogInformation("Skipping duplicate Stripe webhook {EventId}", stripeEvent.Id);
                 return Results.Ok();
@@ -79,6 +79,7 @@ public static class StripeWebhookEndpoints
                 services.Logger.LogInformation("Unhandled Stripe event type: {EventType}", stripeEvent.Type);
             }
 
+            idempotencyService.MarkProcessed("stripe", stripeEvent.Id, TimeSpan.FromDays(7));
             return Results.Ok();
         }
         catch (StripeException ex)

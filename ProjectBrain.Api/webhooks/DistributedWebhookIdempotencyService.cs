@@ -7,19 +7,25 @@ public class DistributedWebhookIdempotencyService(IDistributedCache cache) : IWe
 {
     private static readonly byte[] ProcessedMarker = Encoding.UTF8.GetBytes("1");
 
-    public bool TryMarkProcessed(string provider, string eventId, TimeSpan ttl)
+    public bool HasProcessed(string provider, string eventId)
     {
         if (string.IsNullOrWhiteSpace(eventId))
-        {
-            return true;
-        }
-
-        var cacheKey = $"webhook:{provider}:{eventId}";
-        if (cache.Get(cacheKey) is not null)
         {
             return false;
         }
 
+        var cacheKey = $"webhook:{provider}:{eventId}";
+        return cache.Get(cacheKey) is not null;
+    }
+
+    public void MarkProcessed(string provider, string eventId, TimeSpan ttl)
+    {
+        if (string.IsNullOrWhiteSpace(eventId))
+        {
+            return;
+        }
+
+        var cacheKey = $"webhook:{provider}:{eventId}";
         cache.Set(
             cacheKey,
             ProcessedMarker,
@@ -27,7 +33,5 @@ public class DistributedWebhookIdempotencyService(IDistributedCache cache) : IWe
             {
                 AbsoluteExpirationRelativeToNow = ttl
             });
-
-        return true;
     }
 }

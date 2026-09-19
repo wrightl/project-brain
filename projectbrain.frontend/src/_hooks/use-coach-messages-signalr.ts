@@ -4,6 +4,7 @@ import {
     acquireCoachMessagesHub,
     getCoachMessagesHubState,
     invokeCoachMessagesHub,
+    onCoachMessagesHubReconnected,
     releaseCoachMessagesHub,
     subscribeCoachMessagesHubEvent,
 } from '@/_lib/coach-messages-hub-client';
@@ -85,6 +86,12 @@ export function useCoachMessagesSignalR({
             }),
             subscribeCoachMessagesHubEvent('MessageRead', (message) => {
                 onMessageReadRef.current?.(message as CoachMessage);
+            }),
+            onCoachMessagesHubReconnected(async () => {
+                if (isMounted) {
+                    setIsConnected(true);
+                    await joinConversation();
+                }
             }),
         ];
 

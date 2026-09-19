@@ -15,7 +15,8 @@ public class IdentitySeedingService(
         var roleAssigned = await AssignUserRolesAsync(providerUserId, [AppRoles.Admin]);
         if (!roleAssigned)
         {
-            logger.LogWarning("Failed to assign admin role in identity provider, but continuing with database seeding.");
+            logger.LogError("Failed to assign admin role in identity provider.");
+            throw new InvalidOperationException("Failed to assign admin role in identity provider. Check identity provider role configuration and logs.");
         }
         else
         {

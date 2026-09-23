@@ -20,9 +20,11 @@ import {
     CreditCardIcon,
     Bars3Icon,
     XMarkIcon,
+    UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import AvailabilityStatusDropdown from './availability-status-dropdown';
 import { useUnreadMessagesCount } from '@/_hooks/use-unread-messages-count';
+import { useCommunityFeatureEnabled } from '@/_hooks/use-feature-flag';
 
 interface DashboardNavProps {
     user: User | null;
@@ -177,6 +179,11 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             icon: DocumentTextIcon,
         },
         {
+            href: '/app/admin/community',
+            label: 'Community',
+            icon: UserGroupIcon,
+        },
+        {
             href: '/app/admin/settings',
             label: 'Settings',
             icon: CogIcon,
@@ -193,6 +200,8 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             showUnreadBadge: true,
         },
     ];
+
+    const communityEnabled = useCommunityFeatureEnabled();
 
     const userLinks = [
         {
@@ -215,6 +224,15 @@ export default function DashboardNav({ user, role }: DashboardNavProps) {
             label: 'Network',
             icon: UsersIcon,
         },
+        ...(communityEnabled
+            ? [
+                  {
+                      href: '/app/user/community',
+                      label: 'Community',
+                      icon: UserGroupIcon,
+                  },
+              ]
+            : []),
     ];
 
     const links =

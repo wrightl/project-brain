@@ -56,14 +56,15 @@ export function AdminKpiRow({ totalUsers }: AdminKpiRowProps) {
         fetchPeriodStats(period);
     }, [period, fetchPeriodStats]);
 
-    const periodLabel = PERIOD_OPTIONS.find((o) => o.value === period)?.label ?? period;
+    const periodLabel =
+        PERIOD_OPTIONS.find((o) => o.value === period)?.label ?? period;
 
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-end gap-2">
                 <label
                     htmlFor="admin-period"
-                    className="text-sm font-medium text-gray-500"
+                    className="text-sm font-medium text-gray-700"
                 >
                     Period:
                 </label>
@@ -72,7 +73,7 @@ export function AdminKpiRow({ totalUsers }: AdminKpiRowProps) {
                     value={period}
                     onChange={(e) => setPeriod(e.target.value as TimePeriod)}
                     disabled={loading}
-                    className="rounded border border-gray-300 bg-white text-gray-900 shadow-sm focus:ring-2 focus:ring-indigo-500 text-sm py-1 px-2"
+                    className="rounded-md border border-gray-300 bg-white text-gray-900 shadow-sm focus:ring-2 focus:ring-[color:var(--indigo)] text-sm py-1.5 px-2"
                 >
                     {PERIOD_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>

@@ -234,6 +234,7 @@ app.MapCopingStrategyEndpoints();
 app.MapAchievementEndpoints();
 app.MapLocationEndpoints();
 app.MapFeatureFlagEndpoints();
+app.MapCommunityEndpoints();
 app.MapAgentEndpoints();
 app.MapPushNotificationEndpoints();
 app.MapDevSeedEndpoints();

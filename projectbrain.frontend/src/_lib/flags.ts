@@ -5,6 +5,7 @@ export type FeatureFlags = {
     CoachFeatureEnabled: boolean;
     EmailFeatureEnabled: boolean;
     AgentFeatureEnabled: boolean;
+    CommunityFeatureEnabled: boolean;
     // [key: string]: boolean | undefined;
 };
 
@@ -61,6 +62,7 @@ export async function getFlags(): Promise<FeatureFlags> {
             CoachFeatureEnabled: false,
             EmailFeatureEnabled: false,
             AgentFeatureEnabled: false,
+            CommunityFeatureEnabled: false,
         };
     }
     // const SDK_KEY = process.env.LAUNCHDARKLY_SDK_KEY;

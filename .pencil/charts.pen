@@ -1,0 +1,544 @@
+{
+  "version": "2.8",
+  "children": [
+    {
+      "type": "frame",
+      "id": "bi8Au",
+      "x": 0,
+      "y": 0,
+      "name": "Frame",
+      "clip": true,
+      "width": 800,
+      "height": 600,
+      "fill": "#FFFFFF",
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "rY80Q",
+      "x": 960,
+      "y": 0,
+      "name": "Vibrant Metrics Dashboard",
+      "width": 1440,
+      "height": 900,
+      "fill": {
+        "type": "gradient",
+        "gradientType": "linear",
+        "enabled": true,
+        "rotation": -45,
+        "size": {
+          "height": 1
+        },
+        "colors": [
+          {
+            "color": "#0F172A",
+            "position": 0
+          },
+          {
+            "color": "#1D4ED8",
+            "position": 0.5
+          },
+          {
+            "color": "#EC4899",
+            "position": 1
+          }
+        ]
+      },
+      "layout": "vertical",
+      "gap": 40,
+      "padding": [
+        40,
+        56
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "8TJyr",
+          "name": "Header",
+          "width": "fill_container",
+          "height": 80,
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ojQe2",
+              "name": "branding",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "id": "Y2WNQ",
+                  "name": "logoMark",
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "radial",
+                    "enabled": true,
+                    "rotation": 0,
+                    "size": {
+                      "width": 1,
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "#F97316",
+                        "position": 0
+                      },
+                      {
+                        "color": "#EF4444",
+                        "position": 0.5
+                      },
+                      {
+                        "color": "#22C55E",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "width": 32,
+                  "height": 32
+                },
+                {
+                  "type": "text",
+                  "id": "ZYSqK",
+                  "name": "logoText",
+                  "fill": "#FFFFFF",
+                  "content": "ProjectBrain",
+                  "fontFamily": "Space Grotesk",
+                  "fontSize": 16,
+                  "fontWeight": "700",
+                  "letterSpacing": 2
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "jHU3d",
+              "name": "pageTitle",
+              "fill": "#FFFFFF",
+              "content": "Analytics Overview",
+              "fontFamily": "Space Grotesk",
+              "fontSize": 32,
+              "fontWeight": "700",
+              "letterSpacing": -1
+            },
+            {
+              "type": "frame",
+              "id": "rL4Vk",
+              "name": "headerActions",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "6vcKX",
+                  "name": "Primary CTA",
+                  "fill": "#22C55E",
+                  "gap": 8,
+                  "padding": [
+                    10,
+                    18
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "9GPwG",
+                      "name": "primaryLabel",
+                      "fill": "#0A0A0A",
+                      "content": "New insight",
+                      "fontFamily": "Space Grotesk",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "xfv5F",
+                  "name": "Secondary CTA",
+                  "fill": "#02061733",
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
+                  "gap": 8,
+                  "padding": [
+                    10,
+                    18
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "g1hbw",
+                      "name": "secondaryLabel",
+                      "fill": "#E5E7EB",
+                      "content": "Export",
+                      "fontFamily": "Space Grotesk",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "fM93z",
+          "name": "Content",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "rpQUf",
+              "name": "KPI Row",
+              "width": "fill_container",
+              "height": 160,
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "EcsKt",
+                  "name": "Primary Metric",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#0F172A",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": [
+                    24,
+                    28
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "IUsCw",
+                      "name": "metric1Label",
+                      "fill": "#9CA3AF",
+                      "content": "Active users",
+                      "fontFamily": "Inter",
+                      "fontSize": 12
+                    },
+                    {
+                      "type": "text",
+                      "id": "530Fm",
+                      "name": "metric1Value",
+                      "fill": "#FFFFFF",
+                      "content": "24,982",
+                      "fontFamily": "Space Grotesk",
+                      "fontSize": 32,
+                      "fontWeight": "700",
+                      "letterSpacing": -1
+                    },
+                    {
+                      "type": "text",
+                      "id": "kXSAU",
+                      "name": "metric1Delta",
+                      "fill": "#22C55E",
+                      "content": "+18.3% vs last week",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FPK9Z",
+                  "name": "Secondary Metric",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#020617CC",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": [
+                    24,
+                    28
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oQ9lM",
+                      "name": "metric2Label",
+                      "fill": "#E5E7EB",
+                      "content": "Goal completion",
+                      "fontFamily": "Inter",
+                      "fontSize": 12
+                    },
+                    {
+                      "type": "text",
+                      "id": "AKOYX",
+                      "name": "metric2Value",
+                      "fill": "#FFFFFF",
+                      "content": "72%",
+                      "fontFamily": "Space Grotesk",
+                      "fontSize": 28,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "vg1BU",
+                      "name": "metric2Delta",
+                      "fill": "#22C55E",
+                      "content": "+5.1%",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "s79Lx",
+                  "name": "Secondary Metric",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#020617CC",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": [
+                    24,
+                    28
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "zof9s",
+                      "name": "metric3Label",
+                      "fill": "#E5E7EB",
+                      "content": "Churn risk",
+                      "fontFamily": "Inter",
+                      "fontSize": 12
+                    },
+                    {
+                      "type": "text",
+                      "id": "jv7Su",
+                      "name": "metric3Value",
+                      "fill": "#F97316",
+                      "content": "8.2%",
+                      "fontFamily": "Space Grotesk",
+                      "fontSize": 28,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "EJJAN",
+                      "name": "metric3Delta",
+                      "fill": "#22C55E",
+                      "content": "-1.2%",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "u6APE",
+              "name": "Charts Row",
+              "width": "fill_container",
+              "height": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "3OeA7",
+                  "name": "Traffic Chart",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#020617CC",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 32,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "jc3wC",
+                      "name": "chartTitle",
+                      "fill": "#FFFFFF",
+                      "content": "Engagement over time",
+                      "fontFamily": "Space Grotesk",
+                      "fontSize": 18,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "XAmc8",
+                      "name": "chartSubtitle",
+                      "fill": "#9CA3AF",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Last 30 days · All workspaces",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 12
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wcH25",
+                      "name": "Chart area",
+                      "width": "fill_container",
+                      "height": 220,
+                      "fill": "#020617",
+                      "gap": 8,
+                      "padding": 16,
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "iYJ7e",
+                          "name": "bar1",
+                          "fill": "#22C55E",
+                          "width": "fill_container",
+                          "height": 80
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "RlnYJ",
+                          "name": "bar2",
+                          "fill": "#38BDF8",
+                          "width": "fill_container",
+                          "height": 140
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "xEHne",
+                          "name": "bar3",
+                          "fill": "#A855F7",
+                          "width": "fill_container",
+                          "height": 110
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "hZ1SL",
+                          "name": "bar4",
+                          "fill": "#F97316",
+                          "width": "fill_container",
+                          "height": 170
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Hgeai",
+                  "name": "Side Column",
+                  "width": 360,
+                  "height": "fill_container",
+                  "fill": "#020617CC",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 24,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "7uZr0",
+                      "name": "sideTitle",
+                      "fill": "#FFFFFF",
+                      "content": "Top segments",
+                      "fontFamily": "Space Grotesk",
+                      "fontSize": 16,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "g95DK",
+                      "name": "segment1",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "4pD63",
+                          "name": "seg1Swatch",
+                          "fill": "#22C55E",
+                          "width": 12,
+                          "height": 12
+                        },
+                        {
+                          "type": "text",
+                          "id": "wkkFU",
+                          "name": "seg1Label",
+                          "fill": "#E5E7EB",
+                          "content": "Power users",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YSO78",
+                      "name": "segment2",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "lmEWJ",
+                          "name": "seg2Swatch",
+                          "fill": "#38BDF8",
+                          "width": 12,
+                          "height": 12
+                        },
+                        {
+                          "type": "text",
+                          "id": "hyykh",
+                          "name": "seg2Label",
+                          "fill": "#E5E7EB",
+                          "content": "New teams",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "jzowf",
+                      "name": "segment3",
+                      "width": "fill_container",
+                      "height": 40,
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "id": "LMuMj",
+                          "name": "seg3Swatch",
+                          "fill": "#F97316",
+                          "width": 12,
+                          "height": 12
+                        },
+                        {
+                          "type": "text",
+                          "id": "eS5xZ",
+                          "name": "seg3Label",
+                          "fill": "#E5E7EB",
+                          "content": "At-risk",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

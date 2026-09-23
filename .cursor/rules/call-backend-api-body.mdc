@@ -1,0 +1,32 @@
+---
+description: Do not double-JSON.stringify bodies passed to callBackendApi
+globs: projectbrain.frontend/src/_services/**/*.ts,projectbrain.frontend/src/app/api/**/*.ts
+alwaysApply: false
+---
+
+# callBackendApi request bodies
+
+`callBackendApi` in `projectbrain.frontend/src/_lib/backend-api.ts` already runs `JSON.stringify(body)` when `Content-Type` is `application/json`.
+
+## Rules
+
+- Pass a **plain object** (or array) as `body` — never a pre-stringified JSON string.
+- Double-stringifying makes the backend receive a JSON **string** instead of an object, which fails DTO binding (`BadHttpRequestException` / `JsonException` at Path `$`).
+
+```typescript
+// ❌ BAD — body becomes "\"{\\\"body\\\":\\\"hi\\\"}\"" on the wire
+await callBackendApi('/community/channels/wins/posts', {
+  method: 'POST',
+  body: JSON.stringify({ body: 'hi' }),
+});
+
+// ✅ GOOD
+await callBackendApi('/community/channels/wins/posts', {
+  method: 'POST',
+  body: { body: 'hi' },
+});
+```
+
+## Contrast with browser `fetch` / `fetchWithAuth`
+
+Client components posting to Next.js API routes should still use `JSON.stringify(...)` once — `fetch` does not stringify for you. The ban is specifically for **`callBackendApi`**.

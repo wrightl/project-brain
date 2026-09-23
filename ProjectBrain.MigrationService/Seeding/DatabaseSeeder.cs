@@ -676,8 +676,9 @@ public class DatabaseSeeder(
         if (string.Equals(deployEnv, "production", StringComparison.OrdinalIgnoreCase))
             return false;
 
+        // Staging seeds whenever a password is configured (Enabled is not required).
         if (string.Equals(deployEnv, "staging", StringComparison.OrdinalIgnoreCase))
-            return section.GetValue<bool>("Enabled");
+            return true;
 
         if (environment?.IsDevelopment() == true)
             return section.GetValue<bool>("Enabled");

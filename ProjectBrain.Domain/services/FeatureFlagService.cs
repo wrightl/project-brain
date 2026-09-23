@@ -8,6 +8,7 @@ public static class FeatureFlags
     public const string EnableCoachSection = "CoachFeatureEnabled";
     public const string EmailsEnabled = "EmailFeatureEnabled";
     public const string AgentFeatureEnabled = "AgentFeatureEnabled";
+    public const string CommunityFeatureEnabled = "CommunityFeatureEnabled";
 
     public const string DbKeyPrefix = "FeatureFlag:";
     public const string Category = "FeatureFlag";
@@ -17,6 +18,7 @@ public static class FeatureFlags
         new(EnableCoachSection, "Coach section", "Show coach-related features in the app"),
         new(EmailsEnabled, "Email delivery", "Enable outbound email via Mailgun"),
         new(AgentFeatureEnabled, "AI agent", "Enable the conversational AI agent in chat"),
+        new(CommunityFeatureEnabled, "Community hub", "Enable the in-app Community hub for users (channels and posts). Skool link is unaffected."),
     ];
 
     public static IReadOnlyList<string> GetAllKeys() =>

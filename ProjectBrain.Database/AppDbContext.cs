@@ -542,6 +542,63 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
             .HasIndex(a => a.Key)
             .IsUnique();
 
+        // Community hub
+        modelBuilder.Entity<CommunityChannel>()
+            .HasIndex(c => c.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<CommunityChannel>()
+            .HasIndex(c => new { c.IsActive, c.SortOrder });
+
+        modelBuilder.Entity<CommunityPost>()
+            .HasOne(p => p.Channel)
+            .WithMany(c => c.Posts)
+            .HasForeignKey(p => p.ChannelId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CommunityPost>()
+            .HasOne(p => p.Author)
+            .WithMany()
+            .HasForeignKey(p => p.AuthorUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CommunityPost>()
+            .HasIndex(p => new { p.ChannelId, p.CreatedAt });
+
+        modelBuilder.Entity<CommunityPost>()
+            .HasIndex(p => p.AuthorUserId);
+
+        modelBuilder.Entity<CommunityReaction>()
+            .HasOne(r => r.Post)
+            .WithMany(p => p.Reactions)
+            .HasForeignKey(r => r.PostId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CommunityReaction>()
+            .HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CommunityReaction>()
+            .HasIndex(r => new { r.PostId, r.UserId })
+            .IsUnique();
+
+        modelBuilder.Entity<CommunityReport>()
+            .HasOne(r => r.Post)
+            .WithMany(p => p.Reports)
+            .HasForeignKey(r => r.PostId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CommunityReport>()
+            .HasOne(r => r.Reporter)
+            .WithMany()
+            .HasForeignKey(r => r.ReporterUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CommunityReport>()
+            .HasIndex(r => new { r.Status, r.CreatedAt });
+
         // Unique index on Token
         modelBuilder.Entity<DeviceToken>()
             .HasIndex(dt => dt.Token)
@@ -615,4 +672,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
     public DbSet<MemoryPromotionAudit> MemoryPromotionAudits => Set<MemoryPromotionAudit>();
     public DbSet<Achievement> Achievements => Set<Achievement>();
     public DbSet<UserAchievement> UserAchievements => Set<UserAchievement>();
+    public DbSet<CommunityChannel> CommunityChannels => Set<CommunityChannel>();
+    public DbSet<CommunityPost> CommunityPosts => Set<CommunityPost>();
+    public DbSet<CommunityReaction> CommunityReactions => Set<CommunityReaction>();
+    public DbSet<CommunityReport> CommunityReports => Set<CommunityReport>();
 }

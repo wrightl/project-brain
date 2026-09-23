@@ -92,14 +92,17 @@ public class GoalService : IGoalService
             throw new ArgumentException("Each date may only appear once in dayPlans", nameof(dayPlans));
         }
 
+        foreach (var plan in dayPlans)
+        {
+            ValidateGoalsList(plan.Goals);
+            ValidateGoalDate(plan.Date);
+        }
+
         var results = new List<MultidayGoalsResult>();
 
         await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
         foreach (var plan in dayPlans.OrderBy(p => p.Date))
         {
-            ValidateGoalsList(plan.Goals);
-            ValidateGoalDate(plan.Date);
-
             var goals = await CreateOrUpdateGoalsForDateAsync(userId, plan.Date, plan.Goals, cancellationToken);
             results.Add(new MultidayGoalsResult
             {

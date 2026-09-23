@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ProjectBrain.Shared.Constants;
 
 namespace ProjectBrain.Api.IntegrationTests;
 
@@ -116,8 +117,18 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
     [Fact]
     public async Task GetUserByEmail_ShouldReturnUser_WhenExists()
     {
-        // Arrange
-        using var scope = _authenticatedFactory.Services.CreateScope();
+        // Arrange — endpoint requires AdminOnly
+        var adminFactory = _baseFactory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.AddAuthentication("Test")
+                    .AddScheme<AuthenticationSchemeOptions, TestAdminAuthHandler>("Test", options => { });
+            });
+        });
+        var adminClient = adminFactory.CreateClient();
+
+        using var scope = adminFactory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var user = new User
@@ -131,7 +142,7 @@ public class UserEndpointsIntegrationTests : IClassFixture<CustomWebApplicationF
         await context.SaveChangesAsync();
 
         // Act
-        var response = await _client.GetAsync("/users/findme@example.com");
+        var response = await adminClient.GetAsync("/users/findme@example.com");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -159,6 +170,38 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
             new Claim(ClaimTypes.NameIdentifier, "test-user-123"),
             new Claim("sub", "test-user-123"),
             new Claim(ClaimTypes.Email, "test@example.com")
+        };
+
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, "Test");
+
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+/// <summary>
+/// Admin-authenticated handler for endpoints gated by AdminOnly.
+/// </summary>
+public class TestAdminAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+{
+    public TestAdminAuthHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder)
+        : base(options, logger, encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, "Test Admin"),
+            new Claim(ClaimTypes.NameIdentifier, "test-admin-123"),
+            new Claim("sub", "test-admin-123"),
+            new Claim(ClaimTypes.Email, "admin@example.com"),
+            new Claim(AuthClaimTypes.Roles, AppRoles.Admin)
         };
 
         var identity = new ClaimsIdentity(claims, "Test");

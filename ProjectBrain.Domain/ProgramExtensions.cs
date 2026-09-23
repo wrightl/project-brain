@@ -55,6 +55,10 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IUserEpisodeRepository, UserEpisodeRepository>();
         builder.Services.AddScoped<IMemoryPromotionAuditRepository, MemoryPromotionAuditRepository>();
         builder.Services.AddScoped<IUserErasureRepository, UserErasureRepository>();
+        builder.Services.AddScoped<ICommunityChannelRepository, CommunityChannelRepository>();
+        builder.Services.AddScoped<ICommunityPostRepository, CommunityPostRepository>();
+        builder.Services.AddScoped<ICommunityReactionRepository, CommunityReactionRepository>();
+        builder.Services.AddScoped<ICommunityReportRepository, CommunityReportRepository>();
 
         // Register Cache Service
         builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
@@ -96,6 +100,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<IOnboardingDataService, OnboardingDataService>();
         builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
         builder.Services.AddScoped<IFeatureFlagSettingsService, FeatureFlagSettingsService>();
+        builder.Services.AddScoped<ICommunityService, CommunityService>();
         builder.Services.AddScoped<IChatMemoryContextService, ChatMemoryContextService>();
         builder.Services.AddScoped<IUserFactService, UserFactService>();
         builder.Services.AddScoped<IUserEpisodeService, UserEpisodeService>();

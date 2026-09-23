@@ -100,6 +100,7 @@ public class FeatureFlagServiceTests
         _mockCache.Verify(c => c.RemoveAsync("featureflags:resolved:CoachFeatureEnabled", default), Times.Once);
         _mockCache.Verify(c => c.RemoveAsync("featureflags:resolved:EmailFeatureEnabled", default), Times.Once);
         _mockCache.Verify(c => c.RemoveAsync("featureflags:resolved:AgentFeatureEnabled", default), Times.Once);
+        _mockCache.Verify(c => c.RemoveAsync("featureflags:resolved:CommunityFeatureEnabled", default), Times.Once);
     }
 }
 
@@ -123,14 +124,18 @@ public class FeatureFlagSettingsServiceTests
         _mockFeatureFlagService
             .Setup(s => s.IsFeatureEnabled(FeatureFlags.AgentFeatureEnabled))
             .ReturnsAsync(true);
+        _mockFeatureFlagService
+            .Setup(s => s.IsFeatureEnabled(FeatureFlags.CommunityFeatureEnabled))
+            .ReturnsAsync(false);
 
         var service = CreateService();
         var result = await service.GetFeatureFlagSettingsAsync();
 
-        result.Should().HaveCount(3);
+        result.Should().HaveCount(4);
         result.Should().Contain(item => item.Key == FeatureFlags.EnableCoachSection && item.Enabled);
         result.Should().Contain(item => item.Key == FeatureFlags.EmailsEnabled && !item.Enabled);
         result.Should().Contain(item => item.Key == FeatureFlags.AgentFeatureEnabled && item.Enabled);
+        result.Should().Contain(item => item.Key == FeatureFlags.CommunityFeatureEnabled && !item.Enabled);
         result.Should().OnlyContain(item => !string.IsNullOrWhiteSpace(item.Label));
         result.Should().OnlyContain(item => !string.IsNullOrWhiteSpace(item.Description));
     }
@@ -143,6 +148,7 @@ public class FeatureFlagSettingsServiceTests
             [FeatureFlags.EnableCoachSection] = true,
             [FeatureFlags.EmailsEnabled] = false,
             [FeatureFlags.AgentFeatureEnabled] = true,
+            [FeatureFlags.CommunityFeatureEnabled] = true,
         };
 
         var service = CreateService();
@@ -167,6 +173,14 @@ public class FeatureFlagSettingsServiceTests
         _mockApplicationSettings.Verify(
             s => s.UpsertSettingAsync(
                 "FeatureFlag:AgentFeatureEnabled",
+                "true",
+                FeatureFlags.Category,
+                It.IsAny<string>(),
+                "admin|123"),
+            Times.Once);
+        _mockApplicationSettings.Verify(
+            s => s.UpsertSettingAsync(
+                "FeatureFlag:CommunityFeatureEnabled",
                 "true",
                 FeatureFlags.Category,
                 It.IsAny<string>(),

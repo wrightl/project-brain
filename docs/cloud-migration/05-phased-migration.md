@@ -1,126 +1,192 @@
 # Phased migration
 
-Each phase leaves the product shippable on Azure. Production DNS moves once, in Phase 5. Do not start a phase until the exit criteria of the previous one are true.
+Each phase leaves the product shippable on Azure. Production DNS moves once, in Phase 7. Do not start a phase until the previous one's exit criteria are true.
 
-Work is sequenced so the database and the index move while the API is still on Container Apps. That separates “Postgres is wrong” from “Fly is wrong”.
+The order changed after [the review](06-plan-review.md). The cold start is now fixed in place, on Azure, in Phase 1 — before any migration work — because it is cheap and reversible. The migration itself sits behind an explicit decision in Phase 2 and is justified by the Azure AI Search 50 MB ceiling and store consolidation, not by an assumed cost saving.
+
+| Phase | What it does | Can it be skipped? |
+| --- | --- | --- |
+| 0 | Measure | No |
+| 1 | Remove the cold start on Azure | No. Do this even if you migrate. |
+| 2 | Decide whether to migrate at all | No |
+| 3 | Make providers replaceable, still on Azure | No, if migrating |
+| 4 | Postgres and pgvector on staging | No, if migrating |
+| 5 | Objects and the chat queue | No, if migrating |
+| 6 | Models | **Yes.** Optional, and not a cost saving. |
+| 7 | Compute cutover | No, if migrating |
+| 8 | Decommission Azure | No, if migrating |
+| 9 | Later work | Yes |
 
 ## Phase 0 — Measure and lock the decisions
 
 No application code.
 
-1. In Azure Cost Management, group last month by resource. Record Redis, SQL, Container Apps, the Container Apps environment, Log Analytics, Search, Cognitive Services, Storage, and bandwidth as separate lines.
-2. On staging, after a sleep cycle, measure three timestamps: replica started, `/health` returned 200, first authenticated chat token streamed. The 90 second database warmup log line is the number that should collapse.
-3. Close the decision table in the [readme](README.md): residency, Fly versus Hetzner, Neon versus on-box Postgres, staging always-on.
-4. Create the new accounts (Fly or Hetzner, Neon, Cloudflare R2, OpenAI project) in the EU. Do not point production at them.
+1. In Azure Cost Management, group last month by resource. Record Container Apps, the environment, Log Analytics, SQL, Search, Managed Redis, Cognitive Services, Storage, and bandwidth as separate lines. Every figure in these documents is a list price, not your bill.
+2. Check whether the free-offer database ever exceeds 100,000 vCore-seconds in a month (the “Free amount remaining” metric). If it does, Azure SQL is already billing and the case for migrating strengthens.
+3. **Measure the index size against the Azure AI Search Free 50 MB limit.** That number sets the deadline for the whole migration.
+4. **Search production logs for “Hybrid memory search failed”.** If it is firing, memory retrieval is already degraded to a SQL `LIKE` search, which changes what pgvector has to match.
+5. On staging, after a sleep cycle, time three things: replica started, `/health` returned 200, and the **first authenticated request that reads data** completed. The third is the one users feel; `/health` excludes database checks, so it returns early.
+6. Answer decisions 1 to 4 in the [readme](README.md).
 
-**Exit.** A one-page note in the decision log states the chosen compute and whether prompts stay on Azure OpenAI. Cost lines are attached.
+**Exit.** A one-page note records the per-resource bill, the search index size, whether the semantic fallback is firing, and the measured first-data-request time.
 
-## Phase 1 — Make providers replaceable, still on Azure
+## Phase 1 — Remove the cold start on Azure
 
-Code only. Production resources stay.
+Infrastructure and configuration only. No data migration, no new vendor. This is the fix for the stated problem.
 
-1. Change `ISearchIndexService` so it does not return Azure Search SDK types. Adapt `AzureSearchClient` and the test fake.
-2. Add `IObjectStorage` and implement it with the current `BlobServiceClient`. Route `Storage`, upload endpoints, and blob erasure through it.
+1. Set `minReplicas=1` for the API and the frontend in staging and production. Retire `sleep-staging.yml`, `wake-staging.yml`, and `scale-staging-container-apps.yml`, or reduce them to a manual tool. Warm idle replicas bill at roughly a tenth of the active vCPU rate and most of it falls inside the monthly free grant.
+2. Set a **maximum** replica count of 1, which the AppHost does not currently set. This makes the existing single-instance assumptions (SignalR without a backplane, in-process rate limiting, TickerQ in every instance) explicit and safe rather than latent.
+3. Stop the database pausing. **Do not simply disable auto-pause on the serverless free offer** — at the 0.5 vCore minimum that allocates roughly thirteen times the free allowance at General Purpose serverless rates. Move the database to a DTU tier (Basic or S0) that does not pause, after checking the size cap and the DTU ceiling against real load. Note that converting off the free offer is one-way.
+4. Delete the unused Azure AI Speech resource and its Bicep template. Nothing reads `ConnectionStrings__speech`.
+5. Re-run the Phase 0 timings. The first-data-request time should now be normal application latency.
+6. Watch the next invoice for a month.
+
+**Exit.** No workflow scales anything to zero. The first request after a deploy or restart does not wait on a database resume. The new monthly bill is known.
+
+If the bill at this point is acceptable and the search index is far from 50 MB, stop here and revisit later. That is a legitimate outcome of this plan.
+
+## Phase 2 — Decide whether to migrate
+
+A decision, not an implementation. Write the answer down.
+
+Migrate if any of these hold:
+
+- The Azure AI Search index is near the 50 MB Free limit, and a paid Search tier is unwanted.
+- Running three data stores (SQL, Search, Blob) instead of one Postgres is a maintenance cost the team wants gone.
+- The team wants off Azure for reasons beyond this document (tooling, `azd`, provisioning time, vendor preference).
+- The Phase 1 bill is still unacceptable *and* the team will run Postgres on its own host, which is the only option that clearly beats Phase 1 on cost.
+
+Do not migrate on the basis that Fly or Hetzner plus managed Postgres is cheaper than a fixed Azure setup. On current list prices it is roughly a wash.
+
+**Exit.** A recorded decision naming the destination, the availability target, and whether the team owns Postgres backups.
+
+## Phase 3 — Make providers replaceable, still on Azure
+
+Code only. Production resources stay. Every item here is useful even if the migration is later abandoned.
+
+1. Replace the search contract with a project-owned query and result model (filters, top-k, fields, query vector, optional keyword text). Adapt `AzureSearchClient` and the integration-test fake. Three call sites change: chat RAG, memory retrieval, erasure.
+2. Add `IObjectStorage` and implement it over the current `BlobServiceClient`. Route `Storage`, upload endpoints, and blob erasure through it.
 3. Add a Postgres implementation of `IChatPersistenceQueue` behind a config switch. Leave the Azure queue as the default.
 4. Split `AddAzureOpenAI` into storage, search, and model registration as described in [technology](03-technology-and-stack.md).
-5. Add `ProjectBrain.Api/Dockerfile`. The image should run the API the same way Container Apps does (URLs, `/health`, `/alive`).
-6. Add an Npgsql dependency and a configuration switch. Default remains SQL Server.
+5. Add `ProjectBrain.Api/Dockerfile` that runs the API the same way Container Apps does.
+6. Add Npgsql behind a configuration switch. Default stays SQL Server.
+7. Decide and implement the case-sensitivity strategy for email and other string lookups, with tests, before any data moves.
 
-**Exit.** Existing test suites pass. Staging on Azure still uses Blob, Search, SQL Server, and the Azure queue. A local run can boot the new API image.
+**Exit.** Existing suites pass. Staging on Azure still uses Blob, Search, SQL Server, and the Azure queue. The new API image boots locally.
 
-## Phase 2 — Postgres and pgvector on staging
+## Phase 4 — Postgres and pgvector on staging
 
-The staging API can stay on Container Apps for this phase so the only new variable is the database.
+Keep the staging API on Container Apps so the database is the only new variable.
 
-1. Provision Neon in the EU. Disable suspend for the staging branch used by the always-on test, or accept suspend only for a throwaway branch.
-2. Generate the Postgres baseline migration from `AppDbContext`. Apply it with `ProjectBrain.MigrationService`.
-3. Copy a staging snapshot from Azure SQL. Reset sequences. Diff row counts per table.
-4. Run database integration tests against Neon.
-5. Add `PgvectorSearchIndexService`. Create the extension and the HNSW index.
-6. Re-embed staging documents with `text-embedding-3-small` at 1536 dimensions into pgvector. Do not try to export Azure AI Search’s internal vector format.
-7. Point staging search reads and writes at pgvector. Keep Azure AI Search until a staging chat returns citations from Postgres.
-8. Point staging `AppDbContext` at Neon. Watch the warmup log. It should succeed on the first attempt.
+1. Provision Postgres: Neon in the EU with scale-to-zero disabled, or Postgres on the chosen host with continuous archiving. Disabling Neon's scale-to-zero requires a paid plan; the free plan re-creates the pause this project exists to remove.
+2. Generate the Postgres baseline migration from `AppDbContext` and apply it with `ProjectBrain.MigrationService`.
+3. Verify migrations properly. The current integration tests call `EnsureCreatedAsync()`, so they do not exercise the migration set. Apply migrations to an empty database and compare against the model. Switch the test container to a pgvector-enabled Postgres image.
+4. Copy a staging snapshot. Reset sequences past the maximum identity values. Diff row counts per table.
+5. Run the database integration tests against Postgres, including the case-sensitivity tests from Phase 3.
+6. Add the pgvector search implementation: `vector(1536)` chunks with `user_id`, `resource_id`, `source`, and citation text, plus an HNSW index. Replace the schema-creation code in `background_tasks/AISeeding.cs` with a migration.
+7. If the semantic fallback is **not** already firing in production, add hybrid retrieval (`tsvector` alongside the vector index, fused with reciprocal rank fusion) before switching memory retrieval. If it **is** firing, plain vector search is already an improvement; record that decision.
+8. Re-embed staging content at 1536 dimensions. Do not attempt to export Azure AI Search's internal vector format. Assert the dimension in the indexing code.
+9. Compare retrieval quality on a fixed set of staging questions before switching reads: same questions, compare returned citation ids.
+10. Point staging at Postgres for both data and search.
 
-**Exit.** Staging chat, journal create, voice-note index, coach search, Stripe webhook idempotency, and user erasure succeed against Postgres. Azure SQL for staging is unused for a week.
+**Exit.** Staging chat with citations, journal create, voice-note indexing, coach search, webhook idempotency, and user erasure all work against Postgres. A **restore drill** has been rehearsed: restore to a point in time and read the data back. Azure SQL and Azure AI Search for staging are unused for a week.
 
-## Phase 3 — Objects and the chat queue
+## Phase 5 — Objects and the chat queue
 
 1. Create the R2 bucket, EU jurisdiction, public access off.
-2. Copy staging blobs. Preserve the path strings already stored in the database so rows do not need a rewrite. If paths must change, write them in the database in the same job as the copy.
+2. Copy staging blobs, preserving the path strings already stored in the database. If paths must change, rewrite the database rows in the same job.
 3. Switch staging `IObjectStorage` to R2. Upload a coach file, download it, delete a user, confirm the prefix is gone.
-4. Switch staging `IChatPersistenceQueue` to Postgres (or TickerQ). Confirm a chat turn still persists if the request ends before the write finishes.
-5. Repeat the copy for production blobs only after the staging path has run. Production traffic still reads Azure Blob until Phase 5, so this phase’s production step is a verified copy, not the cutover.
+4. Switch staging `IChatPersistenceQueue` to Postgres. Confirm a chat turn still persists when the request ends before the write completes.
+5. Verify the erasure orchestrator covers R2 objects and pgvector rows as well as database rows.
+6. Copy production blobs as a verified dry run. Production traffic still reads Azure Blob until Phase 7.
 
-**Exit.** Staging no longer calls Azure Storage. A restore test reads one object back from R2.
+**Exit.** Staging calls no Azure Storage. An object has been read back from R2 after a restore test.
 
-## Phase 4 — Models
+## Phase 6 — Models (optional, not a cost saving)
 
-1. Create an OpenAI project with a monthly budget alert. If the decision log says prompts stay in West Europe, skip this phase and keep `AddAzureOpenAIClient` pointed at the existing account.
-2. On staging, set the chat model, the embedding model, and transcription to the OpenAI API. Keep 1536 dimensions.
-3. Run a voice note through transcription, a journal summary, a coach chat with citations, and a tool-calling agent turn.
-4. Compare a handful of stored embeddings: new query embeddings must hit the Phase 2 index. If the provider silently changes dimensions, retrieval will miss. Assert the dimension in the indexing code.
+Skip this phase unless the goal is to close the Azure account or consolidate vendors. Azure OpenAI GlobalStandard has no idle cost, so there is nothing to save, and prompt behaviour is a product risk.
 
-**Exit.** Staging generative calls succeed with the Azure OpenAI connection string removed from that environment. Token spend appears on the OpenAI project, not on the Cognitive Services account.
+1. Create an OpenAI project with a budget alert. Confirm model identifiers exist for the equivalents of `gpt-5-mini` and `text-embedding-3-small`.
+2. Confirm the transcription upload limit (25 MB at the time of writing) against the voice-note limits in `Chat.cs` and `VoiceNotes.cs`, and that the same audio formats are accepted.
+3. Obtain zero-retention and no-training terms in writing before any production prompt is sent.
+4. On staging, switch chat, embeddings, and transcription. Keep 1536 dimensions.
+5. Exercise a voice note, a journal summary, a coach chat with citations, and a tool-calling agent turn. Confirm new query embeddings still hit the Phase 4 index.
 
-## Phase 5 — Compute cutover
+**Exit.** Staging generative calls succeed with no Azure OpenAI connection string, and token spend appears on the OpenAI project.
 
-Do staging first. Production is a DNS change after staging has been the only staging host for at least a few days.
+## Phase 7 — Compute cutover
 
-1. Deploy Redis, API, and frontend with the mechanism in [deployment](04-deployment.md). `min` running instances is 1. Confirm a machine reboot comes back without a 90 second database retry.
-2. Run migrations as a release command against Neon.
-3. Attach staging domains. Update Auth0, Stripe, and webhook URLs for staging.
-4. Exercise: sign-in, onboard, chat with a citation, upload a file, journal, voice note, coach geo search, Stripe test webhook, account deletion (erasure of rows, vectors, and R2 objects).
-5. For production: lower DNS TTL, take a final Azure SQL backup, run the data copy again (or replicate the delta), deploy production apps, shift DNS, watch `/health` and the first real chat.
-6. Leave the Azure Container Apps and Azure SQL in place, scaled down, for one release cycle. Rollback is DNS back to Azure plus the pre-cutover database backup if the new database was written to.
+Staging first. Production is a DNS change after staging has been the only staging host for several days.
 
-**Exit.** Production hostnames resolve to Fly or the Hetzner proxy. A fresh deploy does not call `azd`. The first request after an API restart is a normal process start, measured in the same way as Phase 0.
+1. **Compliance gate.** Signed data processing agreements with each new sub-processor, an updated sub-processor list and privacy notice, a DPIA review, and a recorded decision on where backups live. The data includes journals, mood, coping strategies, and coach conversations, so this is a gate, not paperwork to follow.
+2. Deploy Redis, API, and frontend as described in [deployment](04-deployment.md), with one instance and a maximum of one unless the SignalR backplane work is done. Build the web image with `DEPLOY_ENV` for the target environment; a staging web image cannot be promoted, because `NEXT_PUBLIC_*` values are baked at build time.
+3. Audit configuration by connection name before the first boot: `ConnectionStrings__projectbraindb`, `ConnectionStrings__azurecache`, `ConnectionStrings__blobs`, the search and model client settings, and every `Auth0__*`, `Stripe__*`, `Mailgun__*`, `Firebase__*`, `LaunchDarkly__*`, `GoogleMaps__*`, and `OTEL_*` value Aspire used to inject.
+4. Run migrations as a release command against the direct connection string, asserting on `deploy-env` so test users are never seeded into production.
+5. Attach staging domains. Update Auth0 callbacks, logout URLs, audience, and the Auth0 webhook URL, plus the Stripe webhook URL. Confirm WebSocket upgrades work on the API domain for the coach-messages hub.
+6. Exercise: sign-in, onboarding, chat with a citation, file upload, journal, voice note, coach geo search, a Stripe test webhook, an Auth0 deletion webhook, and full account erasure across rows, vectors, and objects.
+7. For production: lower DNS TTL the day before, take a final database backup, run the data copy again or replicate the delta, deploy, shift DNS, then watch the first real chat.
+8. Leave Azure deployed and idle for one release cycle.
 
-## Phase 6 — Remove Azure
+**Exit.** Production hostnames resolve to the new host. A fresh deploy does not call `azd`. A restart is a normal process start.
+
+Rollback is DNS back to Azure plus the pre-cutover backup. Be explicit in the cutover note: once users have written to the new database, a DNS rollback loses those writes unless they are replayed. Prefer a forward fix.
+
+## Phase 8 — Decommission Azure
 
 After the rollback window:
 
-1. Delete Container Apps, the environment, Azure SQL, AI Search, the storage account, Managed Redis, App Configuration, the Speech resource, and the Azure OpenAI account if Phase 4 moved models.
-2. Remove `azure.yaml`, the Azure deploy workflow, and the sleep / wake / scale workflows.
-3. Remove `Aspire.Hosting.Azure.*` from the AppHost. Keep Aspire for local containers.
-4. Shorten `DatabaseStartupHostedService` once logs show no retry on the new database.
+1. Delete Container Apps and the environment, the database, AI Search, the storage account, Managed Redis, App Configuration, and the Azure OpenAI account if Phase 6 ran.
+2. Remove `azure.yaml`, the Azure deploy workflow, and any remaining scale workflows.
+3. Remove `Aspire.Hosting.Azure.*` from the AppHost. Keep Aspire for local containers, and switch the local database container to Postgres with pgvector.
+4. Revisit health checks now that the database does not pause: add a database check to readiness and shorten the 90 second warmup budget.
 5. Delete the Azure federated credential from the GitHub organisation.
 
-**Exit.** The monthly invoice for this product no longer contains those Azure resources. Local `dotnet run --project ProjectBrain.AppHost` still starts the API and the frontend.
+**Exit.** The invoice no longer contains those resources, and `dotnet run --project ProjectBrain.AppHost` still starts the stack locally.
 
-## Phase 7 — After the move
-
-Only if the new bill or the product needs it.
+## Phase 9 — Later work
 
 | Follow-up | When |
 | --- | --- |
-| Move off Auth0 | Auth0 is a larger line than compute and database combined, and the team accepts a user-visible re-login. |
-| Dedicated vector service | Measured recall or latency on pgvector is not good enough after the HNSW index is tuned. |
-| Second region | Users are far from `lhr` / `ams` and chat latency is dominated by geography rather than the model. |
-| Hetzner if Fly was chosen, or the reverse | The invoice after Phase 6 misses the budget in decision 4. |
-| Re-enable a non-production sleep | Never for the API that serves real users. A second preview app can stay off; that is a separate Fly app, not `minReplicas=0` on staging. |
+| SignalR backplane and multi-instance | Availability during deploys matters more than simplicity, or one instance cannot carry the load |
+| Move off Auth0 | Auth0 exceeds compute and database combined, and a user-visible re-login is acceptable |
+| Dedicated vector service or a reranker | Measured recall or latency on pgvector with HNSW and fusion is not good enough |
+| Second region | Chat latency is dominated by geography rather than the model |
+| Re-price the host | Fly's October 2026 increase, or Hetzner's availability, changes the comparison |
+| Re-enable sleeping | Never for an API serving real users. A separate preview app may stay off; that is a different app, not `minReplicas=0` on staging. |
 
 ## Risk register
 
 | Risk | Mitigation |
 | --- | --- |
-| Postgres baseline misses a SQL Server default, collation, or cascade | Row-count diff and the database integration tests on Neon before staging traffic moves. |
-| Identity sequences collide after the copy | Set each sequence to `max(id) + 1` as part of the copy job. |
-| Search quality drops | Same embedding model and dimensions. Compare citation ids for a fixed set of staging questions before switching reads. |
-| User erasure misses R2 or pgvector | Extend the existing erasure orchestrator in Phase 1–3 and run it in staging before production. |
-| Next.js image still expects Azure-only env names | The frontend already takes `API_SERVER_URL`, Auth0, and LaunchDarkly from the environment. Map those in `fly.toml` or Kamal env. |
-| .NET on a 512 MB machine restarts under load | Size the API machine at 1 GB, which matches the current 0.5 Gi request plus headroom. Watch restart counts during the staging soak. |
-| OpenAI data processing is outside the EU | Decision 1. The fallback is to keep Azure OpenAI and still leave the rest of Azure. |
-| Cutover writes split between two databases | Short write freeze, or run the app in read-only maintenance for the final copy. Do not dual-write SQL Server and Postgres for chat. |
-| Rollback after users have written to Neon | Prefer forward fix. A DNS rollback to Azure loses writes made after the copy unless those writes are replayed. State that in the cutover note. |
+| Migration is undertaken for a cost saving that does not exist | Phase 1 and Phase 2. Measure the fixed-in-place bill before committing. |
+| Converting off the Azure SQL free offer is irreversible | Confirm the target tier's size and DTU limits against real load in Phase 1 before converting. |
+| Case-sensitive Postgres breaks user lookup | Phase 3 decides the strategy; Phase 4 tests it before data moves. |
+| Postgres baseline misses a default, collation, or cascade | Row-count diff plus migration verification in Phase 4, since CI does not exercise migrations today. |
+| Identity sequences collide after the copy | Set each sequence to `max(id) + 1` in the copy job. |
+| Retrieval quality drops | Same model and dimensions; compare citation ids on fixed questions before switching reads; add hybrid search if the semantic path is currently working. |
+| Semantic ranker parity is assumed rather than measured | Check for the fallback warning in Phase 0. |
+| Erasure misses R2 or pgvector | Extend the orchestrator in Phases 3 to 5 and run it in staging before production. |
+| Coach messages stop arriving after scale-out | Maximum one instance until the Redis backplane is added. |
+| Jobs run twice | Verify TickerQ locking before more than one instance. |
+| Web image promoted between environments | One image per environment; `NEXT_PUBLIC_*` is build-time. |
+| Aspire-injected configuration missing on the new host | Connection-name audit in Phase 7 step 3. |
+| Single instance means downtime on deploy | Stated availability target in Phase 2; two instances if unacceptable. |
+| Self-managed Postgres loses data | Continuous archiving to object storage plus a rehearsed restore, or use managed Postgres. |
+| Health endpoint reports healthy without a database | Deliberate today. Revisit in Phase 8. |
+| New sub-processors handle health-adjacent data without agreements | Phase 7 compliance gate. |
+| Model provider retains prompts | Keep Azure OpenAI, or get zero-retention terms in writing in Phase 6. |
+| Cutover writes split across two databases | Short write freeze or read-only maintenance for the final copy. Do not dual-write. |
 
 ## Suggested order of pull requests
 
-These are implementation PRs for later work. This document set is the only change in the current branch.
+This document set is the only change in the current branch.
 
-1. Search and storage interfaces, API Dockerfile, no behaviour change.
-2. Npgsql baseline and Postgres tests.
-3. pgvector implementation, staging only.
-4. R2 and the Postgres chat queue, staging only.
-5. OpenAI provider switch, staging only.
-6. Fly (or Kamal) config and the new GitHub workflow, staging hostnames.
-7. Production cutover checklist and Azure deletion, after the soak.
+1. Phase 1 infrastructure: warm replicas, maximum replica count, database tier change, delete the Speech resource, retire the sleep workflows.
+2. Search query model, `IObjectStorage`, API Dockerfile. No behaviour change.
+3. Case-sensitivity strategy plus tests.
+4. Npgsql baseline, Postgres and pgvector test containers, migration verification.
+5. pgvector search implementation, staging only.
+6. R2 and the Postgres chat queue, staging only.
+7. Host configuration and the new deploy workflow, staging hostnames.
+8. Optional model provider switch, staging only.
+9. Production cutover checklist and Azure deletion, after the soak.

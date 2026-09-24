@@ -10,15 +10,25 @@ Three apps in one Fly organisation, EU region (`lhr` or `ams`, same region as Ne
 
 | App | Image | Machines | Network |
 | --- | --- | --- | --- |
-| `projectbrain-api` | New `ProjectBrain.Api/Dockerfile` | shared CPU, 1 GB RAM, `min_machines_running = 1` | Public 443, private to Redis and (via TLS) Neon |
-| `projectbrain-web` | Existing `projectbrain.frontend/Dockerfile` | shared CPU, 512 MB–1 GB, `min_machines_running = 1` | Public 443 |
-| `projectbrain-redis` | Official Redis image, append-only off if the cache may be empty after restart | shared CPU, 256 MB, `min_machines_running = 1` | Fly private network only |
+| `projectbrain-api` | New `ProjectBrain.Api/Dockerfile` | shared CPU, 1 GB RAM, `min_machines_running = 1`, **maximum 1 unless a SignalR backplane is added** | Public 443, private to Redis and (via TLS) Neon |
+| `projectbrain-web` | Existing `projectbrain.frontend/Dockerfile`, built per environment | shared CPU, 512 MB–1 GB, `min_machines_running = 1` | Public 443 |
+| `projectbrain-redis` | Official Redis image. Enable persistence: the cache holds webhook idempotency keys that should survive a restart | shared CPU, 256 MB, `min_machines_running = 1` | Fly private network only |
 
 `fly.toml` for the API sets:
 
 - `auto_stop_machines = "off"` and `auto_start_machines = false` so the process is not scaled to zero.
-- HTTP health check on `/health`, grace period long enough for a warm .NET start (the database is already up, so this is seconds, not the current 90 second SQL resume).
+- HTTP health check on `/health`, grace period long enough for a warm .NET start. Note that `/health` deliberately excludes database checks, so a healthy machine can still be unable to serve data; once the database no longer pauses, consider adding a database check to readiness.
 - Concurrency limits left at Fly defaults until real traffic says otherwise.
+
+One machine means deploys and host maintenance are a visible gap. Two machines require `AddStackExchangeRedis` on SignalR and verified TickerQ locking first, because `IHubContext<CoachMessageHub>` messages do not cross instances today. Decide this before sizing, not after.
+
+### The web image is environment-specific
+
+`projectbrain.frontend/Dockerfile` takes a `DEPLOY_ENV` build argument and copies `.env.staging` or `.env.production` before `next build`. `NEXT_PUBLIC_*` values, including the `NEXT_PUBLIC_API_SERVER_URL` the browser SignalR client reads, are baked into the bundle at build time.
+
+So the pipeline must build one web image per environment, the API hostname has to be known at build time, and a staging image can never be promoted to production. Runtime secrets (Auth0, LaunchDarkly server key, `API_SERVER_URL`) still come from host secrets; only the public, build-time values are baked.
+
+The browser also connects to the API hub directly, so the API domain must allow WebSocket upgrades and CORS must keep `AllowCredentials` with the exact frontend origin.
 
 Secrets (`fly secrets set`) replace Azure App Configuration and the long `AZURE_*` list in the deploy workflow: Auth0, Stripe, Mailgun, Firebase, LaunchDarkly, database URL, R2 keys, OpenAI key, Grafana OTLP headers. GitHub environments `staging` and `production` hold the values the workflow passes through. Nothing in the workflow logs secret values.
 
@@ -27,11 +37,13 @@ Secrets (`fly secrets set`) replace Azure App Configuration and the long `AZURE_
 Replace `azure-deploy.yml` with a workflow that:
 
 1. Runs the existing test workflow (already a prerequisite of production deploy).
-2. Builds the API image and the frontend image.
+2. Builds the API image, and the frontend image with `DEPLOY_ENV` set for the target environment.
 3. Pushes them to Fly’s registry (`flyctl deploy --local-only` from a built image, or `flyctl deploy` with a remote builder).
 4. Runs migrations as a release command: `flyctl machine run` or a Fly release command that executes `dotnet ef database update` (or the existing `ProjectBrain.MigrationService`) against the **direct** Neon connection string, then exits.
 5. Deploys the API only after that command succeeds.
 6. Deploys the frontend with `API_SERVER_URL` and Auth0 audience set to the API’s public URL.
+
+`ProjectBrain.MigrationService` also seeds admin and test users from `AdminUser__Password` and `TestUsers__Password`. Whatever replaces the Container App Job must assert on `deploy-env` so test users are never seeded into production.
 
 Staging and production are two Fly apps (or two Fly organisations), not a replica-count toggle. Delete `sleep-staging.yml`, `wake-staging.yml`, and `scale-staging-container-apps.yml` when staging is no longer on Container Apps. Sleeping the new staging app would recreate the incident this plan exists to end.
 
@@ -56,7 +68,7 @@ Use this when the decision log picks a single VPS over Fly.
 
 | Item | Choice |
 | --- | --- |
-| Host | One small Hetzner Cloud instance in Germany or Finland (2 vCPU, 4 GB class). A second, smaller host later if API and web need to fail independently. |
+| Host | One small Hetzner Cloud instance in Germany or Finland (2 vCPU, 4 GB class). Check pricing and availability on the day: Hetzner raised prices twice in 2026, and the cost-optimized family was reported unavailable in September 2026, which pushes the 4 GB option from about €5.99 to about €19.49. |
 | Proxy | Kamal’s built-in proxy for TLS and zero-downtime deploys. |
 | Processes | API container, Next.js container, Redis container. Postgres on Neon, or Postgres in another container with a nightly off-site backup. |
 | Registry | GitHub Container Registry. |
@@ -89,4 +101,6 @@ Kamal is the deploy mechanism. Docker Compose on the server, edited by hand, is 
 
 ## Health and warmup
 
-`DatabaseStartupHostedService` exists to absorb SQL 40613. After cutover the database does not pause, so a failed connection is a real outage and should fail `/health` immediately. Shorten the warmup budget in a follow-up once staging has run a week without retry noise. Leave the retry in place during the Azure soak so the old host still works.
+`DatabaseStartupHostedService` exists to absorb Azure SQL resume errors such as 40613, and `/health` deliberately excludes database checks so probes cannot keep the database awake. Neither gates readiness, so neither is the cause of the slow first request — the database resume is.
+
+Once the database no longer pauses, both choices should be revisited: a failed connection becomes a real outage rather than an expected resume, so a database check belongs in readiness, and the 90 second retry budget can shrink. Do that as a follow-up after a week of clean logs, not during the cutover, so the old host keeps working while Azure is still the fallback.

@@ -46,7 +46,34 @@ The application stack stays. The hosting stack and two libraries change.
 4. Run the existing database integration tests against Postgres. Coach distance search is LINQ over floats and should behave the same.
 5. Enable the `vector` extension. Store chunks as `vector(1536)` with `user_id`, `resource_id`, `source`, and the text used for citations.
 
-`ISearchIndexService` should return a project type (id, content, user id, resource id, score, blob path) instead of `SearchResults<SearchDocument>`. Call sites in chat retrieval and erasure then stay stable when the implementation changes.
+### Case sensitivity is a correctness change, not a detail
+
+SQL Server databases are case-insensitive by default. Postgres is case-sensitive. `UserRepository` looks users up with `u.Email == email`, while seeding code normalises with `.ToLower()` first, so behaviour is already inconsistent. After the move, a sign-in with `User@example.com` can fail to match a stored `user@example.com`.
+
+Pick one approach and cover it with tests before any data moves:
+
+- Normalise email to lower case at every boundary and add a `lower(email)` unique index. Most explicit, and it makes the existing inconsistency visible.
+- Use `citext` for email columns. Least code change; adds an extension dependency.
+- Use a nondeterministic ICU collation on the column. Avoid: it breaks `LIKE` and pattern matching on that column.
+
+Audit other string comparisons at the same time, including the coach `Country.Contains(country)` filter and tag lookups.
+
+### Migrations are not covered by CI today
+
+`DatabaseIntegrationTests` starts a SQL Server Testcontainer and calls `EnsureCreatedAsync()`, so the existing migration set is never applied in CI. A Postgres baseline therefore needs its own verification: apply migrations to an empty database and compare the result against the model. Switch the test container to a pgvector-enabled Postgres image so vector behaviour is covered too.
+
+### The search abstraction needs a query model, not a new return type
+
+The interface returns Azure types *and* callers build Azure `SearchOptions`, OData filter strings such as `ownerId eq '{userId}' or ownerId eq '' or ownerId eq null`, a `Select` field list, and `VectorSearchOptions`, then read results with `SearchDocument.GetString(...)`. Replacing the provider means introducing a project-owned query (filters, top-k, fields, query vector, optional keyword text) and result type, then updating three call sites: chat RAG, memory retrieval, and erasure.
+
+The index schema is built in application code in `background_tasks/AISeeding.cs`, including the HNSW configuration, the semantic configuration, and the 1536-dimension vector field. On Postgres that becomes an EF migration plus an index strategy, so this file is rewritten rather than swapped.
+
+Retrieval parity differs by path:
+
+- **Chat RAG** is vector nearest-neighbour with a filter. pgvector matches it.
+- **User memory** requests the hosted semantic ranker and silently falls back to a SQL `LIKE` search on any failure. Check whether that fallback is already firing in production. If it is, pgvector is an upgrade. If it is not, matching it needs a `tsvector` index alongside the vector index with reciprocal rank fusion, and there is still no hosted reranker equivalent.
+
+Erasure gets simpler: the current implementation pages through documents 1,000 at a time, while Postgres needs one `DELETE ... WHERE user_id = @id`.
 
 ## AI client in practice
 
@@ -58,7 +85,20 @@ The application stack stays. The hosting stack and two libraries change.
 
 Chat deployment names (`openai-chat-deployment`) are Azure concepts. The OpenAI API takes a model name (`gpt-5-mini`). Map them in configuration so call sites keep a single setting.
 
-Transcription (`TranscribeAudio`) should call the audio transcriptions endpoint with the same file types the chat endpoint accepts today. Delete the Whisper Container Apps deployment and the Speech Bicep once staging has transcribed a voice note on the new path.
+Transcription (`TranscribeAudio`) should call the audio transcriptions endpoint with the same file types the chat endpoint accepts today. Check the provider's upload limit (25 MB on the OpenAI audio endpoint at the time of writing) against the voice-note limits enforced in `Chat.cs` and `VoiceNotes.cs` before switching. Delete the Whisper deployment once staging has transcribed a voice note on the new path. The Speech Bicep resource can go immediately: nothing reads `ConnectionStrings__speech`.
+
+## Concurrency has to be decided, not inherited
+
+`AddSignalR()` has no backplane, the rate limiter is in-process, `UserActivityBackgroundService` is a singleton hosted service, and `app.UseTickerQ()` starts the job processor in every instance. Nothing sets a maximum replica count today, so production can already run more than one instance with all four assumptions broken.
+
+Choose explicitly as part of the move:
+
+- **One instance.** Set the maximum to 1. Nothing else changes. Deploys and host events are a visible gap.
+- **More than one.** Add `AddStackExchangeRedis` to SignalR, verify TickerQ 10.4's distributed locking so jobs do not run twice, and accept a per-instance rate limit (or move it to a shared store).
+
+## Running outside Aspire
+
+Aspire injects configuration by connection name. Outside Aspire every one of these must be provided explicitly: `ConnectionStrings__projectbraindb`, `ConnectionStrings__azurecache`, `ConnectionStrings__blobs`, `ConnectionStrings__queues`, the `ai-search` and `openai` client connection strings, plus `Auth0__*`, `Mailgun__*`, `Firebase__CredentialsJson`, `LaunchDarkly__SdkKey`, `GoogleMaps__GeocodingApiKey`, `Stripe__WebhookSecret`, and the `OTEL_*` variables. `AddServiceDefaults` also registers service discovery and standard resilience for `HttpClient`s; that keeps working, but audit for any code that depends on Aspire-injected `services__*` names before the first deploy.
 
 ## Local development
 

@@ -56,5 +56,32 @@ public class UserErasureRepository : IUserErasureRepository
         await _context.Tags
             .Where(t => t.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
+
+        await DeleteCommunityDataAsync(userId, cancellationToken);
+    }
+
+    public async Task DeleteCommunityDataAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        // Community FKs to Users are Restrict. These rows must be gone before the user
+        // row is deleted, or erasure fails after blobs have already been removed.
+        var authoredPostIds = await _context.CommunityPosts
+            .Where(p => p.AuthorUserId == userId)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        var reactions = await _context.CommunityReactions
+            .Where(r => r.UserId == userId || authoredPostIds.Contains(r.PostId))
+            .ToListAsync(cancellationToken);
+        var reports = await _context.CommunityReports
+            .Where(r => r.ReporterUserId == userId || authoredPostIds.Contains(r.PostId))
+            .ToListAsync(cancellationToken);
+        var posts = await _context.CommunityPosts
+            .Where(p => p.AuthorUserId == userId)
+            .ToListAsync(cancellationToken);
+
+        _context.CommunityReactions.RemoveRange(reactions);
+        _context.CommunityReports.RemoveRange(reports);
+        _context.CommunityPosts.RemoveRange(posts);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }

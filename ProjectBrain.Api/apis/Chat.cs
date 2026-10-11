@@ -60,7 +60,9 @@ public static class ChatEndpoints
 
     public static void MapChatEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("chat").RequireAuthorization("UserOnly");
+        var group = app.MapGroup("chat")
+            .RequireAuthorization("UserOnly")
+            .RequireRateLimiting(ProjectBrain.Api.RateLimitPartitions.AiPolicy);
 
         if (app.Environment.IsDevelopment())
         {
@@ -338,10 +340,7 @@ public static class ChatEndpoints
             Content = m.Content
         }).ToList();
 
-        services.Logger.LogInformation("Chat history for conversation {ConversationId}: {History}", conversation.Id, JsonSerializer.Serialize(history));
-
         var userName = user.FirstName ?? "there";
-        services.Logger.LogInformation("Using user name {UserName} for conversation {ConversationId}", userName, conversation.Id);
 
         LogChatStreamPhase(services.Logger, correlationId, sw, "before_StartAsync", conversation.Id);
         await http.Response.StartAsync(http.RequestAborted);
@@ -478,7 +477,7 @@ public static class ChatEndpoints
                 request.Content, userId, userInformation, userName, history, memoryContext, conversation.Id, correlationId);
             LogChatStreamPhase(services.Logger, correlationId, sw, "main_after_GetResponseWithCitations", conversation.Id);
 
-            services.Logger.LogInformation("Citations: {Citations}", JsonSerializer.Serialize(citations));
+            services.Logger.LogInformation("Resolved {CitationCount} citations for conversation {ConversationId}", citations.Count, conversation.Id);
             // Send citations as metadata before streaming the response
             if (citations.Any())
             {

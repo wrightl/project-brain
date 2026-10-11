@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.RateLimiting;
 using FluentValidation;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi;
 using ProjectBrain.AI;
 using ProjectBrain.Api;
@@ -10,6 +12,7 @@ using ProjectBrain.Api.Authentication;
 using ProjectBrain.Auth;
 using ProjectBrain.Api.Background;
 using ProjectBrain.Api.Goals;
+using ProjectBrain.Api.Hubs;
 using ProjectBrain.Api.Middlewares;
 using ProjectBrain.Api.Services;
 using ProjectBrain.Api.Validators;
@@ -90,15 +93,46 @@ builder.Services.AddCors(options =>
 });
 
 
+// Container Apps ingress terminates TLS and appends the client address to X-Forwarded-For.
+// The default ForwardLimit of 1 reads only the entry the ingress appended, so clients cannot spoof it.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddRateLimiter(options =>
 {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // Tell clients when the window resets so they can wait instead of failing.
+    options.OnRejected = (context, _) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+        }
+        return ValueTask.CompletedTask;
+    };
+
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.User.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
-            factory: partition => new FixedWindowRateLimiterOptions
+            partitionKey: RateLimitPartitions.GetClientKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
             {
-                AutoReplenishment = true,
-                PermitLimit = 300, // TODO: Review this limit later
+                PermitLimit = 300,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+
+    // LLM-backed endpoints are expensive; cap bursts per user on top of the daily/monthly usage quotas.
+    options.AddPolicy(RateLimitPartitions.AiPolicy, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: RateLimitPartitions.GetClientKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -109,6 +143,7 @@ builder.AddCustomAuthorisation();
 
 // Add SignalR
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<IHubTicketService, HubTicketService>();
 
 builder.AddAzureOpenAI();
 
@@ -157,6 +192,8 @@ builder.AddFeatureFlags();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 // Configure the HTTP request pipeline.
 // GlobalExceptionHandlerMiddleware handles all unhandled exceptions.
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
@@ -192,9 +229,9 @@ app.Use(async (context, next) =>
 
 app.UseCors();
 
-app.UseRateLimiter();
-
 app.UseCustomAuthentication();
+// Must run after authentication so requests are partitioned by user rather than by address.
+app.UseRateLimiter();
 app.UseUserActivityTracking(); // Track user activity after authentication
 app.UseCustomAuthorisation();
 
@@ -235,7 +272,8 @@ app.MapPushNotificationEndpoints();
 app.MapDevSeedEndpoints();
 
 // Map SignalR hub
-app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>("/hubs/coach-messages").RequireAuthorization();
+app.MapHub<ProjectBrain.Api.Hubs.CoachMessageHub>(ProjectBrain.Api.Hubs.CoachMessageHub.Path).RequireAuthorization();
+app.MapHubTicketEndpoints();
 
 app.MapDefaultEndpoints();
 

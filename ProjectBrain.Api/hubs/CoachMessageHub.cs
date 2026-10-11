@@ -6,6 +6,8 @@ namespace ProjectBrain.Api.Hubs;
 
 public class CoachMessageHub : Hub
 {
+    public const string Path = "/hubs/coach-messages";
+
     private readonly IIdentityService _identityService;
     private readonly ILogger<CoachMessageHub> _logger;
     private readonly IConnectionService _connectionService;

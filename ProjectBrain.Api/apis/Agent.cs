@@ -50,8 +50,10 @@ public static class AgentEndpoints
     {
         var group = app.MapGroup("agent").RequireAuthorization("UserOnly");
 
-        group.MapPost("/stream", StreamAgentEventStream).WithName("StreamAgent");
-        group.MapPost("/stream/event-stream", StreamAgentEventStream).WithName("StreamAgentEventStream");
+        group.MapPost("/stream", StreamAgentEventStream).WithName("StreamAgent")
+            .RequireRateLimiting(ProjectBrain.Api.RateLimitPartitions.AiPolicy);
+        group.MapPost("/stream/event-stream", StreamAgentEventStream).WithName("StreamAgentEventStream")
+            .RequireRateLimiting(ProjectBrain.Api.RateLimitPartitions.AiPolicy);
         group.MapGet("/tools", GetAvailableTools).WithName("GetAvailableTools");
         group.MapGet("/workflows", GetWorkflows).WithName("GetWorkflows");
         group.MapPost("/workflows/{workflowId:guid}/actions/{actionId:guid}/confirm", ConfirmPendingAction).WithName("ConfirmAgentPendingAction");
@@ -152,7 +154,6 @@ public static class AgentEndpoints
         }).ToList();
 
         var userName = user?.FirstName ?? "User";
-        services.Logger.LogInformation("Using user name {UserName} for agent conversation {ConversationId}", userName, conversation.Id);
 
         var memoryContext = await services.ChatMemoryContextService.BuildAsync(
             userId!,

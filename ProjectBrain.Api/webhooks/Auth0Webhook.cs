@@ -35,6 +35,9 @@ public class Auth0UserData
 
 public static class Auth0WebhookEndpoints
 {
+    private const string Auth0Provider = "auth0";
+    private static readonly TimeSpan ProcessedEventRetention = TimeSpan.FromDays(7);
+
     public static void MapAuth0WebhookEndpoints(this WebApplication app)
     {
         // Auth0 webhook endpoint - no authorization required (uses bearer token verification)
@@ -81,10 +84,19 @@ public static class Auth0WebhookEndpoints
             return Results.BadRequest("Invalid webhook token");
         }
 
+        JsonDocument jsonDoc;
         try
         {
-            // Parse webhook payload
-            using var jsonDoc = JsonDocument.Parse(requestBody);
+            jsonDoc = JsonDocument.Parse(requestBody);
+        }
+        catch (JsonException ex)
+        {
+            services.Logger.LogError(ex, "Failed to parse Auth0 webhook JSON");
+            return Results.BadRequest("Invalid JSON payload");
+        }
+
+        using (jsonDoc)
+        {
             var root = jsonDoc.RootElement;
 
             // Extract event type
@@ -100,44 +112,47 @@ public static class Auth0WebhookEndpoints
             var eventId = root.TryGetProperty("id", out var eventIdElement)
                 ? eventIdElement.GetString()
                 : null;
-            if (!idempotencyService.TryMarkProcessed(
-                    "auth0",
-                    eventId ?? $"{eventType}:{WebhookSecurity.ComputeSha256Hex(requestBody)}",
-                    TimeSpan.FromDays(7)))
+            var idempotencyKey = eventId ?? $"{eventType}:{WebhookSecurity.ComputeSha256Hex(requestBody)}";
+
+            switch (idempotencyService.TryClaim(Auth0Provider, idempotencyKey))
             {
-                services.Logger.LogInformation("Skipping duplicate Auth0 webhook {EventId}", eventId);
+                case WebhookClaimResult.AlreadyProcessed:
+                    services.Logger.LogInformation("Skipping duplicate Auth0 webhook {EventId}", idempotencyKey);
+                    return Results.Ok();
+                case WebhookClaimResult.InProgress:
+                    // Non-2xx makes Auth0 retry later, by which time the first delivery has finished or been abandoned.
+                    services.Logger.LogInformation("Auth0 webhook {EventId} is already being processed", idempotencyKey);
+                    return Results.Conflict();
+            }
+
+            try
+            {
+                if (eventType == "user.created")
+                {
+                    await HandleUserCreated(services, root);
+                }
+                else if (eventType == "user.updated")
+                {
+                    await HandleUserUpdated(services, root);
+                }
+                else if (eventType == "user.deleted")
+                {
+                    await HandleUserDeleted(services, root);
+                }
+                else
+                {
+                    services.Logger.LogInformation("Unhandled Auth0 event type: {EventType}", eventType);
+                }
+
+                idempotencyService.MarkProcessed(Auth0Provider, idempotencyKey, ProcessedEventRetention);
                 return Results.Ok();
             }
-
-            // Handle user.created event
-            if (eventType == "user.created")
+            catch (Exception ex)
             {
-                await HandleUserCreated(services, root);
+                idempotencyService.Abandon(Auth0Provider, idempotencyKey);
+                services.Logger.LogError(ex, "Error processing Auth0 webhook {EventId}", idempotencyKey);
+                return Results.Problem("Error processing webhook");
             }
-            else if (eventType == "user.updated")
-            {
-                await HandleUserUpdated(services, root);
-            }
-            else if (eventType == "user.deleted")
-            {
-                await HandleUserDeleted(services, root);
-            }
-            else
-            {
-                services.Logger.LogInformation("Unhandled Auth0 event type: {EventType}", eventType);
-            }
-
-            return Results.Ok();
-        }
-        catch (JsonException ex)
-        {
-            services.Logger.LogError(ex, "Failed to parse Auth0 webhook JSON");
-            return Results.BadRequest("Invalid JSON payload");
-        }
-        catch (Exception ex)
-        {
-            services.Logger.LogError(ex, "Error processing Auth0 webhook");
-            return Results.Problem("Error processing webhook");
         }
     }
 
@@ -269,7 +284,7 @@ public static class Auth0WebhookEndpoints
         try
         {
             await services.UserService.Create(userDto);
-            services.Logger.LogInformation("Created user {UserId} ({Email}) from Auth0 webhook", userData.UserId, userData.Email);
+            services.Logger.LogInformation("Created user {UserId} from Auth0 webhook", userData.UserId);
 
             // Send welcome email to user using template
             var templateName = "welcome email";
@@ -330,7 +345,7 @@ public static class Auth0WebhookEndpoints
         try
         {
             await services.UserService.Update(userDto);
-            services.Logger.LogInformation("Updated user {UserId} ({Email}) from Auth0 webhook", userData.UserId, userData.Email);
+            services.Logger.LogInformation("Updated user {UserId} from Auth0 webhook", userData.UserId);
         }
         catch (Exception ex)
         {
@@ -359,9 +374,8 @@ public static class Auth0WebhookEndpoints
         {
             var erasureResult = await services.UserErasureService.EraseUserAsync(userData.UserId);
             services.Logger.LogInformation(
-                "Erased user {UserId} ({Email}) via orchestrator: search={Search}, blobs={Blobs}, userDeleted={UserDeleted}",
+                "Erased user {UserId} via orchestrator: search={Search}, blobs={Blobs}, userDeleted={UserDeleted}",
                 userData.UserId,
-                userData.Email,
                 erasureResult.SearchDocumentsDeleted,
                 erasureResult.BlobFilesDeleted,
                 erasureResult.UserRowDeleted);

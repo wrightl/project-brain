@@ -1,6 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <Sdk Name="Aspire.AppHost.Sdk" Version="13.4.6" />
+<Project Sdk="Aspire.AppHost.Sdk/13.6.1">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -9,7 +7,7 @@
     <Nullable>enable</Nullable>
     <IsAspireHost>true</IsAspireHost>
     <UserSecretsId>40f4e611-2b6e-4b2c-9ba8-a7b1be62fd45</UserSecretsId>
-    <NoWarn>$(NoWarn);ASPIREPROBES001</NoWarn>
+    <NoWarn>$(NoWarn);ASPIREPROBES001;ASPIRE010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,16 +18,15 @@
   <ItemGroup>
   <!-- temp measures until aspire dependencies are updated -->
     <PackageReference Include="MessagePack" Version="2.5.302" />
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.Azure.AppConfiguration" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.Azure.AppContainers" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.Azure.CognitiveServices" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.Azure.Search" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.Azure.Sql" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.Azure.Storage" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.DevTunnels" Version="13.4.6" />
-    <PackageReference Include="Aspire.Hosting.NodeJs" Version="9.5.2" />
-    <PackageReference Include="Aspire.Hosting.Azure.Redis" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.Azure.AppConfiguration" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.AppContainers" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.CognitiveServices" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.Search" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.Sql" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.DevTunnels" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.6.1" />
+    <PackageReference Include="Aspire.Hosting.Azure.Redis" Version="13.6.1" />
   </ItemGroup>
 
 </Project>

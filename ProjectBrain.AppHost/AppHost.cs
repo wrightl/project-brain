@@ -336,7 +336,7 @@ else
 
 
     // Use npm for frontend development
-    var frontend = builder.AddNpmApp(frontendName, $"../{appName}.{frontendName}", "dev")
+    var frontend = builder.AddJavaScriptApp(frontendName, $"../{appName}.{frontendName}", "dev")
         .WithReference(apiService)
         .WaitFor(apiService)
         .WaitFor(cache)

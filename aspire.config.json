@@ -1,0 +1,8 @@
+{
+  "appHost": {
+    "path": "ProjectBrain.AppHost/ProjectBrain.AppHost.csproj"
+  },
+  "features": {
+    "deployCommandEnabled": true
+  }
+}

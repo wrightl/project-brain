@@ -1,22 +1,26 @@
 import { createApiRoute } from '@/_lib/api-route-handler';
-import { getAccessToken } from '@/_lib/auth';
+import { callBackendApi } from '@/_lib/backend-api';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Returns an access token for authenticated SignalR hub connections only.
- * Clients must not use this token for general API calls.
+ * Returns a short-lived ticket that only authenticates SignalR hub connections.
+ * The user's API access token never leaves the server.
  */
 export const GET = createApiRoute(async () => {
-    const accessToken = await getAccessToken();
+    const response = await callBackendApi('/hubs/tickets', { method: 'POST' });
 
-    if (!accessToken) {
+    if (!response.ok) {
         return NextResponse.json(
-            { error: 'No access token available' },
-            { status: 401 },
+            { error: 'Unable to issue hub ticket' },
+            { status: response.status },
         );
     }
 
-    return { token: accessToken };
+    const { ticket } = (await response.json()) as { ticket: string };
+    return NextResponse.json(
+        { token: ticket },
+        { headers: { 'Cache-Control': 'no-store' } },
+    );
 });

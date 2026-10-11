@@ -1,32 +1,24 @@
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace ProjectBrain.Api.Webhooks;
 
-public interface IWebhookIdempotencyService
+public enum WebhookClaimResult
 {
-    bool TryMarkProcessed(string provider, string eventId, TimeSpan ttl);
+    Claimed,
+    AlreadyProcessed,
+    InProgress
 }
 
-public class WebhookIdempotencyService(IMemoryCache cache) : IWebhookIdempotencyService
+/// <summary>
+/// Deduplicates webhook deliveries. An event is claimed before handling and only recorded as processed
+/// once handling succeeds; a failed event must be abandoned so the provider's retry is not skipped.
+/// </summary>
+public interface IWebhookIdempotencyService
 {
-    public bool TryMarkProcessed(string provider, string eventId, TimeSpan ttl)
-    {
-        if (string.IsNullOrWhiteSpace(eventId))
-        {
-            return true;
-        }
-
-        var cacheKey = $"webhook:{provider}:{eventId}";
-        if (cache.TryGetValue(cacheKey, out _))
-        {
-            return false;
-        }
-
-        cache.Set(cacheKey, true, ttl);
-        return true;
-    }
+    WebhookClaimResult TryClaim(string provider, string? eventId);
+    void MarkProcessed(string provider, string? eventId, TimeSpan ttl);
+    void Abandon(string provider, string? eventId);
 }
 
 public static class WebhookSecurity

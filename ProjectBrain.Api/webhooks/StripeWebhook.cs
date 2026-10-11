@@ -16,6 +16,9 @@ public class StripeWebhookServices(
 
 public static class StripeWebhookEndpoints
 {
+    private const string StripeProvider = "stripe";
+    private static readonly TimeSpan ProcessedEventRetention = TimeSpan.FromDays(7);
+
     public static void MapStripeWebhookEndpoints(this WebApplication app)
     {
         // Stripe webhook endpoint - no authorization required (uses webhook secret)
@@ -39,23 +42,37 @@ public static class StripeWebhookEndpoints
             return Results.BadRequest("Webhook secret not configured");
         }
 
+        Event stripeEvent;
         try
         {
-            var stripeEvent = EventUtility.ConstructEvent(
+            stripeEvent = EventUtility.ConstructEvent(
                 json,
                 context.Request.Headers["Stripe-Signature"],
                 webhookSecret
             );
+        }
+        catch (StripeException ex)
+        {
+            services.Logger.LogWarning(ex, "Rejected Stripe webhook with invalid signature or payload");
+            return Results.BadRequest("Webhook error");
+        }
 
-            services.Logger.LogInformation("Received Stripe webhook: {EventType}, ID: {EventId}", 
-                stripeEvent.Type, stripeEvent.Id);
+        services.Logger.LogInformation("Received Stripe webhook: {EventType}, ID: {EventId}",
+            stripeEvent.Type, stripeEvent.Id);
 
-            if (!idempotencyService.TryMarkProcessed("stripe", stripeEvent.Id, TimeSpan.FromDays(7)))
-            {
+        switch (idempotencyService.TryClaim(StripeProvider, stripeEvent.Id))
+        {
+            case WebhookClaimResult.AlreadyProcessed:
                 services.Logger.LogInformation("Skipping duplicate Stripe webhook {EventId}", stripeEvent.Id);
                 return Results.Ok();
-            }
+            case WebhookClaimResult.InProgress:
+                // Non-2xx makes Stripe retry later, by which time the first delivery has finished or been abandoned.
+                services.Logger.LogInformation("Stripe webhook {EventId} is already being processed", stripeEvent.Id);
+                return Results.Conflict();
+        }
 
+        try
+        {
             // Use string comparison for event types (more reliable across Stripe.NET versions)
             var eventType = stripeEvent.Type;
             if (eventType == "customer.subscription.created" || eventType == "customer.subscription.updated")
@@ -79,16 +96,13 @@ public static class StripeWebhookEndpoints
                 services.Logger.LogInformation("Unhandled Stripe event type: {EventType}", stripeEvent.Type);
             }
 
+            idempotencyService.MarkProcessed(StripeProvider, stripeEvent.Id, ProcessedEventRetention);
             return Results.Ok();
-        }
-        catch (StripeException ex)
-        {
-            services.Logger.LogError(ex, "Stripe webhook error: {Message}", ex.Message);
-            return Results.BadRequest("Webhook error");
         }
         catch (Exception ex)
         {
-            services.Logger.LogError(ex, "Error processing Stripe webhook");
+            idempotencyService.Abandon(StripeProvider, stripeEvent.Id);
+            services.Logger.LogError(ex, "Error processing Stripe webhook {EventId}", stripeEvent.Id);
             return Results.Problem("Error processing webhook");
         }
     }

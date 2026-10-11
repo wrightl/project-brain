@@ -16,8 +16,8 @@ public class HealthEndpointIntegrationTests : IClassFixture<CustomWebApplication
     [Fact]
     public async Task Alive_ReturnsSuccess()
     {
-        // Liveness must stay independent of SQL/Redis so Container Apps probes do not
-        // keep Azure SQL serverless awake. DB exclusion of /health is covered by
+        // Liveness must stay independent of the database so Container Apps probes do not
+        // keep it awake. DB exclusion of /health is covered by
         // HealthEndpointMappingTests in ProjectBrain.Api.Tests.
         var response = await _client.GetAsync("/alive");
 

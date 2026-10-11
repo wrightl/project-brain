@@ -30,9 +30,8 @@ builder.Services.AddHostedService<AISeedingBackgroundTask>();
 // Add service defaults & Aspire client integrations.
 builder.AddServiceDefaults();
 
-// Add Redis distributed cache
-// builder.AddRedisDistributedCache("azurecache");
-builder.AddRedisDistributedCache("azurecache");
+// In-process distributed cache. Assumes a single API replica; scaling out needs a shared cache.
+builder.Services.AddDistributedMemoryCache();
 
 // Register keyed HttpClient for EmailService
 builder.Services.AddHttpClient("Mailgun", (serviceProvider, client) =>

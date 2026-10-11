@@ -98,7 +98,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<int> GetLoggedInUsersCountAsync()
     {
-        // Use UserActivityService which handles Redis + database fallback
+        // Use UserActivityService which handles cache + database fallback
         return await _userActivityService.GetActiveUsersCountAsync();
     }
 

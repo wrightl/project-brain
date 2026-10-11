@@ -6,7 +6,6 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -33,12 +32,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth0:ClientId", "test-client");
         builder.UseSetting("Auth0:ClientSecret", "test-secret");
         builder.UseSetting("ConnectionStrings:projectbraindb", "Host=localhost;Database=TestDb;Username=test;Password=test");
-        builder.UseSetting("ConnectionStrings:azurecache", "localhost:6379");
         builder.UseSetting("ConnectionStrings:blobs", "UseDevelopmentStorage=true");
         builder.UseSetting("ConnectionStrings:openai", "Endpoint=https://example.openai.azure.com/;Key=fake");
         builder.UseSetting("ConnectionStrings:ai-search", "Endpoint=https://example.search.windows.net;Key=fake");
         builder.UseSetting("Aspire:Npgsql:EntityFrameworkCore:PostgreSQL:DisableHealthChecks", "true");
-        builder.UseSetting("Aspire:StackExchange:Redis:DisableHealthChecks", "true");
         builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
         builder.UseSetting("PushNotifications:Enabled", "false");
 
@@ -47,12 +44,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:projectbraindb"] = "Host=localhost;Database=TestDb;Username=test;Password=test",
-                ["ConnectionStrings:azurecache"] = "localhost:6379",
                 ["ConnectionStrings:blobs"] = "UseDevelopmentStorage=true",
                 ["ConnectionStrings:openai"] = "Endpoint=https://example.openai.azure.com/;Key=fake",
                 ["ConnectionStrings:ai-search"] = "Endpoint=https://example.search.windows.net;Key=fake",
                 ["Aspire:Npgsql:EntityFrameworkCore:PostgreSQL:DisableHealthChecks"] = "true",
-                ["Aspire:StackExchange:Redis:DisableHealthChecks"] = "true",
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "",
                 ["OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY"] = "none",
                 ["PushNotifications:Enabled"] = "false",
@@ -69,8 +64,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<AppDbContext>();
             services.RemoveAll<IUserManagement>();
             services.AddSingleton<IUserManagement, FakeUserManagement>();
-            services.RemoveAll<IDistributedCache>();
-            services.AddDistributedMemoryCache();
             services.RemoveAll<BlobServiceClient>();
             services.AddSingleton(_ => new BlobServiceClient("UseDevelopmentStorage=true"));
             services.RemoveAll<ISearchIndexService>();
@@ -107,18 +100,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
-            // Avoid Redis connection timeouts on /health in tests (no Redis container).
-            services.PostConfigure<HealthCheckServiceOptions>(options =>
-            {
-                var redisChecks = options.Registrations
-                    .Where(r => r.Name.Contains("redis", StringComparison.OrdinalIgnoreCase)
-                                || r.Tags.Contains("redis"))
-                    .ToList();
-                foreach (var registration in redisChecks)
-                {
-                    options.Registrations.Remove(registration);
-                }
-            });
 
             services.AddDbContext<AppDbContext>((sp, options) =>
             {

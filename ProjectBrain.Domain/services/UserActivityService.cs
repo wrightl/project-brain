@@ -45,7 +45,7 @@ public class UserActivityService : IUserActivityService
 
         try
         {
-            // Update Redis cache with expiration
+            // Update cache with expiration
             var cacheOptions = new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(CacheExpirationSeconds)
@@ -63,14 +63,14 @@ public class UserActivityService : IUserActivityService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to update Redis cache for user {UserId}", userId);
-            // Continue to database update even if Redis fails
+            _logger.LogWarning(ex, "Failed to update cache for user {UserId}", userId);
+            // Continue to database update even if the cache fails
         }
 
         // Update database with debouncing
         await UpdateDatabaseActivityAsync(userId, now);
 
-        // Request activity sync (debounced) so Redis recovery runs when users are active
+        // Request activity sync (debounced) so cache recovery runs when users are active
         _syncTrigger.RequestSync();
     }
 
@@ -171,14 +171,14 @@ public class UserActivityService : IUserActivityService
 
         try
         {
-            // Try Redis first (fast path)
+            // Try the cache first (fast path)
             var count = await GetActiveUsersCountFromCacheAsync(cutoffTime);
             if (count.HasValue)
                 return count.Value;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to get active users count from Redis, falling back to database");
+            _logger.LogWarning(ex, "Failed to get active users count from cache, falling back to database");
         }
 
         // Fallback to database
@@ -189,7 +189,7 @@ public class UserActivityService : IUserActivityService
     {
         try
         {
-            // Get active users set from Redis
+            // Get active users set from the cache
             var setData = await _cache.GetStringAsync(ActiveUsersSetKey);
             if (string.IsNullOrEmpty(setData))
                 return null;
@@ -230,14 +230,14 @@ public class UserActivityService : IUserActivityService
 
         try
         {
-            // Try Redis first
+            // Try the cache first
             var userIds = await GetActiveUserIdsFromCacheAsync(cutoffTime);
             if (userIds != null)
                 return userIds;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to get active user IDs from Redis, falling back to database");
+            _logger.LogWarning(ex, "Failed to get active user IDs from cache, falling back to database");
         }
 
         // Fallback to database
@@ -248,7 +248,7 @@ public class UserActivityService : IUserActivityService
     {
         try
         {
-            // Get active users set from Redis
+            // Get active users set from the cache
             var setData = await _cache.GetStringAsync(ActiveUsersSetKey);
             if (string.IsNullOrEmpty(setData))
                 return null;
@@ -294,7 +294,7 @@ public class UserActivityService : IUserActivityService
 
         try
         {
-            // Try Redis first (fast path)
+            // Try the cache first (fast path)
             var cachedTimestamp = await _cache.GetStringAsync(cacheKey);
             if (!string.IsNullOrEmpty(cachedTimestamp))
             {
@@ -312,7 +312,7 @@ public class UserActivityService : IUserActivityService
                 }
             }
 
-            // If Redis doesn't have the data or it's expired, check the structured cache
+            // If the cache doesn't have the data or it's expired, check the structured cache
             var setKey = $"{CacheKeySet}:{userId}";
             var userActivityData = await _cache.GetStringAsync(setKey);
             if (!string.IsNullOrEmpty(userActivityData))
@@ -336,7 +336,7 @@ public class UserActivityService : IUserActivityService
                 }
             }
 
-            // If activity window is longer than cache expiration, or Redis doesn't have data, fallback to database
+            // If activity window is longer than cache expiration, or the cache doesn't have data, fallback to database
             // This handles cases where the cache has expired but the user might still be active
             _logger.LogInformation("Activity window is {ActivityWindowMinutes} minutes, cache expiration is {CacheExpirationSeconds} seconds", activityWindowMinutes, CacheExpirationSeconds);
             if (activityWindowMinutes * 60 > CacheExpirationSeconds)
@@ -363,7 +363,7 @@ public class UserActivityService : IUserActivityService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to check if user {UserId} is active from Redis, falling back to database", userId);
+            _logger.LogWarning(ex, "Failed to check if user {UserId} is active from cache, falling back to database", userId);
 
             // Fallback to database on error
             try
@@ -390,19 +390,19 @@ public class UserActivityService : IUserActivityService
 public interface IUserActivityService
 {
     /// <summary>
-    /// Records user activity by updating both Redis cache and database.
+    /// Records user activity by updating both the cache and the database.
     /// </summary>
     Task RecordUserActivityAsync(string userId);
 
     /// <summary>
-    /// Gets the count of active users (active within the last hour) from Redis cache.
-    /// Falls back to database if Redis is unavailable.
+    /// Gets the count of active users (active within the last hour) from the cache.
+    /// Falls back to database if the cache is unavailable.
     /// </summary>
     Task<int> GetActiveUsersCountAsync();
 
     /// <summary>
-    /// Gets the list of active user IDs (active within the last hour) from Redis cache.
-    /// Falls back to database if Redis is unavailable.
+    /// Gets the list of active user IDs (active within the last hour) from the cache.
+    /// Falls back to database if the cache is unavailable.
     /// </summary>
     Task<List<string>> GetActiveUserIdsAsync();
 

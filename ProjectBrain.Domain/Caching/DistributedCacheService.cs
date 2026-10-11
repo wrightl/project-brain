@@ -5,15 +5,15 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
 /// <summary>
-/// Redis-based cache service implementation
+/// <see cref="ICacheService"/> over the registered <see cref="IDistributedCache"/>
 /// </summary>
-public class RedisCacheService : ICacheService
+public class DistributedCacheService : ICacheService
 {
     private readonly IDistributedCache _cache;
-    private readonly ILogger<RedisCacheService> _logger;
+    private readonly ILogger<DistributedCacheService> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public RedisCacheService(IDistributedCache cache, ILogger<RedisCacheService> logger)
+    public DistributedCacheService(IDistributedCache cache, ILogger<DistributedCacheService> logger)
     {
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

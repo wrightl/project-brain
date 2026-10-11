@@ -8,7 +8,6 @@ using Azure.Provisioning.CognitiveServices;
 using Azure.Provisioning.Search;
 using Azure.Provisioning.Storage;
 using Azure.Provisioning;
-using Azure.Provisioning.Sql;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -20,8 +19,7 @@ var searchName = "ai-search";
 var openaiName = "openai";
 var speechName = "speech";
 var speechRegion = "westeurope";
-var sqlServerName = $"{appName}";
-var sqlDbName = $"{appName}db";
+var dbName = $"{appName}db";
 var defaultSearchSku = "Free";
 var defaultChatModelName = "gpt-5-mini";
 var defaultChatModelVersion = "2025-08-07";
@@ -32,7 +30,6 @@ var blobName = "blobs";
 
 // Parameters
 var environmentName = builder.AddParameter("deploy-env");
-var replicas = builder.AddParameter("minReplicas");
 var fakeCoachAutoReplyEnabled = builder.AddParameter("fake-coach-auto-reply-enabled");
 
 // Parameters - Azure AI Search
@@ -177,8 +174,7 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
 #pragma warning restore ASPIREPROBES001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         .PublishAsAzureContainerApp((module, app) =>
                         {
-                            // Scale to 0
-                            app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+                            ContainerAppResourceDefaults.SetSingleReplica(app);
                             ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
 #pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                             app.ConfigureCustomDomain(customDomainApi, certificateNameApi);
@@ -223,21 +219,12 @@ if (builder.ExecutionContext.IsPublishMode)
     var otelOtlpHeaders = builder.AddParameter("otel-exporter-otlp-headers", secret: true);
     var otelResourceAttributes = builder.AddParameter("otel-resource-attributes");
 
-    // sql azure
-    var azureSql = builder.AddAzureSqlServer(sqlServerName).ConfigureInfrastructure(infra =>
-    {
-        var database = infra.GetProvisionableResources()
-            .OfType<SqlDatabase>()
-            .Single();
-
-        database.FreeLimitExhaustionBehavior = FreeLimitExhaustionBehavior.BillOverUsage;
-    });
-
-    var azureDb = azureSql.AddDatabase(sqlDbName);
+    // Neon Postgres: the API uses the pooled connection string, migrations use the direct one
+    var db = builder.AddConnectionString(dbName);
+    var dbDirect = builder.AddParameter($"{dbName}-direct", secret: true);
 
     var migrations = builder.AddProject<Projects.ProjectBrain_MigrationService>("migrations")
-        .WithReference(azureDb)
-        .WaitFor(azureDb)
+        .WithEnvironment($"ConnectionStrings__{dbName}", dbDirect)
         .WithMigrationSeedingEnvironment(
             auth0ManagementApiClientSecret,
             auth0ManagementApiClientId,
@@ -247,8 +234,7 @@ if (builder.ExecutionContext.IsPublishMode)
             environmentName)
         .PublishAsAzureContainerAppJob();
 
-    apiService.WithReference(azureDb)
-              .WaitFor(azureDb)
+    apiService.WithReference(db)
               .WaitForCompletion(migrations)
               .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelOtlpEndpoint)
               .WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otelOtlpHeaders)
@@ -278,7 +264,7 @@ if (builder.ExecutionContext.IsPublishMode)
         .WithExternalHttpEndpoints()
         .PublishAsAzureContainerApp((module, app) =>
         {
-            app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+            ContainerAppResourceDefaults.SetSingleReplica(app);
             ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
 #pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             app.ConfigureCustomDomain(customDomainApp, certificateNameApp);
@@ -298,7 +284,7 @@ else
         .WithLifetime(ContainerLifetime.Persistent)
         .WithDataVolume();
 
-    var db = postgres.AddDatabase(sqlDbName, databaseName: appName);
+    var db = postgres.AddDatabase(dbName, databaseName: appName);
 
     var migrations = builder.AddProject<Projects.ProjectBrain_MigrationService>("migrations")
         .WithReference(db)

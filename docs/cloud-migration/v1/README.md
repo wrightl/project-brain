@@ -190,6 +190,12 @@ Nothing else in the API queries the database on a timer, so Neon can suspend:
 
 ### PR 6 — Deployment
 
+> **As built:**
+> - **Connection string format:** Npgsql only accepts keyword format (`Host=...;Database=...;...`), not the `postgresql://` URLs Neon shows. Convert both strings before saving them as GitHub secrets.
+> - **`azd` variable names:** the AppHost parameters are `projectbraindb` (pooled) and `projectbraindb-direct`, so `azd` reads `AZURE_PROJECTBRAINDB` and `AZURE_PROJECTBRAINDB_DIRECT`.
+> - **Generated Bicep:** both apps get `minReplicas: 1` and `maxReplicas: 1`.
+> - **`aspire publish` fails** with a duplicate `location` key from the speech Bicep template. `azd` deploys from the manifest and is unaffected.
+
 **AppHost, publish branch**
 
 - Remove `AddAzureSqlServer`, `azureDb`, the `Azure.Provisioning.Sql` using, the `Aspire.Hosting.Azure.Sql` package and the `sqlPassword` parameter.

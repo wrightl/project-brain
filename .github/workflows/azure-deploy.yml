@@ -27,7 +27,6 @@ jobs:
       CUSTOMDOMAIN_API: ${{ vars.CUSTOMDOMAIN_API }}
       AZURE_ENV_NAME: projectbrain-${{ inputs.deploy_environment }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_MIN_REPLICAS: ${{ vars.MIN_REPLICAS }}
       CERTIFICATE_NAME_APP: ${{ vars.CERTIFICATE_NAME_APP }}
       CUSTOMDOMAIN_APP: ${{ vars.CUSTOMDOMAIN_APP }}
       AZURE_APP_BASE_URL: https://${{ vars.CUSTOMDOMAIN_APP }}
@@ -37,7 +36,10 @@ jobs:
       AZURE_NEXT_PUBLIC_API_SERVER_URL: https://${{ vars.CUSTOMDOMAIN_API }}
       AZURE_LAUNCHDARKLY_SDK_KEY: ${{ secrets.LAUNCHDARKLY_SDK_KEY }}
       AZURE_MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
-      AZURE_PROJECTBRAIN_PASSWORD: ${{ secrets.SQL_PASSWORD }}
+      # Neon Postgres, in Npgsql keyword format (Host=...;Database=...;Username=...;Password=...;SSL Mode=VerifyFull;Connection Idle Lifetime=60)
+      # Pooled endpoint (host contains "-pooler") for the API; direct endpoint for the migrations job.
+      AZURE_PROJECTBRAINDB: ${{ secrets.NEON_DATABASE_URL_POOLED }}
+      AZURE_PROJECTBRAINDB_DIRECT: ${{ secrets.NEON_DATABASE_URL_DIRECT }}
       AZURE_ADMIN_USER_PASSWORD: ${{ secrets.ADMIN_USER_PASSWORD }}
       AZURE_TEST_USERS_PASSWORD: ${{ secrets.TEST_USERS_PASSWORD }}
       AZURE_AUTH0_CLIENTID: ${{ secrets.AUTH0_CLIENT_ID }}

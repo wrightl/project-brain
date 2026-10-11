@@ -5,7 +5,6 @@ using Azure.Provisioning.Expressions;
 using ProjectBrain.AppHost;
 using Azure.Provisioning.AppConfiguration;
 using Azure.Provisioning.CognitiveServices;
-using Azure.Provisioning.RedisEnterprise;
 using Azure.Provisioning.Search;
 using Azure.Provisioning.Storage;
 using Azure.Provisioning;
@@ -17,7 +16,6 @@ var appName = "projectbrain";
 var apiName = "api";
 var frontendName = "frontend";
 var documentstorageName = "documentstorage";
-var cacheName = "azurecache";
 var searchName = "ai-search";
 var openaiName = "openai";
 var speechName = "speech";
@@ -35,7 +33,6 @@ var blobName = "blobs";
 // Parameters
 var environmentName = builder.AddParameter("deploy-env");
 var replicas = builder.AddParameter("minReplicas");
-var sqlPassword = builder.AddParameter($"{sqlServerName}-password", secret: true);
 var fakeCoachAutoReplyEnabled = builder.AddParameter("fake-coach-auto-reply-enabled");
 
 // Parameters - Azure AI Search
@@ -152,28 +149,11 @@ else
     });
 }
 
-// Azure Managed Redis in cloud; local Redis container for development (Aspire 13.1+)
-var cache = builder.AddAzureManagedRedis(cacheName)
-    .WithAccessKeyAuthentication()
-    .ConfigureInfrastructure(infra =>
-    {
-        var cluster = infra.GetProvisionableResources()
-            .OfType<RedisEnterpriseCluster>()
-            .Single();
-
-        // Default HA requires availability zones; disable when subscription lacks zone metadata.
-        cluster.HighAvailability = RedisEnterpriseHighAvailability.Disabled;
-
-        cluster.Zones = null;
-    })
-    .RunAsContainer();
-
 // api
 var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithExternalHttpEndpoints()
                         .WithReference(search)
                         .WithReference(openai)
-                        .WithReference(cache)
                         .WithReference(appConfig)
                         // .WithEnvironment("ConnectionStrings__speech", speechConnectionString)
                         .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
@@ -294,7 +274,6 @@ if (builder.ExecutionContext.IsPublishMode)
         .WithEnvironment("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", googleMapsApiKey)
         .WithReference(apiService)
         .WaitFor(apiService)
-        .WaitFor(cache)
         .WithHttpEndpoint(targetPort: 3000)
         .WithExternalHttpEndpoints()
         .PublishAsAzureContainerApp((module, app) =>
@@ -312,12 +291,14 @@ else
     builder.AddDevTunnel("tunnel")
         .WithReference(apiService);
 
-    // sql server
-    var sql = builder.AddSqlServer(sqlServerName, password: sqlPassword, port: 49976)
+    // postgres — same major version as Neon
+    var dbPassword = builder.AddParameter("db-password", secret: true);
+    var postgres = builder.AddPostgres("postgres", password: dbPassword, port: 49976)
+        .WithImageTag("17")
         .WithLifetime(ContainerLifetime.Persistent)
         .WithDataVolume();
 
-    var db = sql.AddDatabase(sqlDbName);
+    var db = postgres.AddDatabase(sqlDbName, databaseName: appName);
 
     var migrations = builder.AddProject<Projects.ProjectBrain_MigrationService>("migrations")
         .WithReference(db)
@@ -339,7 +320,6 @@ else
     var frontend = builder.AddJavaScriptApp(frontendName, $"../{appName}.{frontendName}", "dev")
         .WithReference(apiService)
         .WaitFor(apiService)
-        .WaitFor(cache)
         .WithExternalHttpEndpoints();
 }
 

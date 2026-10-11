@@ -1,6 +1,6 @@
 # ProjectBrain
 
-Full-stack application built with .NET Aspire (orchestrator), ASP.NET Core Web API, and Next.js frontend. Uses Auth0 for authentication, SQL Server with Entity Framework Core, Redis cache, and Azure Container Apps for deployment.
+Full-stack application built with .NET Aspire (orchestrator), ASP.NET Core Web API, and Next.js frontend. Uses Auth0 for authentication, Postgres with Entity Framework Core, and Azure Container Apps for deployment.
 
 ## Table of contents
 
@@ -85,7 +85,7 @@ npm test
 
 | Path | Description |
 |------|-------------|
-| **ProjectBrain.AppHost** | .NET Aspire orchestrator: provisions and runs API, frontend, SQL, Redis, Azure AI Search, etc. |
+| **ProjectBrain.AppHost** | .NET Aspire orchestrator: provisions and runs API, frontend, Postgres, Azure AI Search, etc. |
 | **ProjectBrain.Api** | ASP.NET Core minimal APIs, Auth0 JWT, OpenAPI/Scalar |
 | **ProjectBrain.Domain** | Business logic, services, repositories, unit of work |
 | **ProjectBrain.Database** | EF Core models, `AppDbContext`, migrations |
@@ -140,14 +140,20 @@ CI (`.github/workflows/ci.yml`) runs on push/PR to `main`: .NET tests and fronte
 
 ## Database and migrations
 
-- **Provider:** SQL Server (EF Core). Models and context in `ProjectBrain.Database`.
-- **Add or update migrations** (from solution root):
+- **Provider:** Postgres 17 (EF Core with Npgsql). Models and context in `ProjectBrain.Database`.
+- **Local database:** the App Host runs a persistent Postgres container on port `49976`. Set its password once:
 
 ```bash
-cd ProjectBrain.Api
-dotnet ef migrations add <MigrationName> --project ../ProjectBrain.Database/ProjectBrain.Database.csproj
-cd ..
+dotnet user-secrets set "Parameters:db-password" "<password>" --project ProjectBrain.AppHost
 ```
+
+- **Add or update migrations** (from solution root). A design-time factory builds the model, so the App Host doesn't need to be running:
+
+```bash
+dotnet ef migrations add <MigrationName> --project ProjectBrain.Database
+```
+
+To run `dotnet ef database update` against a specific database, set `PROJECTBRAIN_DESIGN_CONNECTION` to its connection string.
 
 Use a descriptive name instead of `InitialCreate` for schema changes. Apply migrations as part of your deployment or local startup (App Host / app configuration).
 

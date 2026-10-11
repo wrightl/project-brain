@@ -18,7 +18,7 @@ builder.Services.AddOpenTelemetry()
         Worker.ActivitySourceName,
         DatabaseSeeder.ActivitySourceName));
 
-builder.AddSqlServerDbContext<AppDbContext>(connectionName: "projectbraindb");
+builder.AddNpgsqlDbContext<AppDbContext>(connectionName: "projectbraindb");
 
 var host = builder.Build();
 host.Run();

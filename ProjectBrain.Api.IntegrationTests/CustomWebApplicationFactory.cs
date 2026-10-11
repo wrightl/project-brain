@@ -32,12 +32,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth0:Domain", "test.auth0.com");
         builder.UseSetting("Auth0:ClientId", "test-client");
         builder.UseSetting("Auth0:ClientSecret", "test-secret");
-        builder.UseSetting("ConnectionStrings:projectbraindb", "Server=(localdb)\\mssqllocaldb;Database=TestDb;Trusted_Connection=True;");
+        builder.UseSetting("ConnectionStrings:projectbraindb", "Host=localhost;Database=TestDb;Username=test;Password=test");
         builder.UseSetting("ConnectionStrings:azurecache", "localhost:6379");
         builder.UseSetting("ConnectionStrings:blobs", "UseDevelopmentStorage=true");
         builder.UseSetting("ConnectionStrings:openai", "Endpoint=https://example.openai.azure.com/;Key=fake");
         builder.UseSetting("ConnectionStrings:ai-search", "Endpoint=https://example.search.windows.net;Key=fake");
-        builder.UseSetting("Aspire:Microsoft:EntityFrameworkCore:SqlServer:DisableHealthChecks", "true");
+        builder.UseSetting("Aspire:Npgsql:EntityFrameworkCore:PostgreSQL:DisableHealthChecks", "true");
         builder.UseSetting("Aspire:StackExchange:Redis:DisableHealthChecks", "true");
         builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
         builder.UseSetting("PushNotifications:Enabled", "false");
@@ -46,12 +46,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:projectbraindb"] = "Server=(localdb)\\mssqllocaldb;Database=TestDb;Trusted_Connection=True;",
+                ["ConnectionStrings:projectbraindb"] = "Host=localhost;Database=TestDb;Username=test;Password=test",
                 ["ConnectionStrings:azurecache"] = "localhost:6379",
                 ["ConnectionStrings:blobs"] = "UseDevelopmentStorage=true",
                 ["ConnectionStrings:openai"] = "Endpoint=https://example.openai.azure.com/;Key=fake",
                 ["ConnectionStrings:ai-search"] = "Endpoint=https://example.search.windows.net;Key=fake",
-                ["Aspire:Microsoft:EntityFrameworkCore:SqlServer:DisableHealthChecks"] = "true",
+                ["Aspire:Npgsql:EntityFrameworkCore:PostgreSQL:DisableHealthChecks"] = "true",
                 ["Aspire:StackExchange:Redis:DisableHealthChecks"] = "true",
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "",
                 ["OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY"] = "none",

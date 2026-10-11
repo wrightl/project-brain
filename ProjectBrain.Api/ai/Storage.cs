@@ -439,8 +439,8 @@ public class Storage
                             Location = blobPath,
                             SizeInBytes = blobSize,
                             UserId = userId is null ? string.Empty : userId!,
-                            CreatedAt = DateTime.Now,
-                            UpdatedAt = DateTime.Now,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow,
                             IsShared = userId is null ? true : false
                         };
 

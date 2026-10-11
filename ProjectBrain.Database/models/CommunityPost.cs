@@ -23,7 +23,6 @@ public class CommunityPost
 
     [Required]
     [StringLength(2000)]
-    [Column(TypeName = "nvarchar(2000)")]
     public string Body { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

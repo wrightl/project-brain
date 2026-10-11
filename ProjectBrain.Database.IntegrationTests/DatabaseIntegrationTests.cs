@@ -5,16 +5,16 @@ using Moq;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Repositories;
 using ProjectBrain.Domain.UnitOfWork;
-using Testcontainers.MsSql;
+using Testcontainers.PostgreSql;
 
 namespace ProjectBrain.Database.IntegrationTests;
 
 /// <summary>
-/// Integration tests using a real SQL Server container via Testcontainers
+/// Integration tests using a real Postgres container via Testcontainers
 /// </summary>
 public class DatabaseIntegrationTests : IAsyncLifetime
 {
-    private readonly MsSqlContainer _msSqlContainer;
+    private readonly PostgreSqlContainer _postgresContainer;
     private string? _connectionString;
     private AppDbContext? _context;
     private IUserService? _userService;
@@ -23,26 +23,23 @@ public class DatabaseIntegrationTests : IAsyncLifetime
 
     public DatabaseIntegrationTests()
     {
-        _msSqlContainer = new MsSqlBuilder()
-            .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-            .WithPassword("YourStrong@Passw0rd")
-            .Build();
+        _postgresContainer = new PostgreSqlBuilder("postgres:17").Build();
     }
 
     public async Task InitializeAsync()
     {
-        await _msSqlContainer.StartAsync();
+        await _postgresContainer.StartAsync();
 
-        _connectionString = _msSqlContainer.GetConnectionString();
+        _connectionString = _postgresContainer.GetConnectionString();
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlServer(_connectionString)
+            .UseNpgsql(_connectionString)
             .Options;
 
         var mockLogger = new Mock<ILogger<AppDbContext>>();
         _context = new AppDbContext(options, mockLogger.Object);
 
-        // Create database schema
-        await _context.Database.EnsureCreatedAsync();
+        // Create the schema from the real migrations
+        await _context.Database.MigrateAsync();
 
         var userRepository = new ProjectBrain.Domain.Repositories.UserRepository(_context);
         var conversationRepository = new ProjectBrain.Domain.Repositories.ConversationRepository(_context);
@@ -59,7 +56,7 @@ public class DatabaseIntegrationTests : IAsyncLifetime
         {
             await _context.DisposeAsync();
         }
-        await _msSqlContainer.DisposeAsync();
+        await _postgresContainer.DisposeAsync();
     }
 
     [Fact]
@@ -295,7 +292,7 @@ public class DatabaseIntegrationTests : IAsyncLifetime
             tasks.Add(Task.Run(async () =>
             {
                 var options = new DbContextOptionsBuilder<AppDbContext>()
-                    .UseSqlServer(_connectionString!)
+                    .UseNpgsql(_connectionString!)
                     .Options;
 
                 await using var context = new AppDbContext(options, mockLogger.Object);

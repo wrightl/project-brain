@@ -155,9 +155,9 @@ public class UserActivityService : IUserActivityService
 
         try
         {
-            await _context.Database.ExecuteSqlRawAsync(
-                "UPDATE Users SET LastActivityAt = {0} WHERE Id = {1}",
-                timestamp, userId);
+            await _context.Users
+                .Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.LastActivityAt, timestamp));
         }
         catch (Exception ex)
         {

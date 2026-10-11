@@ -14,7 +14,6 @@ public class OnboardingData
     public User? User { get; set; }
 
     [Required]
-    [Column(TypeName = "nvarchar(max)")]
     public required string OnboardingJson { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

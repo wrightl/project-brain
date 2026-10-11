@@ -18,7 +18,6 @@ public class QuizResponse
 
     // Store answers as JSON string
     [Required]
-    [Column(TypeName = "nvarchar(max)")]
     public required string AnswersJson { get; set; }
 
     public decimal? Score { get; set; }

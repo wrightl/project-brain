@@ -10,7 +10,6 @@ public class JournalEntry
     public string UserId { get; set; } = string.Empty;
 
     [Required]
-    [Column(TypeName = "nvarchar(max)")]
     public string Content { get; set; } = string.Empty;
 
     [StringLength(500)]

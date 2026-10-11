@@ -133,7 +133,7 @@ public class SubscriptionAnalyticsService : ISubscriptionAnalyticsService
         // Group by month
         for (var date = startDate; date <= endDate; date = date.AddMonths(1))
         {
-            var monthStart = new DateTime(date.Year, date.Month, 1);
+            var monthStart = new DateTime(date.Year, date.Month, 1, 0, 0, 0, DateTimeKind.Utc);
             var monthEnd = monthStart.AddMonths(1).AddDays(-1);
 
             var revenue = await GetRevenueAsync(userType, monthStart, monthEnd);

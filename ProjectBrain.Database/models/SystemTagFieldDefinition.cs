@@ -36,7 +36,6 @@ public class SystemTagFieldDefinition
     [StringLength(500)]
     public string? Hint { get; set; }
 
-    [Column(TypeName = "nvarchar(max)")]
     public string? OptionsJson { get; set; }
 
     [Column(TypeName = "decimal(10,2)")]

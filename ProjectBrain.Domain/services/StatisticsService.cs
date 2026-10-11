@@ -98,7 +98,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<int> GetLoggedInUsersCountAsync()
     {
-        // Use UserActivityService which handles Redis + database fallback
+        // Use UserActivityService which handles cache + database fallback
         return await _userActivityService.GetActiveUsersCountAsync();
     }
 
@@ -156,7 +156,7 @@ public class StatisticsService : IStatisticsService
             {
                 if (period.ToLower() == "lastmonth")
                 {
-                    var thisMonthStart = new DateTime(now.Year, now.Month, 1);
+                    var thisMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
                     var lastMonthStart = thisMonthStart.AddMonths(-1);
                     var lastMonthEnd = thisMonthStart.AddTicks(-1);
 
@@ -195,7 +195,7 @@ public class StatisticsService : IStatisticsService
             "3d" or "last3days" => now.AddDays(-3),
             "7d" or "last7days" => now.AddDays(-7),
             "30d" or "last30days" => now.AddDays(-30),
-            "thismonth" => new DateTime(now.Year, now.Month, 1),
+            "thismonth" => new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc),
             _ => null
         };
     }

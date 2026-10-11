@@ -21,11 +21,9 @@ public class AgentAction
     public string ToolName { get; set; } = string.Empty; // e.g., "create_daily_goals"
 
     [Required]
-    [Column(TypeName = "nvarchar(max)")]
     public string ToolParameters { get; set; } = "{}"; // JSON string of parameters
 
     [Required]
-    [Column(TypeName = "nvarchar(max)")]
     public string ToolResult { get; set; } = "{}"; // JSON string of result
 
     [Required]

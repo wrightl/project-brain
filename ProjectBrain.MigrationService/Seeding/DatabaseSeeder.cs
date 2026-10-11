@@ -29,6 +29,7 @@ public class DatabaseSeeder(
 
         await CriticalDatabaseSeeder.SeedRolesAsync(context, logger, cancellationToken);
         await CriticalDatabaseSeeder.SeedSubscriptionTiersAsync(context, logger, cancellationToken);
+        await CriticalDatabaseSeeder.SeedCommunityChannelsAsync(context, logger, cancellationToken);
         await SeedDeferredAsync(context, identitySeedingService, configuration, hostEnvironment, cancellationToken);
 
         logger.LogInformation("Database seeding completed after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);

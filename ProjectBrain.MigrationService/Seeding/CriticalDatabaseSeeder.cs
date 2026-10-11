@@ -61,35 +61,22 @@ public static class CriticalDatabaseSeeder
         {
             logger.LogInformation("Seeding subscription tiers...");
 
+            await context.SubscriptionTiers.AddRangeAsync(
+            [
+                new SubscriptionTier { Id = 1, Name = "Free", UserType = "user", Features = "{}" },
+                new SubscriptionTier { Id = 2, Name = "Pro", UserType = "user", Features = "{}" },
+                new SubscriptionTier { Id = 3, Name = "Ultimate", UserType = "user", Features = "{}" },
+                new SubscriptionTier { Id = 4, Name = "Free", UserType = "coach", Features = "{}" },
+                new SubscriptionTier { Id = 5, Name = "Pro", UserType = "coach", Features = "{}" },
+            ], cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+
             if (context.Database.IsRelational())
             {
-                var sql = @"
-                SET IDENTITY_INSERT [SubscriptionTiers] ON;
-
-                INSERT INTO [SubscriptionTiers] ([Id], [Name], [UserType], [Features])
-                VALUES
-                    (1, N'Free', N'user', N'{{}}'),
-                    (2, N'Pro', N'user', N'{{}}'),
-                    (3, N'Ultimate', N'user', N'{{}}'),
-                    (4, N'Free', N'coach', N'{{}}'),
-                    (5, N'Pro', N'coach', N'{{}}');
-
-                SET IDENTITY_INSERT [SubscriptionTiers] OFF;
-            ";
-
-                await context.Database.ExecuteSqlRawAsync(sql, cancellationToken);
-            }
-            else
-            {
-                await context.SubscriptionTiers.AddRangeAsync(
-                [
-                    new SubscriptionTier { Id = 1, Name = "Free", UserType = "user", Features = "{}" },
-                    new SubscriptionTier { Id = 2, Name = "Pro", UserType = "user", Features = "{}" },
-                    new SubscriptionTier { Id = 3, Name = "Ultimate", UserType = "user", Features = "{}" },
-                    new SubscriptionTier { Id = 4, Name = "Free", UserType = "coach", Features = "{}" },
-                    new SubscriptionTier { Id = 5, Name = "Pro", UserType = "coach", Features = "{}" },
-                ], cancellationToken);
-                await context.SaveChangesAsync(cancellationToken);
+                // Explicit ids do not advance the identity sequence; move it past them so the next insert does not collide.
+                await context.Database.ExecuteSqlRawAsync(
+                    """SELECT setval(pg_get_serial_sequence('"SubscriptionTiers"', 'Id'), (SELECT MAX("Id") FROM "SubscriptionTiers"))""",
+                    cancellationToken);
             }
 
             logger.LogInformation("Subscription tiers seeded successfully");
@@ -98,5 +85,31 @@ public static class CriticalDatabaseSeeder
         {
             logger.LogInformation("Subscription tiers already exist, skipping seed");
         }
+    }
+
+    public static async Task SeedCommunityChannelsAsync(
+        AppDbContext context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        if (await context.CommunityChannels.AnyAsync(cancellationToken))
+        {
+            logger.LogInformation("Community channels already exist, skipping seed");
+            return;
+        }
+
+        logger.LogInformation("Seeding community channels...");
+
+        // Fixed ids so links to a channel are stable across environments
+        await context.CommunityChannels.AddRangeAsync(
+        [
+            new CommunityChannel { Id = Guid.Parse("11111111-1111-1111-1111-111111111101"), Slug = "introductions", Name = "Introductions", Description = "Say hello and share a bit about yourself.", SortOrder = 1 },
+            new CommunityChannel { Id = Guid.Parse("11111111-1111-1111-1111-111111111102"), Slug = "wins", Name = "Wins", Description = "Celebrate small and big wins.", SortOrder = 2 },
+            new CommunityChannel { Id = Guid.Parse("11111111-1111-1111-1111-111111111103"), Slug = "struggles", Name = "Struggles", Description = "Share what's hard — you're not alone.", SortOrder = 3 },
+            new CommunityChannel { Id = Guid.Parse("11111111-1111-1111-1111-111111111104"), Slug = "tips", Name = "Tips", Description = "Practical tips and strategies that help.", SortOrder = 4 },
+        ], cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("Community channels seeded successfully");
     }
 }

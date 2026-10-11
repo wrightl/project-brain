@@ -23,4 +23,14 @@ internal static class ContainerAppResourceDefaults
             container.Resources.Memory = "0.5Gi";
         }
     }
+
+    /// <summary>
+    /// Keeps exactly one replica running: never scaled to zero (no cold start), never scaled out,
+    /// because the in-memory cache and SignalR hub assume a single instance.
+    /// </summary>
+    internal static void SetSingleReplica(ContainerApp app)
+    {
+        app.Template.Scale.MinReplicas = 1;
+        app.Template.Scale.MaxReplicas = 1;
+    }
 }

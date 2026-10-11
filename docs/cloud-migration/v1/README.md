@@ -75,6 +75,13 @@ PR 1 removes the SQL Server and Redis packages and PR 6 removes `Aspire.Hosting.
 
 ### PR 1 — Postgres provider and schema
 
+> **As built:** this PR also covers the following, which the original plan didn't list or placed elsewhere:
+> - **Emails:** `User.Email` is a `citext` column, so email lookups ignore case. This replaces normalising emails in code. `ILike` wasn't used because `_` in an address would act as a wildcard.
+> - **Dates:** a model-wide `UtcDateTimeConverter` treats `Unspecified` `DateTime` values as UTC and converts `Local` ones. This covers values from client JSON and from LINQ query parameters, not just the call sites fixed directly.
+> - **Check constraints:** the two `Goal` check constraints were rewritten from SQL Server syntax (`[Index]`, `LEN()`).
+> - **Community channels:** the four default channels, previously inserted by the deleted `AddCommunityHub` migration, are now seeded by `CriticalDatabaseSeeder.SeedCommunityChannelsAsync`.
+> - **Integration tests (from PR 5):** the database integration tests moved to Testcontainers Postgres in this PR and run the real migration. `PostgresBehaviourTests` covers the behaviour changes. The obsolete `CountriesMigrationTests` was removed.
+
 **Packages**
 
 - `ProjectBrain.Database` and `ProjectBrain.MigrationService`: replace `Aspire.Microsoft.EntityFrameworkCore.SqlServer` with `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` (the same version PR 0 moved the other Aspire packages to).
@@ -167,6 +174,8 @@ Nothing else in the API queries the database on a timer, so Neon can suspend:
 
 ### PR 5 — Tests
 
+> **As built:** the move to Postgres and the behaviour tests were done in PR 1. What remains is the API integration test factory clean-up that goes with PR 3 (removing the Redis settings).
+
 - `ProjectBrain.Database.IntegrationTests`:
   - Replace `Testcontainers.MsSql` with `Testcontainers.PostgreSql`, using the `postgres:17` image.
   - Replace `Microsoft.EntityFrameworkCore.SqlServer` with `Npgsql.EntityFrameworkCore.PostgreSQL`.
@@ -180,6 +189,12 @@ Nothing else in the API queries the database on a timer, so Neon can suspend:
 - `.github/workflows/test.yml` needs no change: Testcontainers starts its own container on the GitHub runner.
 
 ### PR 6 — Deployment
+
+> **As built:**
+> - **Connection string format:** Npgsql only accepts keyword format (`Host=...;Database=...;...`), not the `postgresql://` URLs Neon shows. Convert both strings before saving them as GitHub secrets.
+> - **`azd` variable names:** the AppHost parameters are `projectbraindb` (pooled) and `projectbraindb-direct`, so `azd` reads `AZURE_PROJECTBRAINDB` and `AZURE_PROJECTBRAINDB_DIRECT`.
+> - **Generated Bicep:** both apps get `minReplicas: 1` and `maxReplicas: 1`.
+> - **`aspire publish` fails** with a duplicate `location` key from the speech Bicep template. `azd` deploys from the manifest and is unaffected.
 
 **AppHost, publish branch**
 

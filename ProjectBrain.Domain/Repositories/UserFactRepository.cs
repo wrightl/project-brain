@@ -55,7 +55,7 @@ public class UserFactRepository : Repository<UserFact, Guid>, IUserFactRepositor
         return await _dbSet.AsNoTracking()
             .Where(x => x.UserId == userId
                         && x.Status == MemoryStatuses.Active
-                        && EF.Functions.Like(x.Content, pattern))
+                        && EF.Functions.ILike(x.Content, pattern))
             .OrderByDescending(x => x.UpdatedAt)
             .Take(limit)
             .ToListAsync(cancellationToken);

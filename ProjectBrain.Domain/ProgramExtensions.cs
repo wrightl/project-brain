@@ -61,7 +61,7 @@ public static class ProgramExtensions
         builder.Services.AddScoped<ICommunityReportRepository, CommunityReportRepository>();
 
         // Register Cache Service
-        builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.RedisCacheService>();
+        builder.Services.AddScoped<ProjectBrain.Domain.Caching.ICacheService, ProjectBrain.Domain.Caching.DistributedCacheService>();
 
         // Register Services
         builder.Services.AddScoped<IUserService, UserService>();

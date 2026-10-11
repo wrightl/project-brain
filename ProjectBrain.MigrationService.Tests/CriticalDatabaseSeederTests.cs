@@ -44,5 +44,27 @@ public class CriticalDatabaseSeederTests : IDisposable
         (await _context.SubscriptionTiers.CountAsync()).Should().Be(5);
     }
 
+    [Fact]
+    public async Task SeedCommunityChannelsAsync_CreatesDefaultChannels_WhenMissing()
+    {
+        var logger = new Mock<ILogger>();
+
+        await CriticalDatabaseSeeder.SeedCommunityChannelsAsync(_context, logger.Object);
+
+        _context.CommunityChannels.OrderBy(c => c.SortOrder).Select(c => c.Slug).Should().Equal(
+            "introductions", "wins", "struggles", "tips");
+    }
+
+    [Fact]
+    public async Task SeedCommunityChannelsAsync_DoesNothing_WhenChannelsExist()
+    {
+        var logger = new Mock<ILogger>();
+
+        await CriticalDatabaseSeeder.SeedCommunityChannelsAsync(_context, logger.Object);
+        await CriticalDatabaseSeeder.SeedCommunityChannelsAsync(_context, logger.Object);
+
+        (await _context.CommunityChannels.CountAsync()).Should().Be(4);
+    }
+
     public void Dispose() => _context.Dispose();
 }

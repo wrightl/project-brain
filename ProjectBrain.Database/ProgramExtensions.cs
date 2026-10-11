@@ -16,8 +16,8 @@ public static class ProgramExtensions
         builder.Services.AddHostedService<DatabaseStartupHostedService>();
         builder.Services.AddScoped<IDevelopmentDataSeeder, DevelopmentDataSeeder>();
 
-        // sql — disable Aspire EF health checks so readiness probes do not open SQL sessions
-        builder.AddSqlServerDbContext<AppDbContext>(
+        // postgres — disable Aspire EF health checks so readiness probes do not wake the database
+        builder.AddNpgsqlDbContext<AppDbContext>(
             connectionName: "projectbraindb",
             configureSettings: settings => settings.DisableHealthChecks = true);
     }

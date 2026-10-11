@@ -5,9 +5,21 @@ using ProjectBrain.Database.Models;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbContext> logger) : DbContext(options)
 {
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<DateTime>().HaveConversion<ProjectBrain.Database.UtcDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<ProjectBrain.Database.UtcDateTimeConverter>();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         logger.LogInformation("OnModelCreating");
+
+        // Emails compare case-insensitively, as they did under SQL Server's default collation
+        modelBuilder.HasPostgresExtension("citext");
+        modelBuilder.Entity<User>()
+            .Property(u => u.Email)
+            .HasColumnType("citext");
 
         modelBuilder.Entity<Conversation>()
             .HasMany(c => c.Messages)
@@ -334,7 +346,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         // Configure AvailabilityStatus enum to be stored as string
         modelBuilder.Entity<CoachProfile>()
             .Property(cp => cp.AvailabilityStatus)
-            .HasConversion<string>();
+            .HasConversion<string>()
+            .HasMaxLength(20);
 
         // Configure JournalEntry relationships
         modelBuilder.Entity<JournalEntry>()
@@ -453,8 +466,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ILogger<AppDbC
         modelBuilder.Entity<Goal>()
             .ToTable("Goals", t =>
             {
-                t.HasCheckConstraint("CK_Goal_Index", "[Index] >= 0 AND [Index] <= 2");
-                t.HasCheckConstraint("CK_Goal_MessageLength", "LEN([Message]) <= 500");
+                t.HasCheckConstraint("CK_Goal_Index", "\"Index\" >= 0 AND \"Index\" <= 2");
+                t.HasCheckConstraint("CK_Goal_MessageLength", "char_length(\"Message\") <= 500");
             });
 
         // Configure OnboardingData relationships

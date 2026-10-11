@@ -93,3 +93,5 @@ next-steps.md
 appsettings.Development.json
 
 **/.md/**
+# Local scratch file with database connection strings
+neon.txt

@@ -1,6 +1,6 @@
 # ProjectBrain
 
-Full-stack application built with .NET Aspire (orchestrator), ASP.NET Core Web API, and Next.js frontend. Uses Auth0 for authentication, SQL Server with Entity Framework Core, Redis cache, and Azure Container Apps for deployment.
+Full-stack application built with .NET Aspire (orchestrator), ASP.NET Core Web API, and Next.js frontend. Uses Auth0 for authentication, Postgres with Entity Framework Core, and Azure Container Apps for deployment.
 
 ## Table of contents
 
@@ -85,7 +85,7 @@ npm test
 
 | Path | Description |
 |------|-------------|
-| **ProjectBrain.AppHost** | .NET Aspire orchestrator: provisions and runs API, frontend, SQL, Redis, Azure AI Search, etc. |
+| **ProjectBrain.AppHost** | .NET Aspire orchestrator: provisions and runs API, frontend, Postgres, Azure AI Search, etc. |
 | **ProjectBrain.Api** | ASP.NET Core minimal APIs, Auth0 JWT, OpenAPI/Scalar |
 | **ProjectBrain.Domain** | Business logic, services, repositories, unit of work |
 | **ProjectBrain.Database** | EF Core models, `AppDbContext`, migrations |
@@ -140,14 +140,20 @@ CI (`.github/workflows/ci.yml`) runs on push/PR to `main`: .NET tests and fronte
 
 ## Database and migrations
 
-- **Provider:** SQL Server (EF Core). Models and context in `ProjectBrain.Database`.
-- **Add or update migrations** (from solution root):
+- **Provider:** Postgres 17 (EF Core with Npgsql). Models and context in `ProjectBrain.Database`.
+- **Local database:** the App Host runs a persistent Postgres container on port `49976`. Set its password once:
 
 ```bash
-cd ProjectBrain.Api
-dotnet ef migrations add <MigrationName> --project ../ProjectBrain.Database/ProjectBrain.Database.csproj
-cd ..
+dotnet user-secrets set "Parameters:db-password" "<password>" --project ProjectBrain.AppHost
 ```
+
+- **Add or update migrations** (from solution root). A design-time factory builds the model, so the App Host doesn't need to be running:
+
+```bash
+dotnet ef migrations add <MigrationName> --project ProjectBrain.Database
+```
+
+To run `dotnet ef database update` against a specific database, set `PROJECTBRAIN_DESIGN_CONNECTION` to its connection string.
 
 Use a descriptive name instead of `InitialCreate` for schema changes. Apply migrations as part of your deployment or local startup (App Host / app configuration).
 
@@ -203,8 +209,8 @@ The repo uses **GitHub Actions** with **OIDC** (no stored Azure credentials). Th
 **Setup (summary):**
 
 1. Create GitHub Environments: `staging`, `production`.
-2. **Secrets** (per environment): `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and all app secrets (Auth0, SQL, cache, Mailgun, LaunchDarkly, Firebase, etc.) as listed in [DEPLOYMENT_GITHUB_ACTIONS.md](DEPLOYMENT_GITHUB_ACTIONS.md).
-3. **Variables** (per environment): `AZURE_ENV_NAME`, `AZURE_LOCATION`, `AZURE_SUBSCRIPTION_ID`, `DEPLOYMENT_ENVIRONMENT`, `MIN_REPLICAS`, and optional custom domain/certificate vars.
+2. **Secrets** (per environment): `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `NEON_DATABASE_URL_POOLED`, `NEON_DATABASE_URL_DIRECT`, and all app secrets (Auth0, Mailgun, LaunchDarkly, Firebase, etc.) as listed in [DEPLOYMENT_GITHUB_ACTIONS.md](DEPLOYMENT_GITHUB_ACTIONS.md).
+3. **Variables** (per environment): `AZURE_ENV_NAME`, `AZURE_LOCATION`, `AZURE_SUBSCRIPTION_ID`, `DEPLOYMENT_ENVIRONMENT`, and optional custom domain/certificate vars.
 
 Full list of env vars and secrets, and how they map to `azd`, is in [DEPLOYMENT_GITHUB_ACTIONS.md](DEPLOYMENT_GITHUB_ACTIONS.md).
 
@@ -234,9 +240,18 @@ az containerapp env certificate create \
 
 Detailed steps: [withaspire.dev – Custom domains with Aspire](https://www.withaspire.dev/custom-domains-with-aspire/).
 
-### SQL Server access (new Azure deployments)
+### Database (Neon)
 
-For new Azure deployments, you may need to grant yourself access to the SQL database. In Azure Portal: **SQL Server → Settings → Microsoft Entra ID → Set admin** to your identity.
+Deployed environments use Neon Postgres (`aws-eu-west-2`), one branch per environment, with scale to zero enabled. The API and frontend Container Apps run exactly one replica each, so there is no cold start and the in-memory cache stays consistent.
+
+Store both connection strings in Npgsql keyword format (Neon shows URLs; Npgsql does not accept them):
+
+- `NEON_DATABASE_URL_POOLED` — pooled endpoint (host contains `-pooler`), used by the API.
+- `NEON_DATABASE_URL_DIRECT` — direct endpoint, used by the migrations job.
+
+```text
+Host=<endpoint>.eu-west-2.aws.neon.tech;Database=projectbrain;Username=<role>;Password=<password>;SSL Mode=VerifyFull;Connection Idle Lifetime=60
+```
 
 ### Infrastructure as code
 

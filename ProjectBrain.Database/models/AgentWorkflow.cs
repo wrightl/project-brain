@@ -23,11 +23,9 @@ public class AgentWorkflow
     public string Status { get; set; } = "active"; // "active", "paused", "completed", "failed"
 
     [Required]
-    [Column(TypeName = "nvarchar(max)")]
     public string CurrentState { get; set; } = "{}"; // JSON string of current workflow state
 
     [Required]
-    [Column(TypeName = "nvarchar(max)")]
     public string ToolExecutionHistory { get; set; } = "[]"; // JSON array of executed tools
 
     [Required]

@@ -3,7 +3,7 @@ using ProjectBrain.Database;
 namespace ProjectBrain.Api.Middlewares;
 
 /// <summary>
-/// Returns 503 until SQL warmup completes so clients can retry during serverless resume
+/// Returns 503 until the first database connection succeeds so clients can retry while the database resumes
 /// without ACA readiness probes needing to hit the database.
 /// </summary>
 public class DatabaseStartupGateMiddleware

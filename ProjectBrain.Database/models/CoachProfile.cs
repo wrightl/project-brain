@@ -14,7 +14,6 @@ public class CoachProfile
     [ForeignKey(nameof(UserId))]
     public User? User { get; set; }
 
-    [Column(TypeName = "nvarchar(20)")]
     public AvailabilityStatus? AvailabilityStatus { get; set; }
 
     [StringLength(2000)]

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Background service that syncs Redis activity data from the database when requested
+/// Background service that syncs cached activity data from the database when requested
 /// (on demand or when users are active). Runs only when triggered to avoid unnecessary DB usage.
 /// </summary>
 public class UserActivitySyncService : BackgroundService
@@ -62,8 +62,8 @@ public class UserActivitySyncService : BackgroundService
                 .Select(u => new { u.Id, u.LastActivityAt })
                 .ToListAsync(cancellationToken);
 
-            // Verify each user's activity is in Redis, and if not, ensure it's there
-            // This helps recover from Redis failures
+            // Verify each user's activity is in the cache, and if not, ensure it's there
+            // This helps recover from cache loss (e.g. after a restart)
             foreach (var user in activeUsers)
             {
                 if (user.LastActivityAt == null)
@@ -82,7 +82,7 @@ public class UserActivitySyncService : BackgroundService
                     var timestamp = user.LastActivityAt.Value.ToBinary().ToString();
                     await cache.SetStringAsync(cacheKey, timestamp, cacheOptions, cancellationToken);
                     
-                    _logger.LogDebug("Restored user {UserId} activity in Redis cache", user.Id);
+                    _logger.LogDebug("Restored user {UserId} activity in cache", user.Id);
                 }
             }
 

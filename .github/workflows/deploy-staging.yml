@@ -19,8 +19,3 @@ jobs:
     with:
       deploy_environment: staging
     secrets: inherit
-
-  scale:
-    needs: deploy
-    uses: ./.github/workflows/scale-staging-container-apps.yml
-    secrets: inherit

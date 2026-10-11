@@ -5,11 +5,9 @@ using Azure.Provisioning.Expressions;
 using ProjectBrain.AppHost;
 using Azure.Provisioning.AppConfiguration;
 using Azure.Provisioning.CognitiveServices;
-using Azure.Provisioning.RedisEnterprise;
 using Azure.Provisioning.Search;
 using Azure.Provisioning.Storage;
 using Azure.Provisioning;
-using Azure.Provisioning.Sql;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -17,13 +15,11 @@ var appName = "projectbrain";
 var apiName = "api";
 var frontendName = "frontend";
 var documentstorageName = "documentstorage";
-var cacheName = "azurecache";
 var searchName = "ai-search";
 var openaiName = "openai";
 var speechName = "speech";
 var speechRegion = "westeurope";
-var sqlServerName = $"{appName}";
-var sqlDbName = $"{appName}db";
+var dbName = $"{appName}db";
 var defaultSearchSku = "Free";
 var defaultChatModelName = "gpt-5-mini";
 var defaultChatModelVersion = "2025-08-07";
@@ -34,8 +30,6 @@ var blobName = "blobs";
 
 // Parameters
 var environmentName = builder.AddParameter("deploy-env");
-var replicas = builder.AddParameter("minReplicas");
-var sqlPassword = builder.AddParameter($"{sqlServerName}-password", secret: true);
 var fakeCoachAutoReplyEnabled = builder.AddParameter("fake-coach-auto-reply-enabled");
 
 // Parameters - Azure AI Search
@@ -152,28 +146,11 @@ else
     });
 }
 
-// Azure Managed Redis in cloud; local Redis container for development (Aspire 13.1+)
-var cache = builder.AddAzureManagedRedis(cacheName)
-    .WithAccessKeyAuthentication()
-    .ConfigureInfrastructure(infra =>
-    {
-        var cluster = infra.GetProvisionableResources()
-            .OfType<RedisEnterpriseCluster>()
-            .Single();
-
-        // Default HA requires availability zones; disable when subscription lacks zone metadata.
-        cluster.HighAvailability = RedisEnterpriseHighAvailability.Disabled;
-
-        cluster.Zones = null;
-    })
-    .RunAsContainer();
-
 // api
 var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
                         .WithExternalHttpEndpoints()
                         .WithReference(search)
                         .WithReference(openai)
-                        .WithReference(cache)
                         .WithReference(appConfig)
                         // .WithEnvironment("ConnectionStrings__speech", speechConnectionString)
                         .WithEnvironment("Auth0__ManagementApiClientSecret", auth0ManagementApiClientSecret)
@@ -197,8 +174,7 @@ var apiService = builder.AddProject<Projects.ProjectBrain_Api>(apiName)
 #pragma warning restore ASPIREPROBES001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         .PublishAsAzureContainerApp((module, app) =>
                         {
-                            // Scale to 0
-                            app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+                            ContainerAppResourceDefaults.SetSingleReplica(app);
                             ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
 #pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                             app.ConfigureCustomDomain(customDomainApi, certificateNameApi);
@@ -243,21 +219,12 @@ if (builder.ExecutionContext.IsPublishMode)
     var otelOtlpHeaders = builder.AddParameter("otel-exporter-otlp-headers", secret: true);
     var otelResourceAttributes = builder.AddParameter("otel-resource-attributes");
 
-    // sql azure
-    var azureSql = builder.AddAzureSqlServer(sqlServerName).ConfigureInfrastructure(infra =>
-    {
-        var database = infra.GetProvisionableResources()
-            .OfType<SqlDatabase>()
-            .Single();
-
-        database.FreeLimitExhaustionBehavior = FreeLimitExhaustionBehavior.BillOverUsage;
-    });
-
-    var azureDb = azureSql.AddDatabase(sqlDbName);
+    // Neon Postgres: the API uses the pooled connection string, migrations use the direct one
+    var db = builder.AddConnectionString(dbName);
+    var dbDirect = builder.AddParameter($"{dbName}-direct", secret: true);
 
     var migrations = builder.AddProject<Projects.ProjectBrain_MigrationService>("migrations")
-        .WithReference(azureDb)
-        .WaitFor(azureDb)
+        .WithEnvironment($"ConnectionStrings__{dbName}", dbDirect)
         .WithMigrationSeedingEnvironment(
             auth0ManagementApiClientSecret,
             auth0ManagementApiClientId,
@@ -267,8 +234,7 @@ if (builder.ExecutionContext.IsPublishMode)
             environmentName)
         .PublishAsAzureContainerAppJob();
 
-    apiService.WithReference(azureDb)
-              .WaitFor(azureDb)
+    apiService.WithReference(db)
               .WaitForCompletion(migrations)
               .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelOtlpEndpoint)
               .WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otelOtlpHeaders)
@@ -294,12 +260,11 @@ if (builder.ExecutionContext.IsPublishMode)
         .WithEnvironment("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY", googleMapsApiKey)
         .WithReference(apiService)
         .WaitFor(apiService)
-        .WaitFor(cache)
         .WithHttpEndpoint(targetPort: 3000)
         .WithExternalHttpEndpoints()
         .PublishAsAzureContainerApp((module, app) =>
         {
-            app.Template.Scale.MinReplicas = replicas.AsProvisioningParameter(module);
+            ContainerAppResourceDefaults.SetSingleReplica(app);
             ContainerAppResourceDefaults.ApplyQuarterCoreHalfGi(app);
 #pragma warning disable ASPIREACADOMAINS001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             app.ConfigureCustomDomain(customDomainApp, certificateNameApp);
@@ -312,12 +277,14 @@ else
     builder.AddDevTunnel("tunnel")
         .WithReference(apiService);
 
-    // sql server
-    var sql = builder.AddSqlServer(sqlServerName, password: sqlPassword, port: 49976)
+    // postgres — same major version as Neon
+    var dbPassword = builder.AddParameter("db-password", secret: true);
+    var postgres = builder.AddPostgres("postgres", password: dbPassword, port: 49976)
+        .WithImageTag("17")
         .WithLifetime(ContainerLifetime.Persistent)
         .WithDataVolume();
 
-    var db = sql.AddDatabase(sqlDbName);
+    var db = postgres.AddDatabase(dbName, databaseName: appName);
 
     var migrations = builder.AddProject<Projects.ProjectBrain_MigrationService>("migrations")
         .WithReference(db)
@@ -339,7 +306,6 @@ else
     var frontend = builder.AddJavaScriptApp(frontendName, $"../{appName}.{frontendName}", "dev")
         .WithReference(apiService)
         .WaitFor(apiService)
-        .WaitFor(cache)
         .WithExternalHttpEndpoints();
 }
 

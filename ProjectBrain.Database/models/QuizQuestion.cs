@@ -28,8 +28,7 @@ public class QuizQuestion
 
     public decimal? MaxValue { get; set; }
 
-    // Store choices as JSON string (SQL Server doesn't have native JSONB)
-    [Column(TypeName = "nvarchar(max)")]
+    // Store choices as a JSON string
     public string? ChoicesJson { get; set; }
 
     [StringLength(255)]

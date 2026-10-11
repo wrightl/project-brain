@@ -20,7 +20,6 @@ public class JournalEntrySystemTag
     /// <summary>
     /// JSON object mapping fieldKey -> value (string/number/bool).
     /// </summary>
-    [Column(TypeName = "nvarchar(max)")]
     public string? ResponsesJson { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

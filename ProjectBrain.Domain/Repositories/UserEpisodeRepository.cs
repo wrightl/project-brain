@@ -46,7 +46,7 @@ public class UserEpisodeRepository : Repository<UserEpisode, Guid>, IUserEpisode
         return await _dbSet.AsNoTracking()
             .Where(x => x.UserId == userId
                         && x.Status == MemoryStatuses.Active
-                        && (EF.Functions.Like(x.Summary, pattern) || EF.Functions.Like(x.Topic, pattern)))
+                        && (EF.Functions.ILike(x.Summary, pattern) || EF.Functions.ILike(x.Topic, pattern)))
             .OrderByDescending(x => x.UpdatedAt)
             .Take(limit)
             .ToListAsync(cancellationToken);

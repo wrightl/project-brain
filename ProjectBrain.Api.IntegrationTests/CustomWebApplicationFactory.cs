@@ -6,11 +6,9 @@ using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProjectBrain.Database;
@@ -32,13 +30,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("Auth0:Domain", "test.auth0.com");
         builder.UseSetting("Auth0:ClientId", "test-client");
         builder.UseSetting("Auth0:ClientSecret", "test-secret");
-        builder.UseSetting("ConnectionStrings:projectbraindb", "Server=(localdb)\\mssqllocaldb;Database=TestDb;Trusted_Connection=True;");
-        builder.UseSetting("ConnectionStrings:azurecache", "localhost:6379");
+        builder.UseSetting("ConnectionStrings:projectbraindb", "Host=localhost;Database=TestDb;Username=test;Password=test");
         builder.UseSetting("ConnectionStrings:blobs", "UseDevelopmentStorage=true");
         builder.UseSetting("ConnectionStrings:openai", "Endpoint=https://example.openai.azure.com/;Key=fake");
         builder.UseSetting("ConnectionStrings:ai-search", "Endpoint=https://example.search.windows.net;Key=fake");
-        builder.UseSetting("Aspire:Microsoft:EntityFrameworkCore:SqlServer:DisableHealthChecks", "true");
-        builder.UseSetting("Aspire:StackExchange:Redis:DisableHealthChecks", "true");
+        builder.UseSetting("Aspire:Npgsql:EntityFrameworkCore:PostgreSQL:DisableHealthChecks", "true");
         builder.UseSetting("OTEL_EXPORTER_OTLP_ENDPOINT", "");
         builder.UseSetting("PushNotifications:Enabled", "false");
 
@@ -46,13 +42,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:projectbraindb"] = "Server=(localdb)\\mssqllocaldb;Database=TestDb;Trusted_Connection=True;",
-                ["ConnectionStrings:azurecache"] = "localhost:6379",
+                ["ConnectionStrings:projectbraindb"] = "Host=localhost;Database=TestDb;Username=test;Password=test",
                 ["ConnectionStrings:blobs"] = "UseDevelopmentStorage=true",
                 ["ConnectionStrings:openai"] = "Endpoint=https://example.openai.azure.com/;Key=fake",
                 ["ConnectionStrings:ai-search"] = "Endpoint=https://example.search.windows.net;Key=fake",
-                ["Aspire:Microsoft:EntityFrameworkCore:SqlServer:DisableHealthChecks"] = "true",
-                ["Aspire:StackExchange:Redis:DisableHealthChecks"] = "true",
+                ["Aspire:Npgsql:EntityFrameworkCore:PostgreSQL:DisableHealthChecks"] = "true",
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "",
                 ["OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY"] = "none",
                 ["PushNotifications:Enabled"] = "false",
@@ -69,8 +63,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<AppDbContext>();
             services.RemoveAll<IUserManagement>();
             services.AddSingleton<IUserManagement, FakeUserManagement>();
-            services.RemoveAll<IDistributedCache>();
-            services.AddDistributedMemoryCache();
             services.RemoveAll<BlobServiceClient>();
             services.AddSingleton(_ => new BlobServiceClient("UseDevelopmentStorage=true"));
             services.RemoveAll<ISearchIndexService>();
@@ -94,30 +86,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 var state = new DatabaseStartupState();
                 state.MarkReady();
-                state.MarkMigrationsApplied();
                 return state;
-            });
-
-            var healthCheckDescriptors = services
-                .Where(d => d.ServiceType == typeof(IHealthCheck) &&
-                            d.ImplementationType == typeof(DatabaseMigrationsHealthCheck))
-                .ToList();
-            foreach (var descriptor in healthCheckDescriptors)
-            {
-                services.Remove(descriptor);
-            }
-
-            // Avoid Redis connection timeouts on /health in tests (no Redis container).
-            services.PostConfigure<HealthCheckServiceOptions>(options =>
-            {
-                var redisChecks = options.Registrations
-                    .Where(r => r.Name.Contains("redis", StringComparison.OrdinalIgnoreCase)
-                                || r.Tags.Contains("redis"))
-                    .ToList();
-                foreach (var registration in redisChecks)
-                {
-                    options.Registrations.Remove(registration);
-                }
             });
 
             services.AddDbContext<AppDbContext>((sp, options) =>

@@ -20,7 +20,6 @@ public class Goal
 
     [Required]
     [StringLength(500)]
-    [Column(TypeName = "nvarchar(500)")]
     public string Message { get; set; } = string.Empty;
 
     [Required]

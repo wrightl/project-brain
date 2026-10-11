@@ -16,11 +16,27 @@ public class HealthEndpointIntegrationTests : IClassFixture<CustomWebApplication
     [Fact]
     public async Task Alive_ReturnsSuccess()
     {
-        // Liveness must stay independent of SQL/Redis so Container Apps probes do not
-        // keep Azure SQL serverless awake. DB exclusion of /health is covered by
-        // HealthEndpointMappingTests in ProjectBrain.Api.Tests.
         var response = await _client.GetAsync("/alive");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Health_IsMapped()
+    {
+        // The Azure client health checks (Search, Blob) can't reach the fake endpoints used here,
+        // so only check that the readiness endpoint exists.
+        var response = await _client.GetAsync("/health");
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task HealthDb_IsNotMapped()
+    {
+        // The database health endpoint was removed so nothing polls the database and it can scale to zero.
+        var response = await _client.GetAsync("/health/db");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

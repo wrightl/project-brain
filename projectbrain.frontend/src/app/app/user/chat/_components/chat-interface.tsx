@@ -238,7 +238,7 @@ export default function ChatInterface({
         }
 
         const options = rawOptions
-            .map((item) => {
+            .map((item): UserChoiceOption | null => {
                 if (typeof item !== "object" || item === null) {
                     return null;
                 }

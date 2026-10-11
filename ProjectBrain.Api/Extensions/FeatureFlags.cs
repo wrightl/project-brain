@@ -194,11 +194,13 @@ public static class FeatureFlagExtensions
                     options.Select("*");
                     options.Select("*", env);
 
-                    // Configure refresh options
+                    // Configure refresh options. The API runs one always-on replica, so each refresh
+                    // check counts against the store's daily request quota (Free SKU); 5 minutes keeps
+                    // it to a few hundred requests a day.
                     options.ConfigureRefresh(refresh =>
                     {
                         refresh.RegisterAll()
-                            .SetRefreshInterval(TimeSpan.FromSeconds(30));
+                            .SetRefreshInterval(TimeSpan.FromMinutes(5));
                         // refresh.Register("Sentinel", refreshAll: true)
                         //        .SetRefreshInterval(TimeSpan.FromSeconds(5));
                     });

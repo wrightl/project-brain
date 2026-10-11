@@ -58,4 +58,41 @@ public class AzureSearchDocumentIdsTests
 
         id.Should().Be($"{guid}_1");
     }
+
+    [Fact]
+    public void TryGetResourceId_round_trips_guid_document_id()
+    {
+        var guid = Guid.Parse("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+        var documentId = AzureSearchDocumentIds.BuildSearchDocumentId(guid.ToString(), 12);
+
+        AzureSearchDocumentIds.TryGetResourceId(documentId, out var resourceId).Should().BeTrue();
+        resourceId.Should().Be(guid);
+    }
+
+    [Fact]
+    public void TryGetResourceId_accepts_bare_guid()
+    {
+        var guid = Guid.NewGuid();
+
+        AzureSearchDocumentIds.TryGetResourceId(guid.ToString(), out var resourceId).Should().BeTrue();
+        resourceId.Should().Be(guid);
+    }
+
+    [Theory]
+    [InlineData("readme_1")]
+    [InlineData("3fa85f64-5717-4562-b3fc-2c963f66afa6_x")]
+    [InlineData("not-a-guid")]
+    [InlineData("")]
+    public void TryGetResourceId_rejects_ids_without_a_guid(string id)
+    {
+        AzureSearchDocumentIds.TryGetResourceId(id, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TryGetResourceId_rejects_hashed_document_id()
+    {
+        var documentId = AzureSearchDocumentIds.BuildSearchDocumentId("onboarding.md", 1);
+
+        AzureSearchDocumentIds.TryGetResourceId(documentId, out _).Should().BeFalse();
+    }
 }

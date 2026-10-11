@@ -334,6 +334,22 @@ public static class AzureSearchDocumentIds
         return Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
     }
 
+    /// <summary>
+    /// Recovers the resource GUID from a document key built by <see cref="BuildSearchDocumentId"/>
+    /// (<c>{guid}_{page}</c>), or accepts a bare GUID. Hashed keys (non-GUID resource ids) can't be reversed.
+    /// </summary>
+    public static bool TryGetResourceId(string documentIdOrResourceId, out Guid resourceId)
+    {
+        var id = documentIdOrResourceId?.Trim() ?? string.Empty;
+        if (Guid.TryParse(id, out resourceId))
+            return true;
+
+        var separator = id.LastIndexOf('_');
+        return separator > 0
+            && int.TryParse(id.AsSpan(separator + 1), out _)
+            && Guid.TryParse(id.AsSpan(0, separator), out resourceId);
+    }
+
     private static bool isAzureSearchDocumentKey(string key)
     {
         foreach (var c in key)

@@ -355,7 +355,8 @@ public static class ResourceEndpoints
 
     private static bool TryParseResourceId(string id, out Guid resourceId, out IResult? errorResult)
     {
-        if (Guid.TryParse(id, out resourceId))
+        // Chat citations link with the search document id ({guid}_{page}), not the bare resource id
+        if (AzureSearchDocumentIds.TryGetResourceId(id, out resourceId))
         {
             errorResult = null;
             return true;

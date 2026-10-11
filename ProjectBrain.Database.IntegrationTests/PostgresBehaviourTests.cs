@@ -7,6 +7,7 @@ using Moq;
 using ProjectBrain.Database.Models;
 using ProjectBrain.Domain;
 using ProjectBrain.Domain.Repositories;
+using ProjectBrain.Domain.UnitOfWork;
 using ProjectBrain.MigrationService.Seeding;
 using Testcontainers.PostgreSql;
 
@@ -34,10 +35,14 @@ public class PostgresBehaviourTests : IAsyncLifetime
         await _postgresContainer.DisposeAsync();
     }
 
-    private AppDbContext CreateContext()
+    private AppDbContext CreateContext(bool retryOnFailure = false)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(_postgresContainer.GetConnectionString())
+            .UseNpgsql(_postgresContainer.GetConnectionString(), npgsql =>
+            {
+                // Aspire's AddNpgsqlDbContext enables this by default
+                if (retryOnFailure) npgsql.EnableRetryOnFailure();
+            })
             .Options;
         return new AppDbContext(options, NullLogger<AppDbContext>.Instance);
     }
@@ -105,6 +110,26 @@ public class PostgresBehaviourTests : IAsyncLifetime
         var user = await readContext.Users.SingleAsync(u => u.Id == "activity-user");
         user.LastActivityAt.Should().NotBeNull();
         user.LastActivityAt!.Value.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task JournalEntryService_AddAndUpdate_WorkWithRetryingExecutionStrategy()
+    {
+        await AddUserAsync("journal-user", "journal@example.com");
+        await using var context = CreateContext(retryOnFailure: true);
+        var service = new JournalEntryService(
+            new JournalEntryRepository(context),
+            new TagRepository(context),
+            context,
+            new UnitOfWork(context));
+
+        var entry = await service.Add(new JournalEntry { Id = Guid.NewGuid(), UserId = "journal-user", Content = "First draft" });
+        entry.Content = "Edited";
+        await service.Update(entry);
+
+        await using var readContext = CreateContext();
+        var saved = await readContext.JournalEntries.SingleAsync(j => j.Id == entry.Id);
+        saved.Content.Should().Be("Edited");
     }
 
     [Fact]

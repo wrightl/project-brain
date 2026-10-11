@@ -1,5 +1,4 @@
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Moq;
 using ProjectBrain.Domain;
@@ -64,14 +63,10 @@ public class UserErasureServiceTests
             .Setup(s => s.GetUserSubscriptionAsync(userId, UserType.Coach))
             .ReturnsAsync((UserSubscription?)null);
 
-        var transaction = new Mock<IDbContextTransaction>();
         var unitOfWork = new Mock<IUnitOfWork>();
         unitOfWork
-            .Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(transaction.Object);
-        unitOfWork
-            .Setup(u => u.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .Setup(u => u.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+            .Returns((Func<Task> operation, CancellationToken _) => operation());
 
         var service = new UserErasureService(
             subscription.Object,

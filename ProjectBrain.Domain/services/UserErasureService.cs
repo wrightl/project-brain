@@ -89,26 +89,25 @@ public class UserErasureService : IUserErasureService
             result.Warnings.Add($"Blob erasure failed: {ex.Message}");
         }
 
-        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
         try
         {
-            result.MemoryPromotionAuditsDeleted =
-                await _memoryPromotionAuditRepository.DeleteByUserIdAsync(userId, cancellationToken);
-            result.QuizResponsesDeleted =
-                await _quizResponseRepository.DeleteByUserIdAsync(userId, cancellationToken);
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                result.MemoryPromotionAuditsDeleted =
+                    await _memoryPromotionAuditRepository.DeleteByUserIdAsync(userId, cancellationToken);
+                result.QuizResponsesDeleted =
+                    await _quizResponseRepository.DeleteByUserIdAsync(userId, cancellationToken);
 
-            await _userErasureRepository.DeleteRelationalDataAsync(userId, cancellationToken);
+                await _userErasureRepository.DeleteRelationalDataAsync(userId, cancellationToken);
 
-            result.MemoryIndexEntriesDeleted = await DeleteUserMemoryIndexEntriesAsync(userId, cancellationToken);
+                result.MemoryIndexEntriesDeleted = await DeleteUserMemoryIndexEntriesAsync(userId, cancellationToken);
 
-            await _userService.DeleteById(userId);
-            result.UserRowDeleted = true;
-
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+                await _userService.DeleteById(userId);
+                result.UserRowDeleted = true;
+            }, cancellationToken);
         }
         catch (Exception ex)
         {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             _logger.LogError(ex, "Database erasure failed for user {UserId}", userId);
             throw;
         }

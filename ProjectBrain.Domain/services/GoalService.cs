@@ -100,23 +100,25 @@ public class GoalService : IGoalService
 
         var results = new List<MultidayGoalsResult>();
 
-        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
-        foreach (var plan in dayPlans.OrderBy(p => p.Date))
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            var goals = await CreateOrUpdateGoalsForDateAsync(userId, plan.Date, plan.Goals, cancellationToken);
-            results.Add(new MultidayGoalsResult
+            results.Clear(); // in case the execution strategy retries
+            foreach (var plan in dayPlans.OrderBy(p => p.Date))
             {
-                Date = plan.Date,
-                Goals = goals.Select(g => new GoalSummary
+                var goals = await CreateOrUpdateGoalsForDateAsync(userId, plan.Date, plan.Goals, cancellationToken);
+                results.Add(new MultidayGoalsResult
                 {
-                    Index = g.Index,
-                    Message = g.Message,
-                    Completed = g.Completed
-                }).ToList()
-            });
-        }
+                    Date = plan.Date,
+                    Goals = goals.Select(g => new GoalSummary
+                    {
+                        Index = g.Index,
+                        Message = g.Message,
+                        Completed = g.Completed
+                    }).ToList()
+                });
+            }
+        }, cancellationToken);
 
-        await _unitOfWork.CommitTransactionAsync(cancellationToken);
         return results;
     }
 

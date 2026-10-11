@@ -236,6 +236,7 @@ if (builder.ExecutionContext.IsPublishMode)
 
     apiService.WithReference(db)
               .WaitForCompletion(migrations)
+              .WithEnvironment("Auth0__Audience", auth0Audience)
               .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", otelOtlpEndpoint)
               .WithEnvironment("OTEL_EXPORTER_OTLP_HEADERS", otelOtlpHeaders)
               .WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")

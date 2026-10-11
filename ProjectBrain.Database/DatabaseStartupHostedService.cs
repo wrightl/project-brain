@@ -10,7 +10,7 @@ public class DatabaseStartupHostedService(
     IDatabaseStartupState startupState,
     ILogger<DatabaseStartupHostedService> logger) : BackgroundService
 {
-    private static readonly TimeSpan MaxWarmupDuration = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan MaxWarmupDuration = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(8);
 
@@ -45,7 +45,6 @@ public class DatabaseStartupHostedService(
                 return;
             }
 
-            startupState.MarkMigrationsApplied();
             logger.LogInformation("Database migrations verified after {ElapsedMilliseconds}ms", sw.ElapsedMilliseconds);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -86,7 +85,7 @@ public class DatabaseStartupHostedService(
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
-                // Azure SQL serverless often returns transient errors (e.g. 40613) while resuming.
+                // A database that is resuming from scale-to-zero (e.g. Neon) can refuse the first connection.
                 logger.LogWarning(
                     ex,
                     "Database warmup attempt {Attempt} failed; will retry if within {MaxWarmupSeconds}s budget",

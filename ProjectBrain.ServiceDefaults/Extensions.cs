@@ -16,9 +16,7 @@ namespace Microsoft.Extensions.Hosting;
 public static class Extensions
 {
     private const string HealthEndpointPath = "/health";
-    private const string DatabaseHealthEndpointPath = "/health/db";
     private const string AlivenessEndpointPath = "/alive";
-    private const string DbHealthCheckTag = "db";
 
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
@@ -112,18 +110,9 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // Readiness for container orchestration: exclude DB checks so probes do not
-        // keep Azure SQL serverless awake and block auto-pause.
-        app.MapHealthChecks(HealthEndpointPath, new HealthCheckOptions
-        {
-            Predicate = r => !r.Tags.Contains(DbHealthCheckTag)
-        });
-
-        // Ops-only: includes DB / migrations checks. Do not use as an ACA probe.
-        app.MapHealthChecks(DatabaseHealthEndpointPath, new HealthCheckOptions
-        {
-            Predicate = r => r.Tags.Contains(DbHealthCheckTag)
-        });
+        // Readiness for container orchestration. No database checks are registered, so probes
+        // never open a connection and the database is free to scale to zero.
+        app.MapHealthChecks(HealthEndpointPath);
 
         // Only health checks tagged with the "live" tag must pass for app to be considered alive
         app.MapHealthChecks(AlivenessEndpointPath, new HealthCheckOptions

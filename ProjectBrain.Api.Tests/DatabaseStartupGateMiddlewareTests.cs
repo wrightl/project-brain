@@ -58,7 +58,6 @@ public class DatabaseStartupGateMiddlewareTests
     [Theory]
     [InlineData("/alive")]
     [InlineData("/health")]
-    [InlineData("/health/db")]
     public async Task InvokeAsync_WhenNotWarmedUp_ExemptsProbePaths(string path)
     {
         var nextCalled = false;

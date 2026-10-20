@@ -116,12 +116,11 @@ public class UserProfileService : IUserProfileService
                 existingProfile.PreferredPronoun = preferredPronoun;
             }
 
-            // Remove existing neurodiverse traits
-            _context.NeurodiverseTraits.RemoveRange(existingProfile.NeurodiverseTraits);
-
-            // Add new neurodiverse traits
+            // Null means leave existing traits unchanged. Callers that omit traits
+            // (theme/timezone updates) must not wipe onboarding data.
             if (neurodiverseTraits != null)
             {
+                _context.NeurodiverseTraits.RemoveRange(existingProfile.NeurodiverseTraits);
                 existingProfile.NeurodiverseTraits = neurodiverseTraits
                     .Select(t => new NeurodiverseTrait
                     {
@@ -130,12 +129,8 @@ public class UserProfileService : IUserProfileService
                     })
                     .ToList();
             }
-            else
-            {
-                existingProfile.NeurodiverseTraits = new List<NeurodiverseTrait>();
-            }
 
-            // Update or create preferences
+            // Null means leave existing preferences unchanged (do not delete).
             if (preferences != null)
             {
                 if (existingProfile.Preference == null)
@@ -150,11 +145,6 @@ public class UserProfileService : IUserProfileService
                 {
                     existingProfile.Preference.Preferences = JsonSerializer.Serialize(preferences);
                 }
-            }
-            else if (existingProfile.Preference != null)
-            {
-                // Remove preferences if null is passed
-                _context.UserPreferences.Remove(existingProfile.Preference);
             }
 
             _repository.Update(existingProfile);

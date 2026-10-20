@@ -623,7 +623,9 @@ public static class UserEndpoints
                 doB: request.DoB,
                 preferredPronoun: request.PreferredPronoun,
                 neurodiverseTraits: request.NeurodiverseTraits,
-                preferences: GetPreferencesObject(request.Preferences));
+                preferences: request.Preferences != null
+                    ? GetPreferencesObject(request.Preferences)
+                    : null);
         }
 
         // Return the updated user

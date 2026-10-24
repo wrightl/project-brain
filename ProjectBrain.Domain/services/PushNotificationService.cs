@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
@@ -130,7 +131,7 @@ public class PushNotificationService : IPushNotificationService
         catch (FirebaseMessagingException ex)
         {
             result.Success = false;
-            _logger.LogError(ex, "Error sending push notification to token {Token}", deviceToken);
+            _logger.LogError(ex, "Error sending push notification to token {TokenHash}", HashToken(deviceToken));
 
             // Check for invalid token errors
             if (ex.MessagingErrorCode == MessagingErrorCode.InvalidArgument ||
@@ -138,7 +139,7 @@ public class PushNotificationService : IPushNotificationService
                 ex.MessagingErrorCode == MessagingErrorCode.SenderIdMismatch)
             {
                 result.InvalidTokens.Add(deviceToken);
-                _logger.LogWarning("Invalid or unregistered device token: {Token}, Error: {Error}", deviceToken, ex.MessagingErrorCode);
+                _logger.LogWarning("Invalid or unregistered device token: {TokenHash}, Error: {Error}", HashToken(deviceToken), ex.MessagingErrorCode);
                 await MarkTokenAsInvalidAsync(deviceToken, ex.MessagingErrorCode.ToString(), cancellationToken);
             }
             else
@@ -234,7 +235,7 @@ public class PushNotificationService : IPushNotificationService
                                     fcmEx.MessagingErrorCode == MessagingErrorCode.SenderIdMismatch)
                                 {
                                     result.InvalidTokens.Add(token);
-                                    _logger.LogWarning("Invalid or unregistered device token: {Token}, Error: {Error}", token, fcmEx.MessagingErrorCode);
+                                    _logger.LogWarning("Invalid or unregistered device token: {TokenHash}, Error: {Error}", HashToken(token), fcmEx.MessagingErrorCode);
                                     await MarkTokenAsInvalidAsync(token, fcmEx.MessagingErrorCode.ToString(), cancellationToken);
                                 }
                                 else
@@ -247,8 +248,8 @@ public class PushNotificationService : IPushNotificationService
                                 result.FailedTokens.Add(token);
                             }
 
-                            _logger.LogWarning("Failed to send to token {Token}: {Error}",
-                                token, exception?.Message ?? "Unknown error");
+                            _logger.LogWarning("Failed to send to token {TokenHash}: {Error}",
+                                HashToken(token), exception?.Message ?? "Unknown error");
                         }
                     }
                 }
@@ -382,13 +383,18 @@ public class PushNotificationService : IPushNotificationService
         {
             await _deviceTokenRepository.MarkTokensAsInvalidAsync(new[] { token }, reason, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Marked token as invalid: {Token}, Reason: {Reason}", token, reason);
+            _logger.LogInformation("Marked token as invalid: {TokenHash}, Reason: {Reason}", HashToken(token), reason);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to mark token as invalid: {Token}", token);
+            _logger.LogError(ex, "Failed to mark token as invalid: {TokenHash}", HashToken(token));
             // Don't throw - cleanup failure shouldn't break notification sending
         }
     }
-}
 
+    /// <summary>
+    /// Device tokens are credentials for a user's device; log a short hash so entries can be correlated without exposing them.
+    /// </summary>
+    private static string HashToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)))[..12];
+}

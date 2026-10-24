@@ -107,7 +107,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
 
     public async Task<string> GetConversationSummary(string userQuery, string userId)
     {
-        Services.Logger.LogInformation("Starting GetConversationSummary for userQuery: {UserQuery}", userQuery);
+        Services.Logger.LogInformation("Starting GetConversationSummary for user {UserId}", userId);
 
         try
         {
@@ -120,7 +120,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         }
         catch (Exception ex)
         {
-            Services.Logger.LogError(ex, "Error generating conversation summary for query: {UserQuery}", userQuery);
+            Services.Logger.LogError(ex, "Error generating conversation summary for user {UserId}", userId);
             // Fallback to a simple truncation if summary generation fails
             return userQuery.Length > 50 ? userQuery[..50] + "..." : userQuery;
         }
@@ -923,7 +923,7 @@ public class AzureOpenAI(AzureOpenAIServices services) //: IChatService
         var sw = Stopwatch.StartNew();
         LogChatRagPhase(Services.Logger, correlationId, sw, "rag_begin");
 
-        Services.Logger.LogInformation("Starting getNewChatResponseWithCitations for userQuery: {UserQuery}, userId: {UserId}, userName: {UserName}", userQuery, userId, userName);
+        Services.Logger.LogInformation("Starting getNewChatResponseWithCitations for user {UserId}", userId);
 
         // Get configurable limits from application settings (with fallback to configuration)
         AISettings aiSettings;

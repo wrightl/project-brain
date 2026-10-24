@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using ProjectBrain.Api.Hubs;
 using ProjectBrain.Shared.Constants;
 
 public static class AuthenticationExtensions
@@ -29,20 +30,35 @@ public static class AuthenticationExtensions
                     ValidAudience = audience,
                 };
 
-                // Handle SignalR connections - extract token from query string
+                // SignalR sends credentials in the query string. The web portal sends a short-lived
+                // hub ticket; native clients send their access token.
                 options.Events = new JwtBearerEvents
                 {
-                    OnMessageReceived = context =>
+                    OnMessageReceived = async context =>
                     {
-                        var accessToken = context.Request.Query["access_token"];
+                        var accessToken = context.Request.Query["access_token"].ToString();
+                        if (string.IsNullOrEmpty(accessToken) ||
+                            !context.HttpContext.Request.Path.StartsWithSegments(CoachMessageHub.Path))
+                        {
+                            return;
+                        }
 
-                        // If the request is for a SignalR hub, get the token from the query string
-                        var path = context.HttpContext.Request.Path;
-                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                        if (!HubTicketService.IsTicket(accessToken))
                         {
                             context.Token = accessToken;
+                            return;
                         }
-                        return Task.CompletedTask;
+
+                        var hubTicketService = context.HttpContext.RequestServices.GetRequiredService<IHubTicketService>();
+                        var principal = await hubTicketService.RedeemAsync(accessToken, context.HttpContext.RequestAborted);
+                        if (principal is null)
+                        {
+                            context.Fail("Invalid or expired hub ticket");
+                            return;
+                        }
+
+                        context.Principal = principal;
+                        context.Success();
                     }
                 };
             });

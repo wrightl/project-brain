@@ -1,5 +1,7 @@
 # Cloud migration plan
 
+> **Superseded** by the [v1 plan](../v1/README.md), which keeps Container Apps and moves only the database to Neon. This version is kept for reference.
+
 ProjectBrain is hosted on Azure through .NET Aspire and `azd`: Container Apps for the API and Next.js frontend, Azure SQL, Azure AI Search, Azure OpenAI, Azure Managed Redis, Blob Storage and Queues, App Configuration, and an Azure AI Speech template. Staging is deliberately scaled to zero so Azure SQL can auto-pause. That combination is what makes hosting both expensive to keep warm and slow to wake up.
 
 This plan keeps the ASP.NET Core API and the Next.js frontend. It moves the always-on footprint onto a small machine, replaces Azure SQL and Azure AI Search with one Postgres database (including vectors), and leaves Auth0, Stripe, Mailgun, Firebase, LaunchDarkly, Google Maps, and Grafana Cloud where they are.

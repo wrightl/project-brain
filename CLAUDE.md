@@ -8,7 +8,7 @@ ProjectBrain is a full-stack application built with .NET Aspire hosting Next.js 
 
 -   **ProjectBrain.AppHost** - .NET Aspire orchestrator that manages all services, databases, and deployment configuration
 -   **ProjectBrain.Api** - ASP.NET Core Web API with Auth0 JWT authentication, OpenAPI/Scalar documentation
--   **ProjectBrain.Database** - Entity Framework Core data layer with SQL Server support (Cosmos DB support commented out)
+-   **ProjectBrain.Database** - Entity Framework Core data layer on PostgreSQL (Npgsql)
 -   **ProjectBrain.ServiceDefaults** - Shared Aspire service configurations
 -   **projectbrain.frontend** - Next.js 15 React frontend with Auth0 authentication, TailwindCSS, and TypeScript
 
@@ -49,7 +49,8 @@ The API uses minimal APIs with endpoint mapping:
 
 ### Database
 
--   Primary: SQL Server via Entity Framework Core
+-   Primary: PostgreSQL via Entity Framework Core (Npgsql). Local development runs a Postgres 17 container from the AppHost; deployed environments use Neon (pooled connection for the API, direct connection for migrations)
+-   Caching: in-memory `IDistributedCache` (no Redis), so each Container App runs exactly one replica
 -   Models: `User`, `Conversation` entities
 -   Context: `AppDbContext` with DbSet properties
 -   Initializer: `ProjectBrainDbInitializer` for seeding data
@@ -65,7 +66,7 @@ Both frontend and backend use Auth0:
 ### Deployment
 
 -   **Development**: Aspire runs NPM app with hot reload
--   **Production**: Frontend built as Docker container, scaled to 0 replicas when idle
+-   **Production**: API and frontend built as Docker containers, each pinned to one always-on replica
 -   Azure deployment via `azd up` command using Container Apps
 -   Configuration in `azure.yaml` and `next-steps.md`
 

@@ -257,6 +257,12 @@ Not production-critical, so in this order:
 5. **Deploy production** the same way, then delete the production Azure SQL server and Redis cluster.
 6. **Merge PR 7.**
 
+> **Status (October 2026):**
+> - PRs 0–7 are merged and staging runs on Neon.
+> - Staging Redis and its Key Vault are deleted. The staging Azure SQL server and its `projectbrain-admin` identity are kept until data has been extracted from it, then deleted by hand. The server is Entra-only and that identity is its only admin, so delete them together.
+> - The unused `SQL_PASSWORD` and `CACHE_PASSWORD` secrets and the `MIN_REPLICAS` variables are removed from GitHub.
+> - Production was never deployed, so there is nothing to migrate. Going live is a first-time setup: a Neon production database, a `production` GitHub environment with all the app secrets, and a first `azd` deploy.
+
 ## Checks per environment
 
 - [ ] The migrations job exits successfully and the API log shows `Database warmup completed` on the first attempt.

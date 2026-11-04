@@ -1,6 +1,7 @@
 
 using Microsoft.Extensions.Caching.Memory;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
 using ProjectBrain.Auth;
 using ProjectBrain.Shared.Constants;
 using ProjectBrain.Domain;
@@ -8,6 +9,8 @@ using ProjectBrain.Domain.Mappers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 public class UserServices(
     ILogger<UserServices> logger,
@@ -23,9 +26,7 @@ public class UserServices(
     IUserActivityService userActivityService,
     ICoachMessageService coachMessageService,
     IOnboardingDataService onboardingDataService,
-    IMemoryPromotionService memoryPromotionService,
-    IApplicationSettingsService applicationSettingsService,
-    Storage storage)
+    ITimeTickerManager<TimeTickerEntity> timeTickerManager)
 {
     public ILogger<UserServices> Logger { get; } = logger;
     public IIdentityService IdentityService { get; } = identityService;
@@ -40,9 +41,7 @@ public class UserServices(
     public IUserActivityService UserActivityService { get; } = userActivityService;
     public ICoachMessageService CoachMessageService { get; } = coachMessageService;
     public IOnboardingDataService OnboardingDataService { get; } = onboardingDataService;
-    public IMemoryPromotionService MemoryPromotionService { get; } = memoryPromotionService;
-    public IApplicationSettingsService ApplicationSettingsService { get; } = applicationSettingsService;
-    public Storage Storage { get; } = storage;
+    public ITimeTickerManager<TimeTickerEntity> TimeTickerManager { get; } = timeTickerManager;
 }
 
 public static class UserEndpoints
@@ -160,53 +159,21 @@ public static class UserEndpoints
             }
         }
 
-        // Build and upload onboarding as markdown (for AI Chat/Agent) with indexing
+        // Markdown upload/indexing and memory bootstrap are slow, so run them in the
+        // background rather than making the client wait for them.
         try
         {
-            var onboardingData = CreateOnboardingData(userProfile, createdUser as UserDto, request.Onboarding);
-            var markdown = BuildOnboardingMarkdown(onboardingData);
-            var mdFilename = Constants.ONBOARDING_MARKDOWN_FILENAME;
-            var mdBytes = Encoding.UTF8.GetBytes(markdown);
-            await using (var mdStream = new MemoryStream(mdBytes))
-            {
-                var options = new StorageUploadOptions
-                {
-                    UserId = userId,
-                    FileOwnership = FileOwnership.User,
-                    StorageType = StorageType.Onboarding,
-                    ResourceId = mdFilename,
-                    SkipIndexing = false
-                };
-                await services.Storage.UploadFile(mdStream, mdFilename, options);
-            }
-            services.Logger.LogInformation("Successfully uploaded onboarding markdown to blob storage for user {UserId}", userId);
+            await UserContextTickerEnqueue.EnqueueOnboardingContextAsync(services.TimeTickerManager, userId);
         }
         catch (Exception ex)
         {
-            services.Logger.LogError(ex, "Failed to upload onboarding markdown for user {UserId}", userId);
-        }
-
-        if (request.Onboarding != null)
-        {
-            try
-            {
-                var memorySettings = await services.ApplicationSettingsService.GetMemorySettingsAsync();
-                var onboardingData = CreateOnboardingData(userProfile, createdUser as UserDto, request.Onboarding);
-                await services.MemoryPromotionService.BootstrapFactsFromOnboardingAsync(
-                    userId,
-                    onboardingData,
-                    memorySettings);
-            }
-            catch (Exception ex)
-            {
-                services.Logger.LogError(ex, "Failed to bootstrap onboarding facts for user {UserId}", userId);
-            }
+            services.Logger.LogError(ex, "Failed to enqueue onboarding context job for user {UserId}", userId);
         }
 
         return Results.Ok(createdUser);
     }
 
-    public static object CreateOnboardingData(UserProfile userProfile, UserDto createdUser, object? structuredOnboardingData = null)
+    public static object CreateOnboardingData(UserProfile userProfile, BaseUserDto createdUser, object? structuredOnboardingData = null)
     {
         var baseData = new Dictionary<string, object?>
         {
@@ -236,7 +203,7 @@ public static class UserEndpoints
     }
 
     /// <summary>Builds markdown with clear sections for AI consumption (Chat/Agent).</summary>
-    private static string BuildOnboardingMarkdown(object onboardingData)
+    public static string BuildOnboardingMarkdown(object onboardingData)
     {
         if (onboardingData is not Dictionary<string, object?> data)
             return "# Onboarding\n\nNo data.";

@@ -20,6 +20,12 @@ public class GoalsUploadRequest
     public required string UserId { get; init; }
 }
 
+/// <summary>Request for onboarding markdown upload + index and memory bootstrap.</summary>
+public class OnboardingContextRequest
+{
+    public required string UserId { get; init; }
+}
+
 /// <summary>Request for coping strategy markdown upload + index.</summary>
 public class StrategyUploadRequest
 {

@@ -9,8 +9,11 @@ using Moq;
 using OpenAI;
 using ProjectBrain.AI.Embedding;
 using ProjectBrain.Api.Authentication;
+using ProjectBrain.Api.Background;
 using ProjectBrain.Auth;
 using ProjectBrain.Domain;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
 
 namespace ProjectBrain.Api.Tests;
 
@@ -27,6 +30,7 @@ public class UserEndpointsTests
     private readonly Mock<IUserActivityService> _mockUserActivityService;
     private readonly Mock<ICoachMessageService> _mockCoachMessageService;
     private readonly Mock<IOnboardingDataService> _mockOnboardingDataService;
+    private readonly Mock<ITimeTickerManager<TimeTickerEntity>> _mockTimeTickerManager;
     public UserEndpointsTests()
     {
         _mockLogger = new Mock<ILogger<UserServices>>();
@@ -39,19 +43,10 @@ public class UserEndpointsTests
         _mockUserActivityService = new Mock<IUserActivityService>();
         _mockCoachMessageService = new Mock<ICoachMessageService>();
         _mockOnboardingDataService = new Mock<IOnboardingDataService>();
-        var mockMemoryPromotionService = new Mock<IMemoryPromotionService>();
-        var mockApplicationSettingsService = new Mock<IApplicationSettingsService>();
+        _mockTimeTickerManager = new Mock<ITimeTickerManager<TimeTickerEntity>>();
         var mockMemoryCache = new Mock<IMemoryCache>();
         var mockFeatureFlagService = new Mock<IFeatureFlagService>();
         var mockConfiguration = new Mock<IConfiguration>();
-        var mockSearchIndexService = new Mock<ISearchIndexService>();
-        var mockStorageLogger = new Mock<ILogger<Storage>>();
-        var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true");
-        var storage = new Storage(
-            mockConfiguration.Object,
-            blobServiceClient,
-            mockStorageLogger.Object,
-            mockSearchIndexService.Object);
 
         _userServices = new UserServices(
             _mockLogger.Object,
@@ -67,9 +62,7 @@ public class UserEndpointsTests
             _mockUserActivityService.Object,
             _mockCoachMessageService.Object,
             _mockOnboardingDataService.Object,
-            mockMemoryPromotionService.Object,
-            mockApplicationSettingsService.Object,
-            storage
+            _mockTimeTickerManager.Object
         );
     }
 
@@ -103,6 +96,33 @@ public class UserEndpointsTests
             u.FullName == request.FullName &&
             u.IsOnboarded == true
         )), Times.Once);
+    }
+
+    [Fact]
+    public async Task OnboardUser_ShouldEnqueueOnboardingContextJob()
+    {
+        // Arrange
+        var userId = "auth0|123456";
+        var request = new CreateUserRequest
+        {
+            Email = "test@example.com",
+            FullName = "Test User",
+        };
+
+        _mockIdentityService.Setup(s => s.UserId).Returns(userId);
+        _mockUserService.Setup(s => s.Create(It.IsAny<UserDto>()))
+            .ReturnsAsync((UserDto u) => u);
+
+        // Act
+        var method = typeof(UserEndpoints)
+            .GetMethod("OnboardUser", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var task = (Task<IResult>)method!.Invoke(null, new object[] { _userServices, request })!;
+        await task;
+
+        // Assert
+        _mockTimeTickerManager.Verify(m => m.AddAsync(
+            It.Is<TimeTickerEntity>(e => e.Function == UserContextTickerEnqueue.OnboardingContext),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

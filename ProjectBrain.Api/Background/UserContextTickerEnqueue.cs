@@ -15,6 +15,7 @@ public static class UserContextTickerEnqueue
     public const string ConversationTitleSummary = "UserContext_ConversationTitleSummary";
     public const string ConversationContextSummary = "UserContext_ConversationContextSummary";
     public const string MemoryExtraction = "UserContext_MemoryExtraction";
+    public const string OnboardingContext = "UserContext_OnboardingContext";
 
     public static async Task EnqueueJournalUploadAsync(
         ITimeTickerManager<TimeTickerEntity> manager,
@@ -147,6 +148,19 @@ public static class UserContextTickerEnqueue
                 UserContent = userContent,
                 AssistantContent = assistantContent
             })
+        }, ct);
+    }
+
+    public static async Task EnqueueOnboardingContextAsync(
+        ITimeTickerManager<TimeTickerEntity> manager,
+        string userId,
+        CancellationToken ct = default)
+    {
+        await manager.AddAsync(new TimeTickerEntity
+        {
+            Function = OnboardingContext,
+            ExecutionTime = DateTime.UtcNow,
+            Request = TickerHelper.CreateTickerRequest(new OnboardingContextRequest { UserId = userId })
         }, ct);
     }
 }

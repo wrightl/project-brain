@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Linq;
 using ProjectBrain.AI;
 using ProjectBrain.Domain;
@@ -151,6 +152,67 @@ public class UserContextTickerJobs(IServiceScopeFactory serviceScopeFactory, ILo
         catch (Exception ex)
         {
             logger.LogError(ex, "Error uploading coping strategy markdown {StrategyId}", req.StrategyId);
+            throw;
+        }
+    }
+
+    [TickerFunction("UserContext_OnboardingContext")]
+    public async Task OnboardingContext(
+        TickerFunctionContext<OnboardingContextRequest> context,
+        CancellationToken cancellationToken)
+    {
+        var req = context.Request;
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+            var userProfileService = scope.ServiceProvider.GetRequiredService<IUserProfileService>();
+            var onboardingDataService = scope.ServiceProvider.GetRequiredService<IOnboardingDataService>();
+            var applicationSettingsService = scope.ServiceProvider.GetRequiredService<IApplicationSettingsService>();
+            var memoryPromotionService = scope.ServiceProvider.GetRequiredService<IMemoryPromotionService>();
+            var storage = scope.ServiceProvider.GetRequiredService<Storage>();
+
+            var user = await userService.GetById(req.UserId);
+            var userProfile = await userProfileService.GetByUserId(req.UserId);
+            if (user is null || userProfile is null)
+            {
+                logger.LogWarning("User or profile not found for onboarding context {UserId}", req.UserId);
+                return;
+            }
+
+            var storedOnboarding = await onboardingDataService.GetByUserId(req.UserId);
+            using var structuredDoc = storedOnboarding is null ? null : JsonDocument.Parse(storedOnboarding.OnboardingJson);
+            var onboardingData = UserEndpoints.CreateOnboardingData(userProfile, user, structuredDoc?.RootElement);
+
+            // Build and upload onboarding as markdown (for AI Chat/Agent) with indexing
+            var markdown = UserEndpoints.BuildOnboardingMarkdown(onboardingData);
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(markdown)))
+            {
+                var uploadOptions = new StorageUploadOptions
+                {
+                    UserId = req.UserId,
+                    FileOwnership = FileOwnership.User,
+                    StorageType = StorageType.Onboarding,
+                    ResourceId = Constants.ONBOARDING_MARKDOWN_FILENAME,
+                    SkipIndexing = false
+                };
+                await storage.UploadFile(stream, Constants.ONBOARDING_MARKDOWN_FILENAME, uploadOptions);
+            }
+            logger.LogInformation("Uploaded onboarding markdown for user {UserId}", req.UserId);
+
+            if (structuredDoc is not null)
+            {
+                var memorySettings = await applicationSettingsService.GetMemorySettingsAsync(cancellationToken);
+                await memoryPromotionService.BootstrapFactsFromOnboardingAsync(
+                    req.UserId,
+                    onboardingData,
+                    memorySettings,
+                    cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error processing onboarding context for user {UserId}", req.UserId);
             throw;
         }
     }

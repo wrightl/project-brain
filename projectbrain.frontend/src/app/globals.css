@@ -10,3 +10,26 @@
 @plugin "@tailwindcss/forms";
 @plugin "@tailwindcss/typography";
 @plugin "@tailwindcss/aspect-ratio";
+
+/*
+ * Marketing site tokens: the Dot + Dash palette shared with Alfa
+ * (alfa.dotanddashconsulting.com). Used by the (public) routes only.
+ */
+@theme {
+  --color-navy: #171d3a;
+  --color-brand: #f598ff;
+  --color-brand-hover: #f7adff;
+  --color-periwinkle: #94abf9;
+  --color-wash: #e5e9fd;
+  /* Use bg-surface, not bg-white: the app theme overrides .bg-white globally. */
+  --color-surface: #ffffff;
+  --color-muted: #3f4668;
+  --color-line: rgb(23 29 58 / 0.12);
+  --font-display: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+}
+
+.hero-dots {
+  background-color: var(--color-navy);
+  background-image: radial-gradient(circle at 1px 1px, rgb(148 171 249 / 0.28) 1px, transparent 0);
+  background-size: 22px 22px;
+}

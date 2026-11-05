@@ -51,8 +51,14 @@ public class UnitOfWork : IUnitOfWork
         }
         finally
         {
-            await _transaction.DisposeAsync();
-            _transaction = null;
+            // Rollback already disposes and clears _transaction. Disposing the null
+            // reference throws NullReferenceException and hides the original failure,
+            // so the retrying execution strategy never retries a transient save error.
+            if (_transaction != null)
+            {
+                await _transaction.DisposeAsync();
+                _transaction = null;
+            }
         }
     }
 

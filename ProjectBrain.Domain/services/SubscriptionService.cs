@@ -90,7 +90,9 @@ public class SubscriptionService : ISubscriptionService
         var subscription = await GetUserSubscriptionAsync(userId, userType);
 
         string tierResult;
-        if (subscription != null && (subscription.Status == "active" || subscription.Status == "trialing"))
+        if (subscription != null
+            && (subscription.Status == "active" || subscription.Status == "trialing")
+            && !HasCanceledPeriodEnded(subscription))
         {
             tierResult = subscription.Tier?.Name ?? "Free";
         }
@@ -321,6 +323,16 @@ public class SubscriptionService : ISubscriptionService
 
     public async Task CancelSubscriptionAsync(string userId, UserType userType)
     {
+        await CancelSubscriptionInternalAsync(userId, userType, immediately: true);
+    }
+
+    public async Task CancelSubscriptionAtPeriodEndAsync(string userId, UserType userType)
+    {
+        await CancelSubscriptionInternalAsync(userId, userType, immediately: false);
+    }
+
+    private async Task CancelSubscriptionInternalAsync(string userId, UserType userType, bool immediately)
+    {
         var subscription = await GetUserSubscriptionAsync(userId, userType);
 
         if (subscription == null)
@@ -329,25 +341,49 @@ public class SubscriptionService : ISubscriptionService
             return;
         }
 
-        // Cancel in Stripe if subscription ID exists
         if (!string.IsNullOrEmpty(subscription.StripeSubscriptionId))
         {
-            await _stripeService.CancelSubscriptionAsync(subscription.StripeSubscriptionId);
+            if (immediately)
+            {
+                await _stripeService.CancelSubscriptionAsync(subscription.StripeSubscriptionId);
+            }
+            else
+            {
+                await _stripeService.ScheduleCancellationAtPeriodEndAsync(subscription.StripeSubscriptionId);
+            }
         }
 
-        // Get tracked entity for update
         var trackedSubscription = await _context.UserSubscriptions
             .FirstOrDefaultAsync(us => us.Id == subscription.Id);
         if (trackedSubscription != null)
         {
-            trackedSubscription.Status = "canceled";
-            trackedSubscription.CanceledAt = DateTime.UtcNow;
+            // User-facing cancel keeps paid access until CurrentPeriodEnd. Account erasure
+            // still terminates immediately so Stripe stops billing a deleted user.
+            if (immediately)
+            {
+                trackedSubscription.Status = "canceled";
+            }
+            trackedSubscription.CanceledAt ??= DateTime.UtcNow;
             trackedSubscription.UpdatedAt = DateTime.UtcNow;
             _repository.Update(trackedSubscription);
         }
 
         await _unitOfWork.SaveChangesAsync();
-        _logger.LogInformation("Subscription {SubscriptionId} canceled for user {UserId}", subscription.Id, userId);
+
+        var cacheKey = $"{TierCacheKeyPrefix}{userId}:{userType}";
+        await _cache.RemoveAsync(cacheKey);
+
+        _logger.LogInformation(
+            immediately
+                ? "Subscription {SubscriptionId} canceled immediately for user {UserId}"
+                : "Subscription {SubscriptionId} scheduled to cancel at period end for user {UserId}",
+            subscription.Id,
+            userId);
+    }
+
+    private static bool HasCanceledPeriodEnded(UserSubscription subscription)
+    {
+        return subscription.CanceledAt != null && subscription.CurrentPeriodEnd <= DateTime.UtcNow;
     }
 
     public async Task StartTrialAsync(string userId, UserType userType, string tier)
@@ -581,6 +617,7 @@ public interface ISubscriptionService
     Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string baseUrl);
     Task UpdateSubscriptionFromStripeAsync(string stripeSubscriptionId);
     Task CancelSubscriptionAsync(string userId, UserType userType);
+    Task CancelSubscriptionAtPeriodEndAsync(string userId, UserType userType);
     Task StartTrialAsync(string userId, UserType userType, string tier);
     Task<bool> IsSubscriptionRequiredAsync(string userId, UserType userType);
     Task ExcludeUserFromSubscriptionAsync(string userId, UserType userType, string excludedBy, string? notes);

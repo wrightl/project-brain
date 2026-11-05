@@ -1,6 +1,5 @@
 namespace ProjectBrain.Domain;
 
-using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Stripe;
@@ -141,39 +140,9 @@ public class StripeService : IStripeService
             var service = new Stripe.SubscriptionService();
             var subscription = await service.GetAsync(stripeSubscriptionId);
 
-            // Get period dates - Stripe.NET property names may vary by version
-            DateTime periodStart = subscription.Created;
-            DateTime periodEnd = subscription.Created.AddMonths(1);
-
-            // Try to get CurrentPeriodStart and CurrentPeriodEnd using reflection
-            var periodStartProp = typeof(Stripe.Subscription).GetProperty("CurrentPeriodStart");
-            var periodEndProp = typeof(Stripe.Subscription).GetProperty("CurrentPeriodEnd");
-
-            if (periodStartProp != null)
-            {
-                var startValue = periodStartProp.GetValue(subscription);
-                if (startValue is DateTimeOffset startOffset)
-                {
-                    periodStart = startOffset.UtcDateTime;
-                }
-                else if (startValue is long startUnix)
-                {
-                    periodStart = DateTimeOffset.FromUnixTimeSeconds(startUnix).UtcDateTime;
-                }
-            }
-
-            if (periodEndProp != null)
-            {
-                var endValue = periodEndProp.GetValue(subscription);
-                if (endValue is DateTimeOffset endOffset)
-                {
-                    periodEnd = endOffset.UtcDateTime;
-                }
-                else if (endValue is long endUnix)
-                {
-                    periodEnd = DateTimeOffset.FromUnixTimeSeconds(endUnix).UtcDateTime;
-                }
-            }
+            // Stripe API 2025-03-31.basil+ / Stripe.net 48+: period dates live on SubscriptionItem,
+            // not Subscription. Using Created/Created+1mo silently corrupts billing periods.
+            var (periodStart, periodEnd) = ResolveSubscriptionPeriod(subscription);
 
             // Extract metadata from subscription
             var metadata = new Dictionary<string, string>();
@@ -251,6 +220,18 @@ public class StripeService : IStripeService
             _logger.LogError(ex, "Error getting Stripe checkout session {SessionId}", sessionId);
             throw;
         }
+    }
+
+    internal static (DateTime PeriodStart, DateTime PeriodEnd) ResolveSubscriptionPeriod(Subscription subscription)
+    {
+        var items = subscription.Items?.Data;
+        if (items is { Count: > 0 })
+        {
+            return (items.Min(i => i.CurrentPeriodStart), items.Max(i => i.CurrentPeriodEnd));
+        }
+
+        // No items (unexpected): fall back to creation time rather than inventing a fake end.
+        return (subscription.Created, subscription.Created);
     }
 
     public async Task<DateTime> ExtendSubscriptionByMonthsAsync(string stripeSubscriptionId, int months)

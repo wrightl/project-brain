@@ -56,5 +56,31 @@ public class UserErasureRepository : IUserErasureRepository
         await _context.Tags
             .Where(t => t.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
+
+        // These tables store UserId without an FK cascade to Users, so they would otherwise
+        // remain as orphaned PII after the user row is deleted.
+        var conversationIds = _context.Conversations
+            .Where(c => c.UserId == userId)
+            .Select(c => c.Id);
+
+        await _context.ChatMessages
+            .Where(cm => conversationIds.Contains(cm.ConversationId))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _context.Conversations
+            .Where(c => c.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _context.Goals
+            .Where(g => g.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _context.VoiceNotes
+            .Where(vn => vn.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _context.Resources
+            .Where(r => r.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 }

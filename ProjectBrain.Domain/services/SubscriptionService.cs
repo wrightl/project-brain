@@ -90,7 +90,7 @@ public class SubscriptionService : ISubscriptionService
         var subscription = await GetUserSubscriptionAsync(userId, userType);
 
         string tierResult;
-        if (subscription != null && (subscription.Status == "active" || subscription.Status == "trialing"))
+        if (subscription != null && IsPaidAccessStatus(subscription))
         {
             tierResult = subscription.Tier?.Name ?? "Free";
         }
@@ -102,6 +102,28 @@ public class SubscriptionService : ISubscriptionService
         // Cache the result
         await _cache.SetAsync(cacheKey, tierResult, TierCacheExpiration);
         return tierResult;
+    }
+
+    /// <summary>
+    /// Local trials set Status=trialing with TrialEndsAt, but nothing previously expired them.
+    /// Without this check, a single trial grants paid tier forever.
+    /// </summary>
+    internal static bool IsPaidAccessStatus(UserSubscription subscription, DateTime? utcNow = null)
+    {
+        var now = utcNow ?? DateTime.UtcNow;
+
+        if (subscription.Status == "active")
+        {
+            return true;
+        }
+
+        if (subscription.Status != "trialing")
+        {
+            return false;
+        }
+
+        var trialEnd = subscription.TrialEndsAt ?? subscription.CurrentPeriodEnd;
+        return trialEnd > now;
     }
 
     public async Task<string> CreateCheckoutSessionAsync(string userId, UserType userType, string tier, bool isAnnual, string baseUrl = null)
@@ -347,6 +369,9 @@ public class SubscriptionService : ISubscriptionService
         }
 
         await _unitOfWork.SaveChangesAsync();
+
+        await _cache.RemoveAsync($"{TierCacheKeyPrefix}{userId}:{userType}");
+
         _logger.LogInformation("Subscription {SubscriptionId} canceled for user {UserId}", subscription.Id, userId);
     }
 
@@ -364,7 +389,7 @@ public class SubscriptionService : ISubscriptionService
         // TODO: Check if user has already had a trial. The Status would be 'Expired' and the TrialEndsAt would be in the past.
         // Check if user already has an active subscription
         var existingSubscription = await GetUserSubscriptionAsync(userId, userType);
-        if (existingSubscription != null && (existingSubscription.Status == "active" || existingSubscription.Status == "trialing"))
+        if (existingSubscription != null && IsPaidAccessStatus(existingSubscription))
         {
             throw new Exception("User already has an active subscription");
         }
@@ -389,6 +414,9 @@ public class SubscriptionService : ISubscriptionService
 
         _repository.Add(subscription);
         await _unitOfWork.SaveChangesAsync();
+
+        // Invalidate stale Free-tier cache so the trial takes effect immediately.
+        await _cache.RemoveAsync($"{TierCacheKeyPrefix}{userId}:{userType}");
 
         _logger.LogInformation("Started 7-day trial for user {UserId}, type {UserType}, tier {Tier}", userId, userType, tier);
     }

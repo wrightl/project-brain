@@ -324,6 +324,10 @@ public static class ResourceEndpoints
     {
         await services.Storage.DeleteFile(resource.FileName, new StorageOptions { UserId = resource.UserId, FileOwnership = resource.IsShared ? FileOwnership.Shared : FileOwnership.User, StorageType = StorageType.Resources });
         await services.ResourceService.Remove(resource);
+        if (!resource.IsShared && !string.IsNullOrEmpty(resource.UserId) && resource.SizeInBytes > 0)
+        {
+            await services.UsageTrackingService.TrackFileDeleteAsync(resource.UserId, resource.SizeInBytes);
+        }
         return Results.Ok(resource.Id);
     }
 

@@ -545,6 +545,17 @@ public class AgentService : IAgentService
             var workflowState = await _orchestrator.LoadWorkflowAsync(workflowId.Value, userId, cancellationToken);
             if (workflowState != null)
             {
+                if (workflowState.ConversationId.HasValue &&
+                    workflowState.ConversationId != conversationId)
+                {
+                    _logger.LogWarning(
+                        "Workflow {WorkflowId} belongs to conversation {WorkflowConversationId}, not {ConversationId}; creating a new workflow",
+                        workflowId,
+                        workflowState.ConversationId,
+                        conversationId);
+                    return await _orchestrator.CreateWorkflowAsync(userId, conversationId, "agent_interaction", cancellationToken);
+                }
+
                 return workflowState;
             }
 

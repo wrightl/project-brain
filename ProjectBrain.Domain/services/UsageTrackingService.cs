@@ -60,6 +60,26 @@ public class UsageTrackingService : IUsageTrackingService
         await _unitOfWork.SaveChangesAsync();
     }
 
+    public async Task TrackFileDeleteAsync(string userId, long fileSize)
+    {
+        if (string.IsNullOrEmpty(userId) || fileSize <= 0)
+        {
+            return;
+        }
+
+        var storageUsage = await _context.FileStorageUsages
+            .FirstOrDefaultAsync(fsu => fsu.UserId == userId);
+
+        if (storageUsage == null)
+        {
+            return;
+        }
+
+        storageUsage.TotalBytes = Math.Max(0, storageUsage.TotalBytes - fileSize);
+        storageUsage.UpdatedAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync();
+    }
+
     public async Task TrackResearchReportAsync(string userId)
     {
         await TrackUsageAsync(userId, "research_report", "monthly");
@@ -207,6 +227,7 @@ public interface IUsageTrackingService
     Task TrackCoachMessageAsync(string userId);
     Task TrackClientMessageAsync(string coachId);
     Task TrackFileUploadAsync(string userId, long fileSize);
+    Task TrackFileDeleteAsync(string userId, long fileSize);
     Task TrackResearchReportAsync(string userId);
     Task<int> GetUsageCountAsync(string userId, string usageType, string periodType);
     Task<long> GetFileStorageUsageAsync(string userId);

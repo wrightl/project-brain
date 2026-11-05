@@ -350,6 +350,107 @@ public class AgentServiceTests
     }
 
     [Fact]
+    public async Task StreamAgentInteractionAsync_WhenWorkflowBelongsToAnotherConversation_CreatesNewWorkflow()
+    {
+        var orchestrator = new Mock<IAgentOrchestrator>();
+        var toolRegistry = new Mock<IAgentToolRegistry>();
+        var toolContextFactory = new Mock<IAgentToolContextFactory>();
+        var actionTracking = new Mock<IAgentActionTrackingService>();
+        var agentOpenAi = new Mock<IAgentOpenAIService>();
+        var logger = new Mock<ILogger<AgentService>>();
+
+        var staleWorkflowId = Guid.NewGuid();
+        var conversationA = Guid.NewGuid();
+        var conversationB = Guid.NewGuid();
+        var staleWorkflow = new AgentWorkflowState
+        {
+            Id = staleWorkflowId,
+            UserId = "user-1",
+            ConversationId = conversationA,
+            Status = "active"
+        };
+        var newWorkflow = new AgentWorkflowState
+        {
+            Id = Guid.NewGuid(),
+            UserId = "user-1",
+            ConversationId = conversationB,
+            Status = "active"
+        };
+
+        orchestrator
+            .Setup(o => o.LoadWorkflowAsync(staleWorkflowId, "user-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(staleWorkflow);
+        orchestrator
+            .Setup(o => o.CreateWorkflowAsync("user-1", conversationB, "agent_interaction", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(newWorkflow);
+
+        actionTracking
+            .Setup(a => a.GetRecentActionsAsync("user-1", 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AgentAction>());
+
+        var toolContext = new AgentToolContext
+        {
+            UserId = "user-1",
+            GoalService = Mock.Of<IGoalService>(),
+            GoalMutationSideEffects = Mock.Of<IGoalMutationSideEffects>()
+        };
+        toolContextFactory
+            .Setup(f => f.Create("user-1", conversationB, newWorkflow.Id, It.IsAny<string?>(), It.IsAny<UserType>()))
+            .Returns(toolContext);
+
+        var session = new AgentSession();
+        agentOpenAi
+            .Setup(a => a.BeginSessionAsync(It.IsAny<AgentSessionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+        agentOpenAi
+            .Setup(a => a.StreamTurnAsync(session, It.IsAny<List<Dictionary<string, object>>>(), It.IsAny<CancellationToken>()))
+            .Returns(SecondTurnWithText());
+
+        toolRegistry
+            .Setup(r => r.GetEnabledDefinitionsAsync(toolContext, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Dictionary<string, object>>());
+
+        var chatRetrieval = new Mock<IChatRetrievalService>();
+        chatRetrieval
+            .Setup(r => r.RetrieveAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<ChatMemoryContext>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatRetrievalResult());
+
+        var service = new AgentService(
+            orchestrator.Object,
+            toolRegistry.Object,
+            toolContextFactory.Object,
+            actionTracking.Object,
+            agentOpenAi.Object,
+            chatRetrieval.Object,
+            logger.Object);
+
+        var events = new List<AgentStreamEvent>();
+        await foreach (var streamEvent in service.StreamAgentInteractionAsync(
+            "user-1",
+            "Hello from thread B",
+            conversationB,
+            staleWorkflowId,
+            string.Empty,
+            "Alex",
+            new List<AgentChatMessage>(),
+            new ChatMemoryContext()))
+        {
+            events.Add(streamEvent);
+        }
+
+        var workflowJson = System.Text.Json.JsonSerializer.Serialize(
+            events.Should().Contain(e => e.Type == "workflow").Which.Value);
+        workflowJson.Should().Contain(newWorkflow.Id.ToString());
+        workflowJson.Should().NotContain(staleWorkflowId.ToString());
+        orchestrator.Verify(
+            o => o.CreateWorkflowAsync("user-1", conversationB, "agent_interaction", It.IsAny<CancellationToken>()),
+            Times.Once);
+        toolContextFactory.Verify(
+            f => f.Create("user-1", conversationB, newWorkflow.Id, It.IsAny<string?>(), It.IsAny<UserType>()),
+            Times.Once);
+    }
+
+    [Fact]
     public async Task StreamAgentInteractionAsync_WhenAskUserToolCalled_EmitsUserChoicesAndSkipsSecondTurn()
     {
         var orchestrator = new Mock<IAgentOrchestrator>();

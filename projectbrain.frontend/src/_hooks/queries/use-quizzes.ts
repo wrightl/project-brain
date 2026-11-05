@@ -134,7 +134,7 @@ export function useSubmitQuizResponse() {
             answers: Record<string, unknown>;
             completedAt?: string;
         }) => {
-            return fetchWithAuth('/api/user/quizzes/${quizId}/responses', {
+            return fetchWithAuth(`/api/user/quizzes/${quizId}/responses`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -140,6 +140,10 @@ public sealed class UserKnowledgeUploadService : IUserKnowledgeUploadService
             StorageType = StorageType.Resources
         });
         await _resourceService.Remove(resource);
+        if (resource.SizeInBytes > 0)
+        {
+            await _usageTrackingService.TrackFileDeleteAsync(userId, resource.SizeInBytes);
+        }
         return true;
     }
 }

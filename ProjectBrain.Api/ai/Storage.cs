@@ -163,15 +163,16 @@ public class Storage
 
     public string determineLocation(string name, StorageOptions options)
     {
-        if (options.FileOwnership == FileOwnership.Shared)
-            return SHARED_FOLDER;
-
         if (options.FileOwnership == FileOwnership.User && string.IsNullOrEmpty(options.UserId))
             throw new Exception("User ID is required for user files");
 
+        var root = options.FileOwnership == FileOwnership.Shared
+            ? SHARED_FOLDER
+            : cleanseUserId(options.UserId!);
+
         List<string> locationParts =
         [
-            cleanseUserId(options.UserId!),
+            root,
             options.StorageType switch
             {
                 StorageType.Resources => RESOURCES_FOLDER,

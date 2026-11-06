@@ -56,6 +56,7 @@ public static class UserEndpoints
         group.MapPost("/me/onboarding", OnboardUser).WithName("OnboardUser");
         group.MapPost("/me/onboarding/coach", OnboardCoach).WithName("OnboardCoach");
         group.MapGet("/me", GetCurrentUser).WithName("GetCurrentUser");
+        group.MapDelete("/me", DeleteCurrentUser).WithName("DeleteCurrentUser");
         group.MapPut("/me/{userId}", UpdateUser).WithName("UpdateUser");
         group.MapGet("/roles", GetCurrentUserRoles).WithName("GetCurrentUserRoles");
 
@@ -596,6 +597,32 @@ public static class UserEndpoints
         // Return the updated user
         var result = await services.UserService.GetById(userId);
         return Results.Ok(result);
+    }
+
+    /// <summary>
+    /// Lets users delete their own account (required by App Store guideline 5.1.1(v)).
+    /// Deleting the Auth0 user fires the user.deleted webhook, which erases the user's
+    /// data and cancels any subscription (see UserErasureService).
+    /// </summary>
+    private static async Task<IResult> DeleteCurrentUser([AsParameters] UserServices services)
+    {
+        var userId = services.IdentityService.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var deleted = await services.UserManagementService.DeleteUserById(userId);
+        if (!deleted)
+        {
+            services.Logger.LogError("Self-service account deletion failed for {UserId}", userId);
+            return Results.Problem(
+                detail: "Your account could not be deleted. Please try again.",
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        services.Logger.LogInformation("User {UserId} deleted their account", userId);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> GetCurrentUserRoles([AsParameters] UserServices services)

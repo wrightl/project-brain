@@ -242,4 +242,47 @@ public class UserEndpointsTests
         request.FullName.Should().Be("Test User");
         request.DoB.Should().Be(new DateOnly(1990, 1, 1));
     }
+
+    private Task<IResult> InvokeDeleteCurrentUser()
+    {
+        var method = typeof(UserEndpoints)
+            .GetMethod("DeleteCurrentUser", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        return (Task<IResult>)method!.Invoke(null, new object[] { _userServices })!;
+    }
+
+    [Fact]
+    public async Task DeleteCurrentUser_DeletesTheCallerFromAuth0()
+    {
+        _mockIdentityService.Setup(s => s.UserId).Returns("auth0|me");
+        _mockUserManagement.Setup(s => s.DeleteUserById("auth0|me")).ReturnsAsync(true);
+
+        var result = await InvokeDeleteCurrentUser();
+
+        result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.NoContent>();
+        _mockUserManagement.Verify(s => s.DeleteUserById("auth0|me"), Times.Once);
+        _mockUserManagement.Verify(s => s.DeleteUserById(It.Is<string>(id => id != "auth0|me")), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteCurrentUser_Returns502_WhenAuth0DeleteFails()
+    {
+        _mockIdentityService.Setup(s => s.UserId).Returns("auth0|me");
+        _mockUserManagement.Setup(s => s.DeleteUserById("auth0|me")).ReturnsAsync(false);
+
+        var result = await InvokeDeleteCurrentUser();
+
+        result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.ProblemHttpResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status502BadGateway);
+    }
+
+    [Fact]
+    public async Task DeleteCurrentUser_ReturnsUnauthorized_WithoutAUser()
+    {
+        _mockIdentityService.Setup(s => s.UserId).Returns((string?)null);
+
+        var result = await InvokeDeleteCurrentUser();
+
+        result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.UnauthorizedHttpResult>();
+        _mockUserManagement.Verify(s => s.DeleteUserById(It.IsAny<string>()), Times.Never);
+    }
 }
